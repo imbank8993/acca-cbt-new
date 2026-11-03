@@ -1,4 +1,4 @@
-import { buildTopicAnalysis, hasStoredAnswer } from '@acca-cbt/shared';
+import { buildTopicAnalysis, hasStoredAnswer, normalizeTrueFalseLabels } from '@acca-cbt/shared';
 import { withQuestionTopics } from '../common/exam-question-topics';
 import { assertAnswerKeysReleased } from '../common/answer-key-release';
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
@@ -232,6 +232,7 @@ export class ExamReviewService {
                 metadata: {
                     image_url: question.metadata?.image_url,
                     explanation: question.metadata?.explanation,
+                    true_false_labels: qType === 'true_false' ? normalizeTrueFalseLabels(question.metadata?.true_false_labels) : null,
                     difficulty: question.difficulty,
                     topic: question.topic,
                 },

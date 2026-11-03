@@ -505,7 +505,7 @@ export default function BulkImportModal({
                                         </div>
                                         <div className="grid grid-cols-2 gap-2">
                                             <button
-                                                onClick={() => window.open('/template_soal_pengetahuan.docx?v=20261030', '_blank')}
+                                                onClick={() => window.open('/template_soal_pengetahuan.docx?v=20261103', '_blank')}
                                                 className="flex items-center gap-2 px-3 py-2.5 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors text-left"
                                             >
                                                 <FileText className="w-4 h-4 text-blue-500 shrink-0" />
@@ -523,6 +523,10 @@ export default function BulkImportModal({
                                                 </div>
                                             </button>
                                         </div>
+                                        <p className="text-[11px] leading-relaxed text-slate-500">
+                                            Soal Benar-Salah dengan label lain (mis. <b>True | False</b> atau <b dir="rtl">صحيح | خطأ</b>): tambahkan baris
+                                            bertipe <b>LABEL</b> di bawah baris BS. Kunci boleh B/S atau label lengkapnya. Lihat contoh soal 9–10 di template.
+                                        </p>
                                     </div>
 
                                 </div>

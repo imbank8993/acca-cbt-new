@@ -1,7 +1,15 @@
 "use client";
 /**
- * TrueFalseForm — Benar / Salah statements
+ * TrueFalseForm — pernyataan Benar / Salah dengan label jawaban yang bisa dipilih guru
  */
+import {
+DEFAULT_TRUE_FALSE_LABELS,
+isRtlLabel,
+TRUE_FALSE_LABEL_MAX_LENGTH,
+TRUE_FALSE_LABEL_PRESETS,
+trueFalseLabelPreset,
+type TrueFalseLabels,
+} from '@acca-cbt/shared';
 import { Plus,Trash2 } from 'lucide-react';
 import React,{ useState } from 'react';
 import { BaseOption } from '../schema';
@@ -15,7 +23,78 @@ interface TrueFalseFormProps {
   onRemoveOption: (index: number) => void;
   onUpdateOption: (index: number, fields: Partial<BaseOption>) => void;
   maxStatements?: number;
+  /** Label tersimpan (mentah, bisa belum lengkap saat diketik). null = Benar/Salah. */
+  labels?: Partial<TrueFalseLabels> | null;
+  onLabelsChange?: (labels: TrueFalseLabels | null) => void;
 }
+
+/** Singkatan tombol kunci: huruf pertama tiap label, atau label penuh bila hurufnya sama. */
+function keyButtonText(labels: TrueFalseLabels): TrueFalseLabels {
+  const first = (text: string) => Array.from(text.trim())[0]?.toLocaleUpperCase() || '';
+  const t = first(labels.true);
+  const f = first(labels.false);
+  return t && f && t !== f ? { true: t, false: f } : labels;
+}
+
+const TrueFalseLabelPicker = ({ labels, onChange }: {
+  labels: Partial<TrueFalseLabels> | null | undefined;
+  onChange: (labels: TrueFalseLabels | null) => void;
+}) => {
+  const current = { true: labels?.true ?? DEFAULT_TRUE_FALSE_LABELS.true, false: labels?.false ?? DEFAULT_TRUE_FALSE_LABELS.false };
+  const preset = labels ? trueFalseLabelPreset(current) : 'id';
+  const inputClass = 'w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-slate-800 focus:outline-none';
+  return (
+    <div className="mb-3 rounded-lg border border-slate-100 bg-slate-50/70 p-3" data-true-false-labels>
+      <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Label jawaban</div>
+      <div className="flex flex-wrap gap-1.5">
+        {TRUE_FALSE_LABEL_PRESETS.map(item => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onChange(item.id === 'id' ? null : { ...item.labels })}
+            className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors ${preset === item.id ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400'}`}
+            title={item.name}
+          >
+            <span dir={isRtlLabel(item.labels.true) ? 'rtl' : undefined}>{item.labels.true} / {item.labels.false}</span>
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => { if (preset !== 'custom') onChange({ true: '', false: '' }); }}
+          className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors ${preset === 'custom' ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400'}`}
+        >
+          Input
+        </button>
+      </div>
+      {preset === 'custom' && (
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <label className="text-[11px] text-slate-500">
+            Label untuk pernyataan benar
+            <input
+              className={inputClass}
+              value={labels?.true ?? ''}
+              maxLength={TRUE_FALSE_LABEL_MAX_LENGTH}
+              dir="auto"
+              placeholder="mis. Betul"
+              onChange={event => onChange({ true: event.target.value, false: labels?.false ?? '' })}
+            />
+          </label>
+          <label className="text-[11px] text-slate-500">
+            Label untuk pernyataan salah
+            <input
+              className={inputClass}
+              value={labels?.false ?? ''}
+              maxLength={TRUE_FALSE_LABEL_MAX_LENGTH}
+              dir="auto"
+              placeholder="mis. Keliru"
+              onChange={event => onChange({ true: labels?.true ?? '', false: event.target.value })}
+            />
+          </label>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const TrueFalseForm = React.memo(({
   options,
@@ -25,8 +104,17 @@ export const TrueFalseForm = React.memo(({
   onRemoveOption,
   onUpdateOption,
   maxStatements,
+  labels,
+  onLabelsChange,
 }: TrueFalseFormProps) => {
+  const shownLabels = {
+    true: labels?.true?.trim() || DEFAULT_TRUE_FALSE_LABELS.true,
+    false: labels?.false?.trim() || DEFAULT_TRUE_FALSE_LABELS.false,
+  };
+  const keyText = keyButtonText(shownLabels);
   return (
+    <>
+    {onLabelsChange && <TrueFalseLabelPicker labels={labels} onChange={onLabelsChange} />}
     <OptionList
       onAdd={options.length < (maxStatements ?? Infinity) ? onAddOption : undefined}
       onBulkAdd={onBulkAdd}
@@ -58,10 +146,13 @@ export const TrueFalseForm = React.memo(({
             onChange={(text) => onUpdateOption(idx, { text })}
             onSetCorrect={(v) => onUpdateOption(idx, { isCorrect: v })}
             onDelete={options.length > 2 ? () => onRemoveOption(idx) : undefined}
+            labels={shownLabels}
+            keyText={keyText}
           />
         </React.Fragment>
       ))}
     </OptionList>
+    </>
   );
 });
 
@@ -75,9 +166,11 @@ interface TrueFalseRowProps {
   onChange: (text: string) => void;
   onSetCorrect: (value: boolean) => void;
   onDelete?: () => void;
+  labels: TrueFalseLabels;
+  keyText: TrueFalseLabels;
 }
 
-const TrueFalseRow = React.memo(({ index, value, isCorrect, onChange, onSetCorrect, onDelete }: TrueFalseRowProps) => {
+const TrueFalseRow = React.memo(({ index, value, isCorrect, onChange, onSetCorrect, onDelete, labels, keyText }: TrueFalseRowProps) => {
   const [isFocused, setIsFocused] = useState(false);
   const isBenar = isCorrect === true;
   const isSalah = isCorrect === false;
@@ -120,21 +213,22 @@ const TrueFalseRow = React.memo(({ index, value, isCorrect, onChange, onSetCorre
         </div>
 
         {/* BENAR */}
-        <button type="button" onClick={() => onSetCorrect(true)}
-          className={`shrink-0 mr-1 flex items-center justify-center w-7 h-7 rounded text-[10px] font-black uppercase transition-all duration-200 ${isBenar ? 'bg-[#3083FF] text-white' : 'border border-slate-200 text-transparent group-hover:border-blue-400 group-hover:text-blue-500 bg-white'}`}>
-          B
+        <button type="button" onClick={() => onSetCorrect(true)} title={`Kunci: ${labels.true}`}
+          className={`shrink-0 mr-1 flex items-center justify-center min-w-7 px-1 h-7 rounded text-[10px] font-black uppercase transition-all duration-200 ${isBenar ? 'bg-[#3083FF] text-white' : 'border border-slate-200 text-slate-300 bg-white hover:border-blue-400 hover:text-blue-500 group-hover:text-blue-400'}`}>
+          <span dir={isRtlLabel(keyText.true) ? 'rtl' : undefined}>{keyText.true}</span>
         </button>
 
         {/* SALAH */}
-        <button type="button" onClick={() => onSetCorrect(false)}
-          className={`shrink-0 mr-1 flex items-center justify-center w-7 h-7 rounded text-[10px] font-black uppercase transition-all duration-200 ${isSalah ? 'bg-rose-500 text-white' : 'border border-slate-200 text-transparent group-hover:border-rose-400 group-hover:text-rose-500 bg-white'}`}>
-          S
+        <button type="button" onClick={() => onSetCorrect(false)} title={`Kunci: ${labels.false}`}
+          className={`shrink-0 mr-1 flex items-center justify-center min-w-7 px-1 h-7 rounded text-[10px] font-black uppercase transition-all duration-200 ${isSalah ? 'bg-rose-500 text-white' : 'border border-slate-200 text-slate-300 bg-white hover:border-rose-400 hover:text-rose-500 group-hover:text-rose-400'}`}>
+          <span dir={isRtlLabel(keyText.false) ? 'rtl' : undefined}>{keyText.false}</span>
         </button>
 
         {/* Delete */}
         {onDelete && (
           <button type="button" onClick={onDelete}
-            className="shrink-0 mr-2 flex items-center justify-center w-6 h-6 rounded text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-all duration-200 opacity-0 group-hover:opacity-100">
+            title="Hapus pernyataan" aria-label="Hapus pernyataan"
+            className="shrink-0 mr-1.5 flex items-center justify-center w-6 h-6 rounded text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-colors duration-200">
             <Trash2 size={12} />
           </button>
         )}

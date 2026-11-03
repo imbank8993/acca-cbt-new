@@ -1,6 +1,7 @@
 "use client";
 import './question-editor-dark.css';
 import { hasQuestionContent } from '@/lib/question-content';
+import { normalizeTrueFalseLabels,type TrueFalseLabels } from '@acca-cbt/shared';
 import { QuestionGroupPicker } from './QuestionGroupPicker';
 import type { QuestionGroupOption } from '@/lib/question-groups';
 import { getInstructionsByBank,getStimuliByBank,QuestionType,saveQuestionAction } from '@/lib/api/questions';
@@ -278,6 +279,12 @@ export default function QuestionEditorModal({
             if (options.some(o => o.isCorrect === undefined || o.isCorrect === null)) {
                 errors.push('Tentukan jawaban benar untuk setiap pernyataan');
             }
+            const rawLabels = metadata?.true_false_labels as Partial<TrueFalseLabels> | null | undefined;
+            if (rawLabels && !normalizeTrueFalseLabels(rawLabels)) {
+                const same = (rawLabels.true || '').trim().toLocaleLowerCase() === (rawLabels.false || '').trim().toLocaleLowerCase();
+                const empty = !(rawLabels.true || '').trim() || !(rawLabels.false || '').trim();
+                if (empty || same) errors.push(empty ? 'Isi kedua label jawaban Benar-Salah' : 'Label jawaban benar dan salah harus berbeda');
+            }
         }
 
         if (selectedType === 'matching') {
@@ -358,7 +365,9 @@ export default function QuestionEditorModal({
                     ? (metadata.blanks || []).slice(0, Math.max(1, (questionText.match(/\.{4,}/g) || []).length)) 
                     : metadata.blanks,
                 kisi_kisi: kisiKisi,
-                pembahasan: pembahasan
+                pembahasan: pembahasan,
+                // Label tampilan Benar-Salah; null berarti Benar/Salah bawaan.
+                true_false_labels: selectedType === 'true_false' ? normalizeTrueFalseLabels(metadata?.true_false_labels) : null,
             },
             // Esai multi-topik menyimpan daftar topiknya sebagai options. Dulu
             // seluruh tipe 'essay' selalu mengirim [] sehingga topik yang sudah
@@ -466,10 +475,24 @@ export default function QuestionEditorModal({
     };
 
     const removeRightItem = (idx: number) => {
-        setMetadata({
-            ...metadata,
-            right_items: (metadata.right_items || []).filter((_, i) => i !== idx)
-        });
+        const items = metadata.right_items || [];
+        const removed = items[idx];
+        const next = items.filter((_, i) => i !== idx);
+        setMetadata({ ...metadata, right_items: next });
+        // Pasangan yang menunjuk item kanan yang dihapus ikut dilepas.
+        if (removed && !next.includes(removed) && options.some(o => o.match_texts?.includes(removed))) {
+            setOptions(options.map(o => o.match_texts?.includes(removed)
+                ? { ...o, match_texts: o.match_texts.filter(text => text !== removed) }
+                : o));
+        }
+    };
+
+    // Kategori yang dihapus/diganti nama ikut dilepas dari setiap item.
+    const applyCategories = (next: string[]) => {
+        setCategories(next);
+        if (options.some(o => (o.category_names || []).some(name => !next.includes(name)))) {
+            setOptions(options.map(o => ({ ...o, category_names: (o.category_names || []).filter(name => next.includes(name)) })));
+        }
     };
 
     const updateRightItem = (idx: number, value: string) => {
@@ -930,6 +953,8 @@ export default function QuestionEditorModal({
                                         onInsertOption={() => {}}
                                         onRemoveOption={removeOption}
                                         onUpdateOption={updateOption}
+                                        labels={metadata?.true_false_labels as Partial<TrueFalseLabels> | null | undefined}
+                                        onLabelsChange={(labels) => setMetadata({ ...metadata, true_false_labels: labels })}
                                     />
                                 )}
 
@@ -974,7 +999,7 @@ export default function QuestionEditorModal({
                                         onInsertItem={() => {}}
                                         onRemoveItem={removeOption}
                                         onUpdateItem={(idx, text) => updateOption(idx, { text })}
-                                        onSetCategories={setCategories}
+                                        onSetCategories={applyCategories}
                                         onSetItemCategory={(optIndex, cats) => updateOption(optIndex, { category_names: cats })}
                                     />
                                 )}

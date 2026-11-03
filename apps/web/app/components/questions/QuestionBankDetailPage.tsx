@@ -1,4 +1,5 @@
 "use client";
+import { trueFalseLabels } from '@acca-cbt/shared';
 import './question-dark-surfaces.css';
 import './question-bank-layout.css';
 import { registerPageFab, unregisterPageFab } from '@/app/components/mobile/page-fab';
@@ -284,13 +285,14 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
             setOptions(loadedOptions);
             const list = filteredQuestionsRef.current || [];
             const idx = list.findIndex(item => item?.id === q.id);
-            if (idx >= 0) {
-                const p = new URLSearchParams(window.location.search);
-                p.set("index", idx.toString());
-                p.delete("preview");
-                p.delete("edit");
-                window.history.replaceState({}, "", `${window.location.pathname}?${p.toString()}`);
-            }
+            // `edit` menyimpan id soal: posisi (`index`) saja bergantung pada filter
+            // jenis soal & pencarian yang sedang aktif, sehingga bisa menunjuk soal lain.
+            const p = new URLSearchParams(window.location.search);
+            if (idx >= 0) p.set("index", idx.toString());
+            else p.delete("index");
+            p.set("edit", q.id);
+            p.delete("preview");
+            window.history.replaceState({}, "", `${window.location.pathname}?${p.toString()}`);
         } else {
             setEditingQuestion(null);
             setQuestionText('');
@@ -335,7 +337,13 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
         if (isLoading || questions.length === 0) return;
         const previewParam = searchParams.get('preview');
         const indexParam = searchParams.get('index');
-        const filtered = (questions || []).filter(q => (q.question_text || '').toLowerCase().includes(searchQuery.toLowerCase()));
+        const editParam = searchParams.get('edit');
+        // Harus sama persis dengan `filteredQuestions` (pencarian + jenis soal);
+        // dulu filter jenis soal terlewat sehingga posisi 0 di tab Benar/Salah
+        // membuka soal nomor 1 dari daftar lengkap.
+        const filtered = (questions || []).filter(q =>
+            (q.question_text || '').toLowerCase().includes(searchQuery.toLowerCase()) &&
+            (filterType === 'all' || q.type === filterType));
 
         const syncFromUrl = () => {
         if (previewParam) {
@@ -355,6 +363,12 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                     if (qIdx >= 0) setCurrentPreviewIndex(qIdx);
                 }
             }
+        } else if (editParam) {
+            setIsViewModalOpen(false);
+            const targetQuestion = questions.find(q => q.id === editParam);
+            if (targetQuestion && (!isEditorOpenRef.current || editingQuestionRef.current?.id !== targetQuestion.id)) {
+                handleOpenEditor(targetQuestion);
+            }
         } else if (indexParam !== null) {
             setIsViewModalOpen(false);
             const parsedIdx = parseInt(indexParam, 10);
@@ -371,7 +385,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
         };
         const timer = window.setTimeout(syncFromUrl, 0);
         return () => window.clearTimeout(timer);
-    }, [searchQuery, searchParams, isLoading, questions, handleOpenEditor]);
+    }, [searchQuery, filterType, searchParams, isLoading, questions, handleOpenEditor]);
 
     const requestDelete = (qId: string) => {
         setDeleteConfirm({ isOpen: true, type: 'single', id: qId });
@@ -889,7 +903,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                             <div className="flex flex-col gap-1.5">
                                                 {(q.bank_question_options || []).filter((o) => (o.option_text || o.text || '').trim()).map((opt) => (
                                                     <div key={opt.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-md border text-xs ${opt.is_correct ? 'bg-blue-50 border-blue-200 text-blue-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
-                                                        <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold leading-none pt-[1px] ${opt.is_correct ? 'bg-primary text-white' : 'bg-red-500 text-white'}`}>{opt.is_correct ? 'B' : 'S'}</span>
+                                                        <span dir="auto" className={`min-w-6 h-6 px-1.5 rounded flex items-center justify-center text-xs font-bold leading-none pt-[1px] ${opt.is_correct ? 'bg-primary text-white' : 'bg-red-500 text-white'}`}>{opt.is_correct ? trueFalseLabels(q.metadata).true : trueFalseLabels(q.metadata).false}</span>
                                                         <span className="flex-1"><QuestionContent content={opt.option_text || opt.text || ''} /></span>
                                                     </div>
                                                 ))}

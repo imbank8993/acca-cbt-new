@@ -1706,6 +1706,20 @@ export default function TipTapEditorCore({
         .ProseMirror p:last-child {
           margin-bottom: 0;
         }
+        /* Editor opsi/pernyataan (compact) tetap satu baris walau CSS lain belum
+           termuat — tanpa ini aturan .ProseMirror di atas (min 200px) yang berlaku. */
+        .option-content-editor .ProseMirror {
+          min-height: 32px;
+          padding: 6px 8px;
+          font-size: 13px;
+          line-height: 20px;
+        }
+        .option-content-editor .ProseMirror p {
+          margin: 0 0 4px 0;
+        }
+        .option-content-editor .ProseMirror p:last-child {
+          margin-bottom: 0;
+        }
         .ProseMirror .katex {
           letter-spacing: normal;
           word-spacing: normal;

@@ -3,6 +3,7 @@
  * Membaca word/document.xml langsung dari dalam DOCX, bypass mammoth.
  * Dijalankan di server-side (Next.js "use server" / Server Actions).
  */
+import { DEFAULT_TRUE_FALSE_LABELS,normalizeTrueFalseLabels,parseTrueFalseKey,parseTrueFalseLabelLine,trueFalseLabels } from '@acca-cbt/shared';
 import { QuestionType } from '@/lib/api/questions';
 import { DOMParser as XMLDOMParser,XMLSerializer as XMLXMLSerializer } from '@xmldom/xmldom';
 import * as JSZip from 'jszip';
@@ -793,15 +794,25 @@ function parseQuestionTable(
                 const isCorrect = kunciArr.includes(tipeRaw.toUpperCase());
                 currentOpts.push({ text: stripOptionHtml(soalRaw), isCorrect, order: currentOpts.length, weight: isCorrect ? 1 : 0 });
             }
+            // ── Label jawaban BS: Tipe = LABEL, Soal = "True | False" ──────────────
+            else if (current.type === 'true_false' && /^(LABEL|LBL)$/i.test(tipeRaw)) {
+                const line = parseTrueFalseLabelLine(soalRaw);
+                const labels = line ? normalizeTrueFalseLabels(line) : null;
+                const isDefault = !!line && line.true === DEFAULT_TRUE_FALSE_LABELS.true && line.false === DEFAULT_TRUE_FALSE_LABELS.false;
+                if (!labels && !isDefault) {
+                    throw new Error(`Label Benar/Salah soal ${current.metadata.import_source_number ?? ''} tidak valid. Tulis dua label berbeda, mis. "True | False".`);
+                }
+                if (labels) current.metadata.true_false_labels = labels;
+            }
             // ── Sub-item BS: Tipe = P1/P2/P3... ───────────────────────────────────
             else if (current.type === 'true_false' && /^(P)?\d+$/i.test(tipeRaw) && !isBlank(soalRaw)) {
                 const pNum = parseInt(tipeRaw.replace(/^P/i, ''));
                 // Kunci dari baris utama, contoh: "B|S|B" → ["B","S","B"]
-                const kunciArr = effectiveKunci.split('|').map(s => s.trim().toUpperCase());
+                const kunciArr = effectiveKunci.split('|').map(s => s.trim());
                 const key = kunciArr.length === 1 ? kunciArr[0] : kunciArr[pNum - 1];
-                if (!['B', 'S'].includes(key)) throw new Error(`Kunci Benar/Salah P${pNum} tidak valid.`);
-                const isBenar = key === 'B';
-                currentOpts.push({ text: stripOptionHtml(soalRaw), isCorrect: isBenar, order: currentOpts.length, weight: isBenar ? 1 : 0 });
+                // Kunci boleh B/S atau label lengkap (mis. True/False); dibaca setelah
+                // baris LABEL soal ini diketahui, di akhir parsing.
+                currentOpts.push({ text: stripOptionHtml(soalRaw), isCorrect: false, order: currentOpts.length, weight: 0, metadata: { _tf_key: key ?? '', _tf_number: pNum } });
             }
             // ── Sub-item MJ: Tipe = MJ1/MJ2/... ──────────────────────────────────
             else if (current.type === 'matching' && /^(MJ)?\d+$/i.test(tipeRaw) && !isBlank(soalRaw)) {
@@ -878,6 +889,24 @@ function parseQuestionTable(
     if (current) {
         current.options = currentOpts;
         questions.push(current);
+    }
+
+    // Kunci Benar/Salah dibaca setelah label soalnya diketahui.
+    for (const q of questions) {
+        if (q.type !== 'true_false') continue;
+        const labels = trueFalseLabels(q.metadata);
+        for (const option of q.options) {
+            if (!option.metadata || !('_tf_key' in option.metadata)) continue;
+            const { _tf_key: rawKey, _tf_number: pNum, ...rest } = option.metadata;
+            const value = parseTrueFalseKey(rawKey, labels);
+            if (value === null) {
+                throw new Error(`Kunci Benar/Salah P${pNum} soal ${q.metadata.import_source_number ?? ''} tidak valid. Isi B/S atau ${labels.true}/${labels.false}.`);
+            }
+            option.isCorrect = value;
+            option.weight = value ? 1 : 0;
+            if (Object.keys(rest).length) option.metadata = rest;
+            else delete option.metadata;
+        }
     }
 
     // Auto-detect true_false dari teks opsi

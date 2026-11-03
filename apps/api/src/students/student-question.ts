@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { normalizeTrueFalseLabels } from '@acca-cbt/shared';
 
 type Row = Record<string, any>;
 
@@ -28,7 +29,11 @@ export function studentQuestion(question: Row, seed: string) {
     for (const key of ['allow_file_upload', 'allow_video_link', 'is_multi_topic'] as const) {
         if (typeof source[key] === 'boolean') metadata[key] = source[key];
     }
-    if (question.type === 'matching') {
+    if (question.type === 'true_false') {
+        const labels = normalizeTrueFalseLabels(source.true_false_labels);
+        if (labels) metadata.true_false_labels = labels;
+    }
+        if (question.type === 'matching') {
         metadata.right_items = candidates(source.right_items, options.flatMap(option => {
             const meta = option.metadata || {};
             return strings(meta.match_texts).length ? strings(meta.match_texts) : strings([meta.match_text]);

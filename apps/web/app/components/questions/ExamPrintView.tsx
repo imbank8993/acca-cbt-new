@@ -1,5 +1,6 @@
 "use client";
 
+import { trueFalseLabels } from '@acca-cbt/shared';
 import Image from 'next/image';
 import type { RefObject } from 'react';
 import type { QuestionBank, QuestionRecord } from '@/lib/api/questions';
@@ -199,7 +200,10 @@ function AnswerArea({ item }: { item: PrintItem<QuestionRecord> }) {
         case 'paired_comparison':
             return <OptionGrid item={item} marker="checkbox" />;
         case 'true_false':
-            return <ChoiceTable item={item} columns={['Benar', 'Salah']} />;
+            {
+                const labels = trueFalseLabels(q.metadata);
+                return <ChoiceTable item={item} columns={[labels.true, labels.false]} />;
+            }
         case 'checklist':
             return <ChoiceTable item={item} columns={['Ya', 'Tidak']} round />;
         case 'likert':

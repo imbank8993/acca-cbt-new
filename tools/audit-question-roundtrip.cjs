@@ -68,6 +68,21 @@ async function parseSheet(headers,rows) {
     const headers={cells:['NO','TIPE','SOAL','KUNCI','SKOR']};
     const tf=parseRows([headers,{cells:['1','BS','Question','B|B','1']},{cells:['','P1','one','B','']},{cells:['','P2','two','B','']}]);
     check('Each B/S subrow uses its own key',()=>assert.deepEqual(tf[0].options.map(o=>o.isCorrect),[true,true]));
+    const labelled=parseRows([headers,{cells:['1','BS','Pick one','','1']},{cells:['','P1','one','True','']},{cells:['','LABEL','True | False','','']},{cells:['','P2','two','F','']},{cells:['','P3','three','S','']}]);
+    check('B/S LABEL row sets labels; keys may be label words, T/F or B/S',()=>{
+        assert.deepEqual(labelled[0].metadata.true_false_labels,{true:'True',false:'False'});
+        assert.deepEqual(labelled[0].options.map(o=>o.isCorrect),[true,false,false]);
+        assert.ok(labelled[0].options.every(o=>o.metadata===undefined));
+    });
+    const custom=parseRows([headers,{cells:['1','BS','Fakta atau opini?','Fakta|Opini','1']},{cells:['','LABEL','Fakta | Opini','','']},{cells:['','P1','one','','']},{cells:['','P2','two','','']}]);
+    check('Custom B/S labels work as keys on the main row',()=>{
+        assert.deepEqual(custom[0].metadata.true_false_labels,{true:'Fakta',false:'Opini'});
+        assert.deepEqual(custom[0].options.map(o=>o.isCorrect),[true,false]);
+    });
+    check('Invalid B/S label row or key is rejected',()=>{
+        assert.throws(()=>parseRows([headers,{cells:['1','BS','Q','','1']},{cells:['','LABEL','Ya | ya','','']},{cells:['','P1','one','B','']}]),/Label Benar\/Salah/);
+        assert.throws(()=>parseRows([headers,{cells:['1','BS','Q','','1']},{cells:['','P1','one','Mungkin','']}]),/Kunci Benar\/Salah P1/);
+    });
     const mapped=doc.parseAllTables([
         [{cells:['Nomor Soal','Judul','Stimulus']},{cells:['2.','Bacaan Dua','Stimulus Dua']},{cells:['01','Bacaan Satu','Stimulus Satu']}],
         [{cells:['NO','TIPE','SOAL','KUNCI','SKOR']},{cells:['2.','PG','Soal Dua','A','1']},{cells:['','A','Jawaban Dua','','']},{cells:['','B','Pengecoh Dua','','']},{cells:['01','PG','Soal Satu','A','1']},{cells:['','A','Jawaban Satu','','']},{cells:['','B','Pengecoh Satu','','']}],
@@ -113,6 +128,17 @@ async function parseSheet(headers,rows) {
             if(q.type==='categorization') assert.deepEqual(reparsed[0].options[0].metadata.category_names,['cat','other']);
             if(q.type==='ordering') assert.deepEqual(reparsed[0].metadata.correct_order,['2','1']);
         });
+        if(q.type==='true_false'){
+            const tfq={...q,metadata:{...q.metadata,true_false_labels:{true:'صحيح',false:'خطأ'}},bank_question_options:q.bank_question_options.map((o,i)=>({...o,is_correct:i===0}))};
+            const tfBlob=await exp.buildAkademikDoc([tfq],{title:'Audit'});
+            const tfRows=parseRows(readRows((await mammoth.convertToHtml({buffer:Buffer.from(await tfBlob.arrayBuffer())})).value)[0]);
+            check('Visible Word rows keep B/S labels and keys after editing',()=>{
+                assert.deepEqual(tfRows[0].metadata.true_false_labels,{true:'صحيح',false:'خطأ'});
+                assert.deepEqual(tfRows[0].options.map(o=>o.isCorrect),[true,false]);
+            });
+            check('DOCX archive roundtrip keeps B/S labels',async()=>{});
+            assert.deepEqual((await doc.parseDocxToQuestions(tfBlob))[0].metadata.true_false_labels,{true:'صحيح',false:'خطأ'});
+        }
         if(q.type==='mcq'){
             const zip=await JSZip.loadAsync(await blob.arrayBuffer());
             zip.file('word/document.xml',(await zip.file('word/document.xml').async('string')).replace('Question mcq','Edited question'));
@@ -141,6 +167,11 @@ async function parseSheet(headers,rows) {
             assert.deepEqual(q[4].options.map(o=>o.metadata.category_names),[['Mamalia','Vertebrata'],['Burung','Vertebrata'],['Ikan','Vertebrata']]);
             assert.deepEqual(q[5].metadata.blanks.map(b=>b.answer),['Jakarta','Tokyo']);
             assert.deepEqual(q[7].metadata.correct_order,['2','1','4','3']);
+            assert.equal(q[2].metadata.true_false_labels,undefined);
+            assert.deepEqual(q[8].metadata.true_false_labels,{true:'True',false:'False'});
+            assert.deepEqual(q[8].options.map(o=>o.isCorrect),[true,false]);
+            assert.deepEqual(q[9].metadata.true_false_labels,{true:'صحيح',false:'خطأ'});
+            assert.deepEqual(q[9].options.map(o=>o.isCorrect),[true,false]);
         });
         else check('Bundled personality weights and dimensions match template',()=>{
             assert.deepEqual(parsed.questions[0].options.map(o=>o.weight),[0,3,2,1]);

@@ -5,7 +5,7 @@ import './categorization-form.css';
  * Clean table-style editor for assigning items to categories.
  */
 import { AnimatePresence,motion } from 'framer-motion';
-import { Plus,Trash2 } from 'lucide-react';
+import { Plus,Trash2,X } from 'lucide-react';
 import React,{ useState } from 'react';
 import { BaseOption } from '../schema';
 import { BulkAddModal } from './AnswerOptionCard';
@@ -150,9 +150,18 @@ export const CategorizationForm = React.memo(({
               return (
                 <span
                   key={cat}
-                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-black ${c.light} ${c.text} border ${c.border} shrink-0 shadow-sm`}
+                  className={`inline-flex items-center gap-1 pl-3 pr-1.5 py-1.5 rounded-lg text-[11px] font-black ${c.light} ${c.text} border ${c.border} shrink-0 shadow-sm`}
                 >
                   {cat}
+                  <button
+                    type="button"
+                    onClick={() => onSetCategories(categories.filter((name) => name !== cat))}
+                    className="ml-0.5 w-4 h-4 flex items-center justify-center rounded opacity-60 hover:opacity-100 hover:bg-white/70 transition-opacity"
+                    title={`Hapus kategori ${cat}`}
+                    aria-label={`Hapus kategori ${cat}`}
+                  >
+                    <X size={11} strokeWidth={3} />
+                  </button>
                 </span>
               );
             })}
@@ -268,7 +277,9 @@ export const CategorizationForm = React.memo(({
                           <button
                             type="button"
                             onClick={() => onRemoveItem(idx)}
-                            className="w-10 h-10 flex items-center justify-center rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all duration-200"
+                            className="w-10 h-10 flex items-center justify-center rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-colors duration-200"
+                            title={`Hapus item ${idx + 1}`}
+                            aria-label={`Hapus item ${idx + 1}`}
                           >
                             <Trash2 size={16} />
                           </button>

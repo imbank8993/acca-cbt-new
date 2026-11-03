@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { normalizeTrueFalseLabels } from '@acca-cbt/shared';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { randomUUID } from 'node:crypto';
@@ -198,6 +199,9 @@ export class ImportsService {
                 delete metadata._deleted_at;
                 delete metadata.order_index;
                 metadata.order_index = activeExisting.length + index;
+                const tfLabels = type === 'true_false' ? normalizeTrueFalseLabels(metadata.true_false_labels) : null;
+                if (tfLabels) metadata.true_false_labels = tfLabels;
+                else delete metadata.true_false_labels;
                 if (question.type === 'ordering') {
                     const supplied = metadata.correct_order || optionRows.map((_, i) => String(i + 1));
                     const indexes = supplied.map((key: unknown) => {

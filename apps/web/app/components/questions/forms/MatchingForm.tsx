@@ -90,7 +90,7 @@ export const MatchingForm = React.memo(({
           onTextChange={onUpdateRightItem}
           onDelete={onRemoveRightItem}
           onAdd={onAddRightItem}
-          canDelete={rightItems.length > 2}
+          canDelete={rightItems.length > 1}
         />
       </div>
 
@@ -279,10 +279,9 @@ const MatchingItemRow = React.memo(({ index, value, onChange, onDelete }: Matchi
         <button type="button" onClick={onDelete}
           className={`
             shrink-0 flex items-center justify-center w-6 h-6 rounded transition-all duration-200
-            ${isFocused ? 'opacity-100' : 'opacity-0 group-hover:opacity-60'}
-            text-slate-400 hover:text-error hover:bg-error/10
+            text-slate-300 hover:text-rose-500 hover:bg-rose-50
           `}
-          title="Hapus"
+          title="Hapus item" aria-label={`Hapus item ${index}`}
         >
           <Trash2 size={11} />
         </button>

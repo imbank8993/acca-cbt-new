@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import type { AuthUser } from '@acca-cbt/shared';
+import { normalizeTrueFalseLabels, type AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { GradingService } from '../grading/grading.service';
 import { insertIdempotentlyWithStatus } from '../common/idempotent-create';
@@ -18,6 +18,15 @@ import type { SaveQuestionDto } from './dto/questions.dto';
  * Klien lain (atau editor lama) tidak boleh menyimpan soal yang tidak mungkin
  * dinilai, misalnya pilihan ganda tanpa kunci benar.
  */
+/** Label Benar-Salah hanya disimpan untuk soal Benar-Salah dan dalam bentuk yang sudah dibersihkan. */
+function withTrueFalseLabels(type: string, metadata: Record<string, any> | undefined): Record<string, any> {
+    const next = { ...(metadata || {}) };
+    const labels = type === 'true_false' ? normalizeTrueFalseLabels(next.true_false_labels) : null;
+    if (labels) next.true_false_labels = labels;
+    else delete next.true_false_labels;
+    return next;
+}
+
 export function assertQuestionStructure(dto: Pick<SaveQuestionDto, 'type' | 'options' | 'metadata'>): void {
     const options = dto.options;
     if (options === undefined) return; // opsi lama dipertahankan
@@ -155,7 +164,7 @@ export class QuestionsService {
                 type: dto.type,
                 question_text: dto.questionText,
                 score_default: dto.scoreDefault,
-                metadata: dto.metadata || {},
+                metadata: withTrueFalseLabels(dto.type, dto.metadata),
                 stimulus_id: dto.stimulusId || null,
                 instruction_id: dto.instructionId || null,
                 dimension_id: dto.dimensionId || null,

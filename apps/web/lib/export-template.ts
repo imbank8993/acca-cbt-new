@@ -12,6 +12,7 @@ TextRun,
 VerticalAlign,
 WidthType
 } from 'docx';
+import { normalizeTrueFalseLabels } from '@acca-cbt/shared';
 import JSZip from 'jszip';
 import { bankFileTitle,documentHost,exportBaseName,fileDateStamp,isCorrectOption,printableOptions,questionScore,sortedOptions } from './exam-print-model';
 import { optionLabel } from './option-label';
@@ -275,6 +276,18 @@ function buildAkademikRows(question: ExportQuestion, idx: number, images: WordIm
             dataCell(kunci, 13, fill(row - 1), 'CENTER'),
             dataCell(score, 10, fill(row - 1), 'CENTER'),
         ]);
+        // Label jawaban selain Benar/Salah ditulis di baris LABEL agar ikut terimpor ulang.
+        const labels = normalizeTrueFalseLabels(question.metadata?.true_false_labels);
+        if (labels) {
+            out.push([
+                dataCell('', 5, fill(row), 'CENTER'),
+                dataCell('LABEL', 8, fill(row), 'CENTER'),
+                dataCell(`${labels.true} | ${labels.false}`, 64, fill(row)),
+                dataCell('', 13, fill(row)),
+                dataCell('', 10, fill(row)),
+            ]);
+            row++;
+        }
         opts.forEach((opt, oi) => {
             const key = trueFalseKey(opt);
             out.push([

@@ -1,4 +1,5 @@
 "use client";
+import { trueFalseLabels,trueFalseValueLabel } from '@acca-cbt/shared';
 import { ResultImagePreview } from '@/app/components/questions/ResultImagePreview';
 import { TopicAnalysisPanel } from '@/app/components/monitoring/TopicAnalysisPanel';
 import { getErrorMessage } from '@/lib/errors';
@@ -624,6 +625,7 @@ const QuestionContentRenderer = React.memo(({
             {(question.type === 'mcq' || question.type === 'true_false' || question.type === 'mcq_complex') && (
                 <div className="space-y-3">
                     {question.bank_question_options?.filter((opt) => (opt.option_text || opt.text || '').trim().length > 0).map((opt, idx) => {
+                        const tfLabels = trueFalseLabels(question.metadata);
                         const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
                         const label = letters[idx] || '?';
                         const isCorrect = opt.is_correct || opt.isCorrect;
@@ -701,17 +703,17 @@ const QuestionContentRenderer = React.memo(({
                                     <div className="shrink-0 flex flex-col items-end gap-1">
                                         {hasStudentMark && markIsRight && (
                                             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-[#3083FF] text-white flex items-center gap-1">
-                                                <Check size={10} strokeWidth={3} /> {question.type === 'true_false' ? `Jawab: ${tfChoice} (Benar)` : 'Jawaban Siswa (Benar)'}
+                                                <Check size={10} strokeWidth={3} /> {question.type === 'true_false' ? `Jawab: ${trueFalseValueLabel(tfChoice, tfLabels)} (Benar)` : 'Jawaban Siswa (Benar)'}
                                             </span>
                                         )}
                                         {hasStudentMark && !markIsRight && (
                                             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-1">
-                                                <X size={10} strokeWidth={3} /> {question.type === 'true_false' ? `Jawab: ${tfChoice} (Salah)` : 'Jawaban Siswa (Salah)'}
+                                                <X size={10} strokeWidth={3} /> {question.type === 'true_false' ? `Jawab: ${trueFalseValueLabel(tfChoice, tfLabels)} (Salah)` : 'Jawaban Siswa (Salah)'}
                                             </span>
                                         )}
                                         {!hasStudentMark && isKey && (question.type === 'true_false' ? (
                                             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                                                <Check size={10} strokeWidth={3} /> Kunci: {isCorrect ? 'benar' : 'salah'}
+                                                <Check size={10} strokeWidth={3} /> Kunci: {isCorrect ? tfLabels.true : tfLabels.false}
                                             </span>
                                         ) : <span className="sr-only">Kunci jawaban</span>)}
                                     </div>

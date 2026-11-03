@@ -16,7 +16,7 @@ require('tsconfig-paths').register({
 
 const { summarizeAnswerOutcomes } = require('../../web/lib/answer-stats.ts');
 const { formatSchoolDateTime, formatSchoolTimeRange } = require('../../web/lib/school-time.ts');
-const { formatStudentAnswer } = require('../../web/lib/answer-display.ts');
+const { formatAnswerKey, formatStudentAnswer } = require('../../web/lib/answer-display.ts');
 
 test('UX-05: esai yang sudah dinilai tidak dihitung sebagai jawaban objektif benar', () => {
     const summary = summarizeAnswerOutcomes([
@@ -47,8 +47,13 @@ test('UX-11: ekspor dapat mewakili pilihan kompleks dan jawaban terstruktur', ()
     );
     assert.deepEqual(
         formatStudentAnswer({ type: 'true_false', options }, null, '{"a":true,"b":false}'),
-        ['Satu → TRUE', 'Dua → FALSE'],
+        ['Satu → BENAR', 'Dua → SALAH'],
     );
+    // Label Benar-Salah pilihan guru dipakai untuk jawaban dan kunci.
+    const labelled = { type: 'true_false', options: [{ ...options[0], is_correct: true }, { ...options[1], is_correct: false }],
+        metadata: { true_false_labels: { true: 'True', false: 'False' } } };
+    assert.deepEqual(formatStudentAnswer(labelled, null, '{"a":"salah","b":"benar"}'), ['Satu → FALSE', 'Dua → TRUE']);
+    assert.deepEqual(formatAnswerKey(labelled), ['Satu → TRUE', 'Dua → FALSE']);
 });
 
 test('BUG-14/UX-10: hooks remain before early returns and removed notification pages have no navigation links', () => {

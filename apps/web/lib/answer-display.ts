@@ -10,6 +10,8 @@
  *   berisi teks atau JSON.
  */
 
+import { trueFalseLabels,trueFalseValueLabel } from '@acca-cbt/shared';
+
 export interface DisplayMetadata {
     match_text?: string;
     match_texts?: string[];
@@ -135,9 +137,10 @@ export function formatStudentAnswer(
 
     if (type === 'true_false' || type === 'checklist') {
         if (!isRecord(parsed)) return [String(parsed)];
+        const labels = type === 'true_false' ? trueFalseLabels(question?.metadata) : null;
         return options
             .filter(o => parsed[o.id] !== undefined && parsed[o.id] !== '')
-            .map(o => `${optionText(o)} → ${String(parsed[o.id]).toUpperCase()}`);
+            .map(o => `${optionText(o)} → ${(labels ? trueFalseValueLabel(parsed[o.id], labels) : String(parsed[o.id])).toUpperCase()}`);
     }
 
     if (type === 'matching' || type === 'categorization') {
@@ -209,7 +212,8 @@ export function formatAnswerKey(question: DisplayQuestion): string[] {
     }
 
     if (type === 'true_false') {
-        return options.map(o => `${optionText(o)} → ${o.is_correct ? 'BENAR' : 'SALAH'}`);
+        const labels = trueFalseLabels(question?.metadata);
+        return options.map(o => `${optionText(o)} → ${(o.is_correct ? labels.true : labels.false).toUpperCase()}`);
     }
 
     if (type === 'matching') {

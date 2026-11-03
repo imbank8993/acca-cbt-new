@@ -1,4 +1,5 @@
 "use client";
+import { trueFalseLabels } from '@acca-cbt/shared';
 import { confirmDialog } from '@/lib/confirm-dialog';
 import { ModeCornerRibbon } from '@/app/components/questions/ModeCornerRibbon';
 
@@ -153,11 +154,14 @@ function optionsHeading(type: string): string {
 }
 
 /** Kunci per opsi untuk tipe yang kuncinya tidak berupa "opsi benar". */
-function optionKeyLabel(type: string, option: QuestionOptionRecord): string | null {
+function optionKeyLabel(type: string, option: QuestionOptionRecord, questionMetadata?: unknown): string | null {
     const metadata = option.metadata || {};
     switch (type) {
         case 'true_false':
-            return (option.is_correct ?? option.isCorrect) ? 'Kunci: Benar' : 'Kunci: Salah';
+            {
+            const labels = trueFalseLabels(questionMetadata);
+            return `Kunci: ${(option.is_correct ?? option.isCorrect) ? labels.true : labels.false}`;
+        }
         case 'categorization': {
             const categories = option.category_names || metadata.category_names || (metadata.category_name ? [metadata.category_name] : []);
             return categories.length ? `Kategori: ${categories.join(', ')}` : 'Kategori belum diatur';
@@ -791,7 +795,7 @@ export default function ValidatorReviewPage() {
                                         {currentQuestion.bank_question_options.map((opt, oIdx) => {
                                             const letter = String.fromCharCode(65 + oIdx);
                                             const isCorrect = marksCorrectOption(currentQuestion.type) && Boolean(opt.is_correct ?? opt.isCorrect);
-                                            const keyLabel = optionKeyLabel(currentQuestion.type, opt);
+                                            const keyLabel = optionKeyLabel(currentQuestion.type, opt, currentQuestion.metadata);
 
                                             return (
                                                 <div
