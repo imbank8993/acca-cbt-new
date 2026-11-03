@@ -962,6 +962,17 @@
   color: transparent;
 }
 
+/* Judul dengan badge/elemen anak tidak boleh mewariskan fill transparan.
+   Clip gradien hanya aman untuk teks biasa; setiap badge mengikuti warnanya sendiri. */
+.dark .mdl-head__titleText--rich {
+  background: none;
+  -webkit-background-clip: initial;
+  background-clip: initial;
+  -webkit-text-fill-color: currentColor;
+  color: var(--foreground, #e8edf5) !important;
+}
+.dark .mdl-head__titleText--rich * { -webkit-text-fill-color: currentColor; }
+
 .dark .mdl-head__sub { color: #94a3b8; }
 
 .dark .mdl-head__icon {

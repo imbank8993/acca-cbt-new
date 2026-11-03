@@ -128,7 +128,7 @@ export function ModalHeader({
             )}
             <div className="mdl-head__text">
                 <h2 className="mdl-head__title" id={id}>
-                    <span className="mdl-head__titleText">{title}</span>
+                    <span className={`mdl-head__titleText${typeof title === 'string' || typeof title === 'number' ? '' : ' mdl-head__titleText--rich'}`}>{title}</span>
                 </h2>
                 {subtitle && <div className="mdl-head__sub">{subtitle}</div>}
             </div>

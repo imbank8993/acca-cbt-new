@@ -67,6 +67,10 @@
 .dark .ia-chip { background: #111a2b; border-color: #2b3a52; color: #cbd5e1; }
 .dark .ia-chip > b { background: #0b1220; color: #94a3b8; box-shadow: inset 0 0 0 1px #2b3a52; }
 .dark .ia-chip.is-right { background: #0f2a1b; border-color: #1f5134; color: #86efac; }
+.dark .ia-chip.is-right > b { color: #86efac; }
+.dark .ia-chip.is-wrong > b { color: #fca5a5; }
+.dark .ia-chip.is-key > b { color: #93c5fd; }
+.dark .ia-parts__score, .dark .ia-key__label { color: #b4c3d9; }
 .dark .ia-chip.is-wrong { background: #2d1416; border-color: #7f1d1d; color: #fca5a5; }
 .dark .ia-chip.is-empty { background: transparent; color: #64748b; }
 .dark .ia-chip.is-key { background: #13243f; border-color: #1e3a8a; color: #93c5fd; }
@@ -121,6 +125,8 @@
 .dark .rd-legend, .dark .rd-group__title, .dark .rd-students summary { color: #94a3b8; }
 .dark .rd-group { background: #0f172a; border-color: #1e293b; }
 .dark .rd-group__head { border-color: #1e293b; }
+.dark .rd-group__pct, .dark .rd-choice__d.is-good { color: #86efac; }
+.dark .rd-group__pct.is-low, .dark .rd-choice__d.is-bad { color: #fca5a5; }
 .dark .rd-group__label { background: #1e293b; color: #cbd5e1; }
 .dark .rd-group__text, .dark .rd-choice__text, .dark .rd-students p { color: #cbd5e1; }
 .dark .rd-choice + .rd-choice { border-color: #1e293b; }

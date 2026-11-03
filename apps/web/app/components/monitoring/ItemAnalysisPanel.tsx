@@ -206,16 +206,19 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
                                                 <div className="relative max-h-[3.5rem] overflow-hidden font-medium text-slate-700 [mask-image:linear-gradient(to_bottom,black_50%,transparent_100%)]">
                                                     <LatexRenderer text={anl.qText} className="!text-[12px] !leading-relaxed" />
                                                 </div>
-                                                {isCritical && <span className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">Mayoritas salah</span>}
-                                                <button
+                                                <Button
+                                                    type="button"
+                                                    variant="primary"
+                                                    size="sm"
+                                                    icon="preview"
                                                     onClick={() => {
                                                         setViewQuestion(anl);
                                                         setModalActiveTab('soal');
                                                     }}
-                                                    className="mt-2 block text-left text-[11px] font-semibold text-[#3083FF] transition-colors hover:text-[#2563EB]"
+                                                    className="mt-2"
                                                 >
                                                     Detail Jawaban
-                                                </button>
+                                                </Button>
                                             </div>
                                         </td>
                                         <td className="p-4 text-center">
