@@ -22,6 +22,7 @@ import {
 import type { BankFolder, OrganizationLabel, QuestionBank } from '@/lib/api/questions';
 import type { SchoolSubject } from '@/lib/api/proctor';
 import { uploadToHosting } from '@/lib/uploader';
+import { COVER_ACCEPT, compressCoverImage, validateCoverFile } from '@/lib/cover-image';
 import { getErrorMessage } from '@/lib/errors';
 import { QuestionBankCover } from '@/app/components/questions/QuestionBankCover';
 
@@ -162,22 +163,24 @@ export const CreateBankModal: React.FC<CreateBankModalProps> = ({
     // Step 1 — buka cropper saat file dipilih
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
+        e.target.value = '';
         if (!file) return;
+        // Batasi berkas asli sebelum dibuka di cropper: maks. 5 MB, JPG/PNG/WebP.
+        const invalid = validateCoverFile(file);
+        if (invalid) { setError(invalid); return; }
+        setError(null);
         const objectUrl = URL.createObjectURL(file);
         setCropSrc(objectUrl);
         setShowCropper(true);
-        e.target.value = '';
     };
 
-    // Step 2 — upload hasil crop (dataURL → Blob → File)
+    // Step 2 — kompres hasil crop ke WebP (sisi terpanjang 512 px), lalu unggah
     const handleCropComplete = async (croppedDataUrl: string) => {
         setShowCropper(false);
         setUploadingImage(true);
         setError(null);
         try {
-            const res = await fetch(croppedDataUrl);
-            const blob = await res.blob();
-            const file = new File([blob], 'cover.jpg', { type: 'image/jpeg' });
+            const file = await compressCoverImage(croppedDataUrl);
             const result = await uploadToHosting(file, 'banks', formData.imageUrl);
             if (result.success && result.url) {
                 setFormData((prev) => ({ ...prev, imageUrl: result.url || '', iconIdentifier: '' }));
@@ -452,7 +455,7 @@ export const CreateBankModal: React.FC<CreateBankModalProps> = ({
                     </ModalField>
 
                     {/* Cover Bank Soal (Preview & Upload) */}
-                    <ModalField label="Cover Bank Soal">
+                    <ModalField label="Cover Bank Soal" hint="JPG, PNG, atau WebP, maksimal 5 MB. Gambar otomatis diperkecil dan disimpan sebagai WebP.">
                         {formData.imageUrl ? (
                             <div className="flex items-center justify-between gap-3 p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
                                 <div className="flex items-center gap-2.5 min-w-0">
@@ -471,7 +474,7 @@ export const CreateBankModal: React.FC<CreateBankModalProps> = ({
                                         <input
                                             type="file"
                                             className="hidden"
-                                            accept="image/*"
+                                            accept={COVER_ACCEPT}
                                             onChange={handleImageUpload}
                                             disabled={uploadingImage}
                                         />
@@ -494,7 +497,7 @@ export const CreateBankModal: React.FC<CreateBankModalProps> = ({
                                 <input
                                     type="file"
                                     className="hidden"
-                                    accept="image/*"
+                                    accept={COVER_ACCEPT}
                                     onChange={handleImageUpload}
                                     disabled={uploadingImage}
                                 />

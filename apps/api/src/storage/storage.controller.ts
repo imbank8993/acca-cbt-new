@@ -30,6 +30,9 @@ import { StorageAccessService } from './storage-access.service';
 import { canUploadSvg, fileKey, fileServingHeaders, isPublicFile } from './storage-file-policy';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { MAX_UPLOAD_BYTES, StorageService } from './storage.service';
+
+/** Batas cover bank soal (folder `banks`). */
+const BANK_COVER_MAX_BYTES = 5 * 1024 * 1024;
 import { DbService } from '../prisma/prisma-db-adapter';
 import { fetchExternalLogo, isLogoContentType, pickSchoolLogoUrl } from './school-logo';
 
@@ -223,6 +226,16 @@ export class StorageController {
     const folder = sanitizeFolder(rawFolder || 'misc', callerId);
     if (user && folder.startsWith('assignments/')) {
       await this.access.assertAssignmentUpload(user, folder.split('/')[1]);
+    }
+    // Cover bank soal: klien mengompresnya ke WebP; server tetap menolak berkas besar
+    // atau bukan gambar yang dikirim langsung ke API.
+    if (user && folder === 'banks') {
+      if (!['image/webp', 'image/jpeg', 'image/png'].includes(contentType)) {
+        throw new BadRequestException('Cover bank soal harus berupa gambar JPG, PNG, atau WebP.');
+      }
+      if (file.size > BANK_COVER_MAX_BYTES) {
+        throw new PayloadTooLargeException('Ukuran cover bank soal maksimal 5 MB.');
+      }
     }
     const fileName = !user && /^banks\/[0-9a-f-]+\/equations$/i.test(folder) && contentType === 'image/svg+xml'
       ? `eq_${createHash('sha256').update(file.buffer).digest('hex')}.svg`
