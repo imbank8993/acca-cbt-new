@@ -4,6 +4,16 @@ const fs = require('node:fs');
 const path = require('node:path');
 const ts = require('typescript');
 
+// Callbacks are extracted from the page, so their imported dependencies must
+// be provided explicitly. Use the production comparator, not a sorting stub.
+const ordering = { exports: {} };
+const orderingCode = ts.transpileModule(
+    fs.readFileSync(path.resolve(__dirname, '../../web/lib/item-analysis-order.ts'), 'utf8'),
+    { compilerOptions: { module: ts.ModuleKind.CommonJS } },
+).outputText;
+new Function('require', 'module', 'exports', orderingCode)(require, ordering, ordering.exports);
+const { compareItemAnalysisDifficulty } = ordering.exports;
+
 function callbacks(role) {
     const source = fs.readFileSync(path.resolve(__dirname, `../../web/app/dashboard/${role}/monitoring/page.tsx`), 'utf8');
     const ast = ts.createSourceFile('page.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -32,7 +42,8 @@ function fixture(role) {
         examRequestGenerationRef: { current: 0 }, loadingExamIdsRef: { current: new Map() }, lastRequestedExamIdRef: { current: '' },
         setIsRefreshing: value => { state.refreshing = value; },
         setAttempts: value => { state.attempts = value; }, setLoadError: value => { state.error = value; },
-        setAnalysis() {}, setDetailedAnalysis() {}, setTopicAnalysis(value) { state.topicAnalysis = value; }, setIrtCalibration() {}, setAnalysisPage() {},
+        setAnalysis(value) { state.analysis = value; }, setDetailedAnalysis() {}, setTopicAnalysis(value) { state.topicAnalysis = value; }, setIrtCalibration() {}, setAnalysisPage() {},
+        compareItemAnalysisDifficulty,
         formatStudentName: name => name, buildItemAnalysis: () => [], console: { error() {} },
         window: { setTimeout(callback) { callback(); return 1; }, clearTimeout() {} },
     };
@@ -100,8 +111,10 @@ for (const role of ['admin', 'proktor', 'guru']) test(`${role}: topic analysis f
     const current = f.load('new');
     f.pending[1].resolve([]);
     await current;
+    assert.equal(f.state.error, null, 'current analysis refresh must not silently fail');
     assert.deepEqual(f.state.topicAnalysis, { examId: 'new', data: topics.new });
     f.pending[0].resolve([]);
     await old;
+    assert.equal(f.state.error, null, 'current analysis refresh must not silently fail');
     assert.deepEqual(f.state.topicAnalysis, { examId: 'new', data: topics.new });
 });
