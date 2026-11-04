@@ -1022,6 +1022,13 @@ export default function QuestionEditorModal({
                                             blanks[idx] = { ...blanks[idx], ...fields };
                                             setMetadata({ ...metadata, blanks });
                                         }}
+                                        caseSensitive={metadata.case_sensitive === true}
+                                        onCaseSensitiveChange={(value) => {
+                                            const next = { ...metadata };
+                                            if (value) next.case_sensitive = true;
+                                            else delete next.case_sensitive;
+                                            setMetadata(next);
+                                        }}
                                     />
                                 )}
 

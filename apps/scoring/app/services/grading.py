@@ -13,7 +13,12 @@ import json
 from typing import Any
 
 from ..schemas.grading import GradingResult, Question, QuestionOption, RelativeAttempt
-from .answer_parser import coerce_bool, normalize_short_answer, parse_mcq_complex_answer
+from .answer_parser import (
+    coerce_bool,
+    normalize_short_answer,
+    parse_mcq_complex_answer,
+    short_answer_case_sensitive,
+)
 
 ESSAY_TYPES = {"essay", "esay", "uraian"}
 
@@ -226,14 +231,15 @@ def calculate_single_answer_score(question: Question, raw_answer: str | None) ->
             inputs = []
 
         blanks = (question.metadata or {}).get("blanks") or []
+        case_sensitive = short_answer_case_sensitive(question.metadata)
         correct_blanks: float = 0
 
         for index, blank in enumerate(blanks):
             student_input = normalize_short_answer(
-                inputs[index] if index < len(inputs) else None
+                inputs[index] if index < len(inputs) else None, case_sensitive
             )
-            variations = [normalize_short_answer(v) for v in (blank.get("variations") or [])]
-            answer = normalize_short_answer(blank.get("answer"))
+            variations = [normalize_short_answer(v, case_sensitive) for v in (blank.get("variations") or [])]
+            answer = normalize_short_answer(blank.get("answer"), case_sensitive)
 
             if student_input and (student_input == answer or student_input in variations):
                 correct_blanks += 1

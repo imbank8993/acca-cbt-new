@@ -20,7 +20,12 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..schemas.analytics import DetailedAnswerInput, DetailedOptionInput, DetailedQuestionInput, ResponseChoice, ResponseGroup
-from .answer_parser import coerce_bool, normalize_short_answer, parse_mcq_complex_answer
+from .answer_parser import (
+    coerce_bool,
+    normalize_short_answer,
+    parse_mcq_complex_answer,
+    short_answer_case_sensitive,
+)
 from .grading import _unique_strings
 
 NONFUNCTIONAL_PERCENT = 5.0
@@ -263,17 +268,18 @@ def build_response_distribution(
 
     if q_type == "short_answer":
         blanks = (question.metadata or {}).get("blanks") or []
+        case_sensitive = short_answer_case_sensitive(question.metadata)
         count = max(len(blanks), 1)
         groups = []
         for index in range(count):
             blank = blanks[index] if index < len(blanks) else {}
-            accepted = {normalize_short_answer(v) for v in [blank.get("answer"), *(blank.get("variations") or [])] if v}
+            accepted = {normalize_short_answer(v, case_sensitive) for v in [blank.get("answer"), *(blank.get("variations") or [])] if v}
             group = _Group(id=f"{question.id}:{index}", kind="free", label=str(index + 1) if count > 1 else "",
                            text=f"Isian ke-{index + 1}" if count > 1 else "")
             for a in answers:
                 inputs = _short_inputs(_raw_answer(a))
                 value = inputs[index] if index < len(inputs) else None
-                normalized = normalize_short_answer(value if isinstance(value, str) else (str(value) if value is not None else None))
+                normalized = normalize_short_answer(value if isinstance(value, str) else (str(value) if value is not None else None), case_sensitive)
                 if not normalized:
                     group.empty += 1
                     continue

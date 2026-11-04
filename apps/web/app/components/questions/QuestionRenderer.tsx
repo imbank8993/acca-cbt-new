@@ -1001,6 +1001,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                     const variations = Array.isArray(b.variations) ? b.variations : [];
                                     return answer ? [answer, ...variations] : variations;
                                 }) || []}
+                                caseSensitive={metadata.case_sensitive === true}
                             />
                         </div>
                     )}
@@ -1302,6 +1303,8 @@ interface ShortAnswerInlineProps {
     showFeedback: boolean;
     onAnswerChange: (answer: AnswerValue) => void;
     allVariations: string[][];
+    /** Opsi soal "Bedakan huruf besar/kecil". */
+    caseSensitive?: boolean;
 }
 
 interface EssayInputProps {
@@ -1630,6 +1633,7 @@ const ShortAnswerInline = React.memo(({
     showFeedback,
     onAnswerChange,
     allVariations,
+    caseSensitive = false,
 }: ShortAnswerInlineProps) => {
     const blanksCount = (questionText.match(/\.{4,}/g) || []).length;
     const studentInputs = parseAnswer<string[]>(answer, new Array(Math.max(0, blanksCount)).fill(''));
@@ -1691,14 +1695,19 @@ const ShortAnswerInline = React.memo(({
             </div>
 
             {/* Input Boxes Below */}
+            {blanksCount > 0 && caseSensitive && (
+                <p className="text-xs font-medium text-amber-700" data-case-sensitive-note>
+                    Perhatikan penulisan huruf besar dan huruf kecil.
+                </p>
+            )}
             {blanksCount > 0 && (
                 <div className="space-y-3">
                     {Array.from({ length: blanksCount }).map((_, idx) => {
                         const variations = allVariations[idx] || [];
                         const inputValue = localInputs[idx] || '';
-                        const normalizedInput = normalizeShortAnswer(inputValue);
+                        const normalizedInput = normalizeShortAnswer(inputValue, caseSensitive);
                         const isCorrect = normalizedInput.length > 0 &&
-                            variations.map((v: string) => normalizeShortAnswer(v)).includes(normalizedInput);
+                            variations.map((v: string) => normalizeShortAnswer(v, caseSensitive)).includes(normalizedInput);
 
                         return (
                             <div key={idx} className="flex items-center gap-3">

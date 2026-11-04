@@ -52,14 +52,25 @@ def parse_mcq_complex_answer(value: Any) -> list[str]:
     return [str(v) for v in result] if isinstance(result, list) else []
 
 
-def normalize_short_answer(value: str | None) -> str:
+def normalize_short_answer(value: str | None, case_sensitive: bool = False) -> str:
     """Normalisasi isian singkat untuk pembandingan.
 
-    Pencocokan sengaja PERSIS: hanya trim dan lowercase. Spasi di tengah TIDAK
-    diubah — "x+y" dan "x + y" tetap berbeda. Pembuat soal yang mendaftarkan
-    sendiri setiap variasi jawaban yang diterima.
+    Pencocokan sengaja PERSIS: hanya trim dan (bawaan) lowercase. Spasi di
+    tengah TIDAK diubah — "x+y" dan "x + y" tetap berbeda. Pembuat soal yang
+    mendaftarkan sendiri setiap variasi jawaban yang diterima.
+
+    ``case_sensitive`` (opsi soal "Bedakan huruf besar/kecil") mempertahankan
+    huruf kapital, mis. untuk soal ejaan Bahasa Indonesia atau lambang kimia.
     """
-    return value.strip().lower() if isinstance(value, str) else ""
+    if not isinstance(value, str):
+        return ""
+    trimmed = value.strip()
+    return trimmed if case_sensitive else trimmed.lower()
+
+
+def short_answer_case_sensitive(metadata: Any) -> bool:
+    """Opsi soal isian: ``metadata.case_sensitive`` harus bernilai true persis."""
+    return isinstance(metadata, dict) and metadata.get("case_sensitive") is True
 
 
 def coerce_bool(value: Any) -> bool | None:

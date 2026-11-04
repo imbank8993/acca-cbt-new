@@ -47,6 +47,8 @@ export interface QuestionOption {
     // Blank variations (for short_answer)
     variations?: string[];
     blanks?: { variations: string[] }[];
+    /** Isian singkat: bedakan huruf besar/kecil saat menilai. */
+    case_sensitive?: boolean;
     // Personality dimension
     dimension_id?: string | null;
   };
@@ -89,6 +91,8 @@ export interface Question {
     categories?: string[];
     // Short answer
     blanks?: { answer?: string; variations: string[] }[];
+    /** Bedakan huruf besar/kecil saat menilai isian. */
+    case_sensitive?: boolean;
     // Instructions / hints
     instructions?: string;
     // Ordering

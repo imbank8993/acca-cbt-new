@@ -990,6 +990,9 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                     )}
                                     {q.type === 'short_answer' && (
                                         <div className="px-5 pt-3 pb-4">
+                                            {meta.case_sensitive === true && (
+                                                <p className="mb-1.5 text-[11px] font-semibold text-amber-700">Huruf besar/kecil dibedakan</p>
+                                            )}
                                             <div className="flex flex-col gap-1.5">
                                                 {(meta.blanks || []).map((blank, bIdx: number) => (
                                                     <div key={bIdx} className="flex items-center gap-2.5 px-3 py-2 rounded-md border bg-blue-50 border-blue-200 text-xs text-blue-800">

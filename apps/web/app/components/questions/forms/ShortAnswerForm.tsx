@@ -18,6 +18,9 @@ interface ShortAnswerFormProps {
   onAddBlank: () => void;
   onRemoveBlank: (index: number) => void;
   onUpdateBlank: (index: number, fields: Partial<Blank>) => void;
+  /** Opsi soal "Bedakan huruf besar/kecil" (metadata.case_sensitive). */
+  caseSensitive?: boolean;
+  onCaseSensitiveChange?: (value: boolean) => void;
 }
 
 export const ShortAnswerForm = React.memo(({
@@ -26,6 +29,8 @@ export const ShortAnswerForm = React.memo(({
   onAddBlank,
   onRemoveBlank,
   onUpdateBlank,
+  caseSensitive = false,
+  onCaseSensitiveChange,
 }: ShortAnswerFormProps) => {
   // Count how many ..... exist in question text
   const dotMatch = questionText.match(/\.{4,}/g);
@@ -63,6 +68,23 @@ export const ShortAnswerForm = React.memo(({
           <p className="mt-1 text-blue-500">{blankCountInText === 0 ? 'Belum ada isian. Tambahkan .... di teks soal.' : `Ditemukan ${blankCountInText} isian di teks soal.`}</p>
         </div>
       </div>
+
+      {onCaseSensitiveChange && (
+        <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 cursor-pointer" data-case-sensitive-toggle>
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 shrink-0 accent-slate-800"
+            checked={caseSensitive}
+            onChange={(event) => onCaseSensitiveChange(event.target.checked)}
+          />
+          <span className="text-xs text-slate-600">
+            <span className="block font-semibold text-slate-800">Bedakan huruf besar/kecil</span>
+            {caseSensitive
+              ? 'Jawaban harus ditulis dengan huruf besar/kecil yang sama persis dengan kunci, mis. "Jakarta" ≠ "jakarta". Siswa diberi petunjuk.'
+              : 'Mati: "Jakarta", "jakarta" dan "JAKARTA" sama-sama benar. Nyalakan untuk soal ejaan, lambang kimia (Co ≠ CO), atau satuan.'}
+          </span>
+        </label>
+      )}
 
       {displayBlanks.length === 0 ? (
         <div className="text-center py-6 text-sm text-slate-400">

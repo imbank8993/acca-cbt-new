@@ -167,6 +167,8 @@ export interface QuestionMetadata {
     pembahasan?: string;
     correct_order?: string[];
     blanks?: { answer: string; variations: string[] }[];
+    /** Isian singkat: bedakan huruf besar/kecil saat menilai. */
+    case_sensitive?: boolean;
     import_stimulus?: string;
     import_instruction?: string;
     import_source_number?: number;

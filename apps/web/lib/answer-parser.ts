@@ -99,8 +99,14 @@ export function parseShortAnswer(val: AnswerValue): string[] {
  * Fungsi ini dipakai baik oleh grading server maupun feedback client agar
  * alternatif yang terdaftar dinilai sama persis di kedua sisi.
  */
-export function normalizeShortAnswer(val: string | null | undefined): string {
-    return (val || '').trim().toLowerCase();
+/**
+ * Normalisasi isian singkat — harus sama dengan normalize_short_answer di
+ * apps/scoring. Bawaan: trim + huruf kecil. `caseSensitive` (opsi soal
+ * "Bedakan huruf besar/kecil") mempertahankan huruf kapital.
+ */
+export function normalizeShortAnswer(val: string | null | undefined, caseSensitive = false): string {
+    const trimmed = (val || '').trim();
+    return caseSensitive ? trimmed : trimmed.toLowerCase();
 }
 
 /**

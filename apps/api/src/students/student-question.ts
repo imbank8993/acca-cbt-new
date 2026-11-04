@@ -29,6 +29,9 @@ export function studentQuestion(question: Row, seed: string) {
     for (const key of ['allow_file_upload', 'allow_video_link', 'is_multi_topic'] as const) {
         if (typeof source[key] === 'boolean') metadata[key] = source[key];
     }
+    if (question.type === 'short_answer' && source.case_sensitive === true) {
+        metadata.case_sensitive = true;
+    }
     if (question.type === 'true_false') {
         const labels = normalizeTrueFalseLabels(source.true_false_labels);
         if (labels) metadata.true_false_labels = labels;
