@@ -72,6 +72,25 @@ export interface TextSegment {
  * - 'latin': teks Latin di luar tanda kurung (pertanyaan, opsi, instruksi)
  * - 'neutral': pemisah spasi atau tanda baca
  */
+const ARABIC_EDGES = /^([^\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]*)([\s\S]*?)([^\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]*)$/;
+
+/**
+ * Tambahkan potongan Arab tanpa spasi/tanda baca di tepinya. Tanda seperti
+ * " — " atau "!" di tepi harus mengikuti arah kalimat; bila ikut masuk ke
+ * span RTL, tanda itu tampil di sisi yang salah ("Sekolah — كتاب" menjadi
+ * "Sekolah كتاب —").
+ */
+function pushArabic(result: TextSegment[], text: string): void {
+  const m = ARABIC_EDGES.exec(text);
+  if (!m || !m[2]) {
+    result.push({ type: 'neutral', text });
+    return;
+  }
+  if (m[1]) result.push({ type: 'neutral', text: m[1] });
+  result.push({ type: 'arabic', text: m[2] });
+  if (m[3]) result.push({ type: 'neutral', text: m[3] });
+}
+
 export function segmentArabicAndLatin(text: string): TextSegment[] {
   if (!text) return [];
 
@@ -82,7 +101,9 @@ export function segmentArabicAndLatin(text: string): TextSegment[] {
 
   // Jika ada huruf Arab dan TIDAK ADA huruf Latin sama sekali
   if (!LATIN_REGEX.test(text)) {
-    return [{ type: 'arabic', text }];
+    const only: TextSegment[] = [];
+    pushArabic(only, text);
+    return only;
   }
 
   // Teks campuran (mengandung huruf Arab dan huruf Latin)
@@ -118,7 +139,7 @@ export function segmentArabicAndLatin(text: string): TextSegment[] {
     const hasLat = LATIN_REGEX.test(str);
 
     if (hasAr && !hasLat) {
-      result.push({ type: 'arabic', text: str });
+      pushArabic(result, str);
       continue;
     }
     if (!hasAr && hasLat) {

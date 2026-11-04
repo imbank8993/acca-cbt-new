@@ -1274,11 +1274,23 @@ div.rich-content[style*="justify"],
    rules (with sufficient specificity) control layout.
    ============================================ */
 
-/* ---- Base KaTeX styles ---- */
-/*
- * KaTeX alignment consolidated in app/styles/cbt-editor.css
- * Only color inheritance overrides remain here — no font-size/line-height conflicts.
- */
+/* ---- Ukuran rumus ----
+   Satu ukuran untuk rumus blok ($$...$$) dan inline ($...$) di semua tampilan
+   (bank soal, ujian, editor, pratinjau, cetak). Huruf matematika KaTeX tampak
+   lebih kecil dari teks pada ukuran yang sama (standar KaTeX 1.21em), jadi 1.2em
+   membuatnya seimbang dengan teks Merriweather. Ubah ukuran HANYA lewat
+   --cbt-math-scale; jangan beri font-size pada .katex di tempat lain. */
+html body {
+  --cbt-math-scale: 1.2em;
+}
+
+@media (max-width: 480px) {
+  /* Layar sempit: sedikit lebih kecil agar rumus lebar tetap muat. */
+  html body {
+    --cbt-math-scale: 1.1em;
+  }
+}
+
 html body .katex,
 html body .katex-inline,
 html body .katex-block,
@@ -1288,8 +1300,12 @@ html body .katex-display {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: auto;
-  font-size: 1em;   /* Let cbt-editor.css control final size */
-  line-height: 1;  /* Let cbt-editor.css control final line-height */
+  font-size: 1em;
+  line-height: 1;
+}
+
+html body .katex {
+  font-size: var(--cbt-math-scale);
 }
 
 /* ---- Warna ----
@@ -1306,7 +1322,7 @@ html body .katex-inline {
   display: inline-block !important;
   white-space: nowrap !important;
   vertical-align: middle !important;
-  font-size: 1.15em !important;
+  font-size: 1em !important;
   margin: 0 0.1em !important;
 }
 
@@ -1314,33 +1330,29 @@ html body .katex-inline .mfrac {
   font-size: 1.25em !important;
 }
 
-/* ---- Block math ($$...$$) ---- */
+/* ---- Block math ($$...$$) ----
+   Satu lapis jarak: .katex-block memberi 0.5em di atas dan bawah. .katex-display
+   di dalamnya hanya diberi ruang kecil agar simbol tinggi tidak terpotong oleh
+   overflow. Dulu tiga lapis margin+padding membuat rumus setinggi 78px memakan
+   168px. */
 html body .katex-block,
 html body .katex-display {
   display: block !important;
   text-align: left;
-  margin: 1rem 0;
-  padding: 0.5rem 0;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-}
-
-html body .katex-block {
-  margin-top: 1.25rem;
-  margin-bottom: 1.25rem;
-}
-
-html body .katex-display {
-  margin-left: auto;
-  margin-right: auto;
-  padding: 1rem 0.5rem;
   max-width: 100%;
 }
 
-html body .katex-block .katex,
-html body .katex-display .katex {
-  font-size: 1.15em;
+html body .katex-block {
+  margin: 0.5em 0;
+  padding: 0;
+}
+
+html body .katex-display {
+  margin: 0 auto;
+  padding: 0.25em 0;
 }
 
 html body .katex-block::-webkit-scrollbar,
@@ -1375,51 +1387,6 @@ html body .rich-content .katex-inline {
 /* ---- Operator spacing ----
    Diatur KaTeX sendiri. Margin/padding tambahan pada +, =, ≤ dan kurung membuat
    rumus renggang dan menggeser kolom pada cases/matriks. */
-
-/* ---- Mobile responsiveness ---- */
-@media (max-width: 768px) {
-  html body .katex-block .katex,
-  html body .katex-display .katex {
-    font-size: 1.1em;
-  }
-
-  html body .katex-inline {
-    font-size: 1.05em;
-  }
-
-  html body .katex-block,
-  html body .katex-display {
-    margin: 1rem 0;
-    padding: 0.75rem 0.25rem;
-  }
-}
-
-@media (max-width: 480px) {
-  html body .katex-block .katex,
-  html body .katex-display .katex {
-    font-size: 1.05em;
-  }
-}
-
-/* ---- Question / option context ---- */
-html body .question-text .katex-inline {
-  font-size: 1.1em;
-}
-
-html body .question-text .katex-block,
-html body .question-text .katex-display {
-  margin: 1.5rem 0;
-}
-
-html body .option-text .katex-inline {
-  font-size: 1.05em;
-}
-
-html body .option-text .katex-block,
-html body .option-text .katex-display {
-  font-size: 1.1em;
-  margin: 0.75rem 0;
-}
 
 /* ============================================
    PRODUCTION-READY MATH RENDERER

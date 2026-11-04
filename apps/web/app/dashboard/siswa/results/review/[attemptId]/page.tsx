@@ -696,7 +696,7 @@ const QuestionContentRenderer = React.memo(({
                                 <div className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center font-black text-sm border-2 ${labelClass}`}>
                                     {label}
                                 </div>
-                                <div className={`flex-1 min-w-0 text-sm font-normal ${textClass}`}>
+                                <div className={`flex-1 min-w-0 self-center text-sm font-normal ${textClass}`}>
                                     <LatexRenderer text={opt.option_text || opt.text || ''} />
                                 </div>
                                 {showFeedback && (

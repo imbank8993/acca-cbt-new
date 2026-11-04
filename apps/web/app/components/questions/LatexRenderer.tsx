@@ -6,7 +6,6 @@ import { normalizeHtmlStorageUrls } from '@/lib/safe-url';
 import {
   containsArabic,
   segmentArabicAndLatin,
-  getFontFamilyForText,
   getTextDirection
 } from '@/lib/arabic-utils';
 
@@ -211,10 +210,11 @@ export const LatexRenderer = React.memo(({ text, className = '' }: LatexRenderer
 
   if (!text) return null;
 
-  // Deteksi otomatis Arab untuk RTL dan font
+  // Arah otomatis: konten yang diawali huruf Arab ditulis kanan-ke-kiri.
+  // Font & line-height pembungkus tetap sama dengan soal lain; huruf Arab
+  // mendapat font Amiri, ukuran lebih besar, dan ruang harakat lewat
+  // span .cbt-arabic-text, sehingga teks Latin di soal yang sama tidak berubah.
   const dir = getTextDirection(text);
-  const fontFamily = getFontFamilyForText(text);
-  const isAr = containsArabic(text);
 
   return (
     <div
@@ -223,13 +223,6 @@ export const LatexRenderer = React.memo(({ text, className = '' }: LatexRenderer
       style={{
         ...WRAPPER_STYLE,
         direction: dir,
-        fontFamily,
-        // Font Arab butuh line-height yang lebih lega agar harakat tidak berhimpitan
-        ...(isAr && {
-          lineHeight: '2.0',
-          letterSpacing: '0',
-          wordSpacing: '0.05em',
-        }),
       }}
       dangerouslySetInnerHTML={{ __html: processedHtml }}
     />

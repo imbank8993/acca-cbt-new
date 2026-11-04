@@ -279,16 +279,18 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                     font-family: monospace;
                 }
 
-                /* ── KaTeX fraction baseline alignment ── */
-                .question-content .katex { font-size: 1em !important; line-height: 1 !important; }
+                /* ── KaTeX fraction baseline alignment ──
+                   Ukuran rumus diatur satu tempat lewat --cbt-math-scale di
+                   globals.css; jangan beri font-size di sini. */
+                .question-content .katex { line-height: 1 !important; }
                 .question-content .katex-display {
                   display: block !important;
-                  margin: 0.75em 0 !important;
+                  margin: 0 !important;
                   text-align: center !important;
                   overflow-x: auto !important;
                   overflow-y: hidden !important;
                   max-width: 100% !important;
-                  padding: 0.5em 0 !important;
+                  padding: 0.25em 0 !important;
                 }
 
                 /* ── Embedded video (YouTube / Vimeo) ── */
@@ -324,13 +326,11 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                   display: inline;
                 }
 
+                /* Teks Latin di soal yang memuat huruf Arab memakai font & ukuran
+                   soal biasa, supaya soal dan opsinya seragam dengan soal lain.
+                   Hanya arahnya yang diisolasi agar tidak ikut terbalik. */
                 .question-content .cbt-latin-text,
                 .cbt-latin-text {
-                  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-                  font-size: clamp(12.5px, 0.88em, 14px) !important;
-                  line-height: 1.55 !important;
-                  font-weight: 400;
-                  letter-spacing: 0.01em;
                   direction: ltr;
                   unicode-bidi: isolate;
                   display: inline;
@@ -338,7 +338,6 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
 
                 .question-content .cbt-latin-gloss,
                 .cbt-latin-gloss {
-                  font-size: clamp(12px, 0.84em, 13.5px) !important;
                   font-style: italic;
                   opacity: 0.88;
                   margin: 0 4px;
@@ -518,7 +517,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                 >
                                     {label}
                                 </div>
-                                <div className={`flex-1 min-w-0 text-xs sm:text-sm font-normal transition-colors ${textClass}`}>
+                                <div className={`flex-1 min-w-0 self-center text-xs sm:text-sm font-normal transition-colors ${textClass}`}>
                                     <QuestionContent content={(opt.option_text || opt.text || '')} />
                                 </div>
                                 {isSelected && !showFeedback && (
@@ -573,7 +572,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
 
                                     return (
                                         <div key={opt.id} data-cbt-option className="cbt-option-item flex flex-col sm:flex-row sm:items-start gap-3 p-4 bg-white dark:bg-[#1a233a] border border-slate-200 dark:border-slate-700/80 rounded-md">
-                                            <div className="flex-1 min-w-0 text-sm text-slate-700 dark:text-slate-200">
+                                            <div className="flex-1 min-w-0 sm:self-center text-sm text-slate-700 dark:text-slate-200">
                                                 <QuestionContent content={opt.option_text || ''} />
                                             </div>
                                             <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 mt-2 sm:mt-0">
@@ -695,7 +694,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                 >
                                     {letters[idx] || '?'}
                                 </div>
-                                <div className={`flex-1 min-w-0 text-xs sm:text-sm font-normal transition-colors ${textClass}`}>
+                                <div className={`flex-1 min-w-0 self-center text-xs sm:text-sm font-normal transition-colors ${textClass}`}>
                                     <QuestionContent content={(opt.option_text || opt.text || '')} />
                                 </div>
                                 {showFeedback && showFeedbackLabels && (
@@ -858,10 +857,10 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                     return (
                                         <div key={opt.id} data-cbt-option className="cbt-option-item bg-slate-50/50 dark:bg-[#1a233a] border border-slate-100 dark:border-slate-700/80 rounded-2xl p-4 space-y-3 text-left">
                                             <div className="flex items-start gap-3">
-                                                <div className="w-7 h-7 shrink-0 rounded bg-slate-800 dark:bg-[#24324f] flex items-center justify-center text-white font-black text-xs leading-none mt-0.5">
+                                                <div className="w-7 h-7 shrink-0 rounded bg-slate-800 dark:bg-[#24324f] flex items-center justify-center text-white font-black text-xs leading-none">
                                                     {optIdx + 1}
                                                 </div>
-                                                <div className="text-sm font-semibold text-slate-805 dark:text-slate-100 min-w-0 [&_p]:!m-0 pt-0.5">
+                                                <div className="self-center text-sm font-semibold text-slate-805 dark:text-slate-100 min-w-0 [&_p]:!m-0">
                                                     <QuestionContent content={(opt.option_text || opt.text || '')} />
                                                 </div>
                                             </div>
@@ -1100,14 +1099,14 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                     className={`cbt-option-item flex items-start gap-4 p-3 sm:p-4 rounded-xl border-2 ${borderClass} ${bgClass} cursor-pointer transition-all duration-150 hover:shadow-sm`}
                                 >
                                     <input type="radio" className="hidden" checked={isSelected} disabled={showFeedback} onChange={() => onAnswerChange(opt.id)} />
-                                    <div className={`mt-0.5 w-6 h-6 shrink-0 rounded border-2 flex items-center justify-center transition-colors ${boxClass}`}>
+                                    <div className={`w-6 h-6 shrink-0 rounded border-2 flex items-center justify-center transition-colors ${boxClass}`}>
                                         {isSelected && (
                                             <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}>
                                                 <Check size={14} strokeWidth={3} />
                                             </motion.div>
                                         )}
                                     </div>
-                                    <div className={`flex-1 min-w-0 text-sm font-medium transition-colors pt-0.5 ${textClass}`}>
+                                    <div className={`flex-1 min-w-0 self-center text-sm font-medium transition-colors ${textClass}`}>
                                         <QuestionContent content={(opt.option_text || opt.text || '')} />
                                     </div>
                                 </label>
@@ -1248,7 +1247,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                     >
                                         {label}
                                     </div>
-                                    <div className={`flex-1 min-w-0 text-sm font-normal transition-colors ${textClass}`}>
+                                    <div className={`flex-1 min-w-0 self-center text-sm font-normal transition-colors ${textClass}`}>
                                         <QuestionContent content={(opt.option_text || opt.text || '')} />
                                     </div>
                                     {/* Weight indicator */}
@@ -1520,7 +1519,7 @@ const EssayInput = React.memo(({ answer, showFeedback, onAnswerChange, metadata,
                                     >
                                         {label}
                                     </div>
-                                    <div className={`flex-1 min-w-0 text-sm font-medium pt-1 ${isSelected ? 'text-primary' : 'text-slate-700 dark:text-slate-200'}`}>
+                                    <div className={`flex-1 min-w-0 self-center text-sm font-medium ${isSelected ? 'text-primary' : 'text-slate-700 dark:text-slate-200'}`}>
                                         <QuestionContent content={(opt.option_text || opt.text || '')} />
                                     </div>
                                     {isSelected && (

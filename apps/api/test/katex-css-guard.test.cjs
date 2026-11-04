@@ -59,3 +59,15 @@ test('generic font inherit rules inside question content skip KaTeX', () => {
         assert.match(selector, /:where\(:not\(\.katex, \.katex \*\)\)/, selector);
     }
 });
+
+test('math size comes from one variable, the same for block and inline math', () => {
+    const sized = rules.filter(({ selectors, body }) => /font-size/.test(body) &&
+        selectors.some(s => /^(html body )?(\.question-content |\.latex-renderer )?(\.katex-(block|display|inline)\s+)?\.katex$/.test(s)));
+    assert.deepEqual(sized.map(r => r.body.match(/font-size:\s*([^;]+);/)[1].trim()), ['1em', 'var(--cbt-math-scale)'],
+        'hanya aturan dasar (1em) lalu variabel --cbt-math-scale');
+    assert.match(css, /--cbt-math-scale:\s*1\.2em/);
+    const renderer = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/questions/QuestionRenderer.tsx'), 'utf8');
+    const katexRule = renderer.match(/\.question-content \.katex \{([^}]*)\}/);
+    assert.ok(katexRule, 'aturan .question-content .katex ada');
+    assert.doesNotMatch(katexRule[1], /font-size/, 'QuestionRenderer tidak menimpa ukuran rumus');
+});

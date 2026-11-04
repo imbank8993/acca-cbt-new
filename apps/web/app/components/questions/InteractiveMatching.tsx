@@ -114,10 +114,10 @@ export const InteractiveMatching = ({
             return (
               <div key={opt.id} className="bg-slate-50/50 border border-slate-100 rounded-2xl p-4 space-y-3 text-left">
                 <div className="flex items-start gap-2.5">
-                  <span className="w-5 h-5 shrink-0 rounded bg-slate-800 flex items-center justify-center text-white font-black text-[10px] leading-none mt-0.5 font-sans">
+                  <span className="w-5 h-5 shrink-0 rounded bg-slate-800 flex items-center justify-center text-white font-black text-[10px] leading-none font-sans">
                     {optIdx + 1}
                   </span>
-                  <div className="font-semibold text-slate-800 text-xs sm:text-sm [&_p]:!m-0 flex-1 min-w-0">
+                  <div className="self-center font-semibold text-slate-800 text-xs sm:text-sm [&_p]:!m-0 flex-1 min-w-0">
                     <LatexRenderer text={cleanHtml(opt.option_text)} />
                   </div>
                 </div>
