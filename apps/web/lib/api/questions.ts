@@ -375,6 +375,19 @@ export async function saveQuestionAction(data: {
         : { success: false as const, activeExams: [], error: res.error };
 }
 
+/** Ganti label Benar-Salah banyak soal sekaligus; null = kembali ke Benar/Salah. */
+export function setTrueFalseLabelsAction(
+    bankId: string,
+    questionIds: string[],
+    labels: { true: string; false: string } | null,
+) {
+    return apiSend<{ bankId: string; updated: number; skipped: number; updatedExams: number }>(
+        `/api/question-banks/${encodeURIComponent(bankId)}/true-false-labels`,
+        { questionIds, labels },
+        'PATCH',
+    );
+}
+
 export function updateQuestionMetadataAction(
     questionId: string,
     metadataUpdates: Record<string, unknown>,

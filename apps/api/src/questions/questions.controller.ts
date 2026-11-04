@@ -38,6 +38,7 @@ import {
     SaveBankDto,
     SaveFolderDto,
     SaveQuestionDto,
+    SetTrueFalseLabelsDto,
     TitledContentDto,
     UpdateKisiKisiDto,
     UpdateQuestionMetadataDto,
@@ -241,6 +242,16 @@ export class QuestionsController {
         @Param('questionId', ParseUUIDPipe) questionId: string,
     ) {
         return this.questions.remove(user, questionId, bankId);
+    }
+
+    @Patch(':bankId/true-false-labels')
+    @ApiOperation({ summary: 'Ganti label Benar-Salah banyak soal sekaligus' })
+    setTrueFalseLabels(
+        @CurrentUser() user: AuthUser,
+        @Param('bankId', ParseUUIDPipe) bankId: string,
+        @Body() dto: SetTrueFalseLabelsDto,
+    ) {
+        return this.questions.setTrueFalseLabels(user, bankId, dto.questionIds, dto.labels ?? null);
     }
 
     @Put(':bankId/questions/order')

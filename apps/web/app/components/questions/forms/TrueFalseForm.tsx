@@ -36,7 +36,7 @@ function keyButtonText(labels: TrueFalseLabels): TrueFalseLabels {
   return t && f && t !== f ? { true: t, false: f } : labels;
 }
 
-const TrueFalseLabelPicker = ({ labels, onChange }: {
+export const TrueFalseLabelPicker = ({ labels, onChange }: {
   labels: Partial<TrueFalseLabels> | null | undefined;
   onChange: (labels: TrueFalseLabels | null) => void;
 }) => {

@@ -25,6 +25,7 @@ export interface ParsedQuestion {
 export interface ImportResult {
     success: boolean;
     questions: ParsedQuestion[];
+    /** `row` = nomor soal (kolom No di file, atau urutan soal); 0 = pesan umum. */
     errors: { row: number; message: string }[];
     warnings: { row: number; message: string }[];
     totalRows: number;
@@ -224,6 +225,7 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
         }
 
         // Parse each row
+        let questionCount = 0;
         for (let i = 0; i < rawData.length; i++) {
             const row = rawData[i];
             const rowNum = i + 2; // +2 for 1-based index and header row
@@ -258,9 +260,14 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
                 continue;
             }
 
+            // Nomor soal untuk pesan error: kolom No bila ada, selain itu urutan soal.
+            questionCount++;
+            const parsedNumber = Number.parseInt(sourceNumberRaw.replace(/\D+/g, ''), 10);
+            const questionNo = Number.isFinite(parsedNumber) && parsedNumber > 0 ? parsedNumber : questionCount;
+
             // Validate required fields
             if (!soalText) {
-                result.errors.push({ row: rowNum, message: `Baris ${rowNum}: Teks soal kosong` });
+                result.errors.push({ row: questionNo, message: `Teks soal kosong` });
                 continue;
             }
 
@@ -289,7 +296,7 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
                 } else {
                     if (!statements.length) statements.push({ text: soalText, index: 0 });
                     if (keys.length !== statements.length || keys.some(key => !['B', 'S', 'TRUE', 'FALSE'].includes(key))) {
-                        result.errors.push({ row: rowNum, message: `Baris ${rowNum}: isi satu kunci B/S untuk setiap pernyataan, dipisahkan |.` });
+                        result.errors.push({ row: questionNo, message: `Isi satu kunci B/S untuk setiap pernyataan, dipisahkan |.` });
                         continue;
                     }
                     statements.forEach((o, order) => options.push({ text: o.text, order, isCorrect: ['B', 'TRUE'].includes(keys[order]), weight: 1 }));
@@ -322,7 +329,7 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
                 const items = optionValues.filter(Boolean);
                 const keys = kunciRaw.split('|').map(s => s.trim());
                 if (keys.length !== items.length) {
-                    result.errors.push({ row: rowNum, message: `Baris ${rowNum}: jumlah pasangan/kategori kunci harus sama dengan opsi; pisahkan dengan |.` });
+                    result.errors.push({ row: questionNo, message: `Jumlah pasangan/kategori kunci harus sama dengan opsi; pisahkan dengan |.` });
                     continue;
                 }
                 items.forEach((text, order) => options.push({ text, order, isCorrect: true, weight: 1,
@@ -351,7 +358,7 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
                 if (['mcq', 'mcq_complex'].includes(type) &&
                     (!correctIndices.length || correctIndices.some(i => !optionTexts[i]) ||
                     (type === 'mcq' && correctIndices.length !== 1))) {
-                    result.errors.push({ row: rowNum, message: `Baris ${rowNum}: kunci jawaban tidak cocok dengan opsi yang tersedia.` });
+                    result.errors.push({ row: questionNo, message: `Kunci jawaban tidak cocok dengan opsi yang tersedia.` });
                     continue;
                 }
 
@@ -438,7 +445,7 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
 
             // Collect warnings
             warnings.forEach(w => {
-                result.warnings.push({ row: rowNum, message: w });
+                result.warnings.push({ row: questionNo, message: w });
             });
         }
 

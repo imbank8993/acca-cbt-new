@@ -95,3 +95,30 @@ export function parseTrueFalseLabelLine(raw: string): Partial<TrueFalseLabels> |
     const parts = (text.includes('|') ? text.split('|') : text.split('/')).map(part => part.trim());
     return parts.length === 2 ? { true: parts[0], false: parts[1] } : null;
 }
+
+/** Apakah nilai label sama dengan bawaan Benar/Salah (dipilih guru secara eksplisit). */
+export function isDefaultTrueFalseLabels(value: unknown): boolean {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const record = value as Record<string, unknown>;
+    return cleanLabel(record.true) === DEFAULT_TRUE_FALSE_LABELS.true && cleanLabel(record.false) === DEFAULT_TRUE_FALSE_LABELS.false;
+}
+
+/** Label bawaan menurut mapel bank soal: Bahasa Inggris → True/False, Bahasa Arab → صحيح/خطأ. */
+export function trueFalseLabelsForSubject(subject: unknown): TrueFalseLabels | null {
+    const name = typeof subject === 'string' ? subject.toLocaleLowerCase() : '';
+    const preset = /inggris|english/.test(name) ? 'en' : /\barab|عرب/.test(name) ? 'ar' : null;
+    const labels = preset ? TRUE_FALSE_LABEL_PRESETS.find(item => item.id === preset)?.labels : null;
+    return labels ? { ...labels } : null;
+}
+
+/**
+ * Label soal Benar-Salah hasil impor: label dari file (baris LABEL) bila ada;
+ * bila tidak ada sama sekali, ikuti mapel bank. Baris LABEL "Benar | Salah"
+ * tetap dihormati. null = pakai Benar/Salah.
+ */
+export function importedTrueFalseLabels(value: unknown, subject: unknown): TrueFalseLabels | null {
+    const labels = normalizeTrueFalseLabels(value);
+    if (labels) return labels;
+    if (isDefaultTrueFalseLabels(value)) return null;
+    return trueFalseLabelsForSubject(subject);
+}

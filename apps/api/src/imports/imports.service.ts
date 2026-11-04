@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { normalizeTrueFalseLabels } from '@acca-cbt/shared';
+import { importedTrueFalseLabels } from '@acca-cbt/shared';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { randomUUID } from 'node:crypto';
@@ -75,12 +75,13 @@ export class ImportsService {
 
         const { data: bank } = await this.db
             .from('cbt_question_banks')
-            .select('organization_id')
+            .select('organization_id, subject')
             .eq('id', bankId)
             .maybeSingle();
 
         if (!bank) throw new NotFoundException('Bank soal tidak ditemukan.');
         const organizationId = (bank as { organization_id: string }).organization_id;
+        const bankSubject = (bank as { subject?: string | null }).subject ?? null;
 
         // One transaction includes companion records, questions and every option.
         // No partial success: a failed row rolls back the entire selected import.
@@ -161,8 +162,11 @@ export class ImportsService {
 
             const questionIds: string[] = [];
             for (const [index, question] of questions.entries()) {
+                // Pesan error memakai nomor soal di file sumber, bukan urutan baris kiriman.
+                const sourceNumber = Number(question.metadata?.import_source_number);
+                const questionNo = Number.isInteger(sourceNumber) && sourceNumber > 0 ? sourceNumber : index + 1;
                 if (!question.question_text?.trim()) {
-                    throw new BadRequestException(`Baris ${index + 1}: teks soal kosong.`);
+                    throw new BadRequestException(`Soal ${questionNo}: teks soal kosong.`);
                 }
                 const type = question.type || 'mcq';
                 const suppliedOptions = question.options || [];
@@ -175,7 +179,7 @@ export class ImportsService {
                     (type === 'matching' && suppliedOptions.some(o => !Array.isArray(o.metadata?.match_texts))) ||
                     (type === 'categorization' && suppliedOptions.some(o => !Array.isArray(o.metadata?.category_names))) ||
                     (type === 'short_answer' && !question.metadata?.blanks?.length);
-                if (invalidOptions) throw new BadRequestException(`Baris ${index + 1}: opsi atau kunci jawaban belum lengkap.`);
+                if (invalidOptions) throw new BadRequestException(`Soal ${questionNo}: opsi atau kunci jawaban belum lengkap.`);
                 const questionClientRequestId = clientRequestId ? deriveRequestUuid(clientRequestId, index) : null;
                 const questionId = questionClientRequestId || randomUUID();
                 const optionRows: Array<{ id: string; question_id: string; option_text: string;
@@ -199,7 +203,8 @@ export class ImportsService {
                 delete metadata._deleted_at;
                 delete metadata.order_index;
                 metadata.order_index = activeExisting.length + index;
-                const tfLabels = type === 'true_false' ? normalizeTrueFalseLabels(metadata.true_false_labels) : null;
+                // Tanpa baris LABEL, label Benar-Salah mengikuti mapel bank (mis. Bahasa Inggris → True/False).
+                const tfLabels = type === 'true_false' ? importedTrueFalseLabels(metadata.true_false_labels, bankSubject) : null;
                 if (tfLabels) metadata.true_false_labels = tfLabels;
                 else delete metadata.true_false_labels;
                 if (question.type === 'ordering') {
@@ -210,7 +215,7 @@ export class ImportsService {
                     });
                     if (indexes.length !== optionRows.length || new Set(indexes).size !== optionRows.length ||
                         indexes.some((i: number) => !Number.isInteger(i) || !optionRows[i])) {
-                        throw new BadRequestException(`Baris ${index + 1}: urutan kunci tidak sesuai opsi.`);
+                        throw new BadRequestException(`Soal ${questionNo}: urutan kunci tidak sesuai opsi.`);
                     }
                     metadata.correct_order = indexes.map((i: number) => optionRows[i].id);
                 }
@@ -229,10 +234,10 @@ export class ImportsService {
                     insertPayload.client_request_hash = hash;
                 }
                 const { error } = await db.from('cbt_bank_questions').insert(insertPayload);
-                if (error) throw new BadRequestException(`Baris ${index + 1}: ${error.message}`);
+                if (error) throw new BadRequestException(`Soal ${questionNo}: ${error.message}`);
                 if (optionRows.length) {
                     const { error } = await db.from('cbt_bank_question_options').insert(optionRows);
-                    if (error) throw new BadRequestException(`Baris ${index + 1}: gagal menyimpan opsi: ${error.message}`);
+                    if (error) throw new BadRequestException(`Soal ${questionNo}: gagal menyimpan opsi: ${error.message}`);
                 }
                 questionIds.push(questionId);
             }

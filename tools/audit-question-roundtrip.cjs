@@ -59,6 +59,11 @@ async function parseSheet(headers,rows) {
     });
     const bad=await parseSheet(['Soal','Tipe','Kunci','A','B'],[['Bad','PG','','one','two']]);
     check('Missing key is rejected instead of guessing A',()=>assert.equal(bad.errors.length,1));
+    const numbered=await parseSheet(['No','Soal','Tipe','Kunci','A','B'],[[7,'Pernyataan','BS','B','satu','dua']]);
+    check('Excel errors name the question number from the No column, not the sheet row',()=>{
+        assert.equal(numbered.errors[0].row,7);
+        assert.doesNotMatch(numbered.errors[0].message,/Baris/);
+    });
     const csv=fs.readFileSync('apps/web/public/template_soal.csv');
     const legacy=await excel.parseExcelToQuestions({arrayBuffer:async()=>csv});
     check('Legacy zero-based CSV keys retain option identity',()=>{
@@ -78,6 +83,11 @@ async function parseSheet(headers,rows) {
     check('Custom B/S labels work as keys on the main row',()=>{
         assert.deepEqual(custom[0].metadata.true_false_labels,{true:'Fakta',false:'Opini'});
         assert.deepEqual(custom[0].options.map(o=>o.isCorrect),[true,false]);
+    });
+    const explicitDefault=parseRows([headers,{cells:['1','BS','Q','','1']},{cells:['','LABEL','Benar | Salah','','']},{cells:['','P1','one','B','']}]);
+    check('An explicit Benar | Salah LABEL row is kept so the bank subject does not override it',()=>{
+        assert.deepEqual(explicitDefault[0].metadata.true_false_labels,{true:'Benar',false:'Salah'});
+        assert.equal(tf[0].metadata.true_false_labels,undefined);
     });
     check('Invalid B/S label row or key is rejected',()=>{
         assert.throws(()=>parseRows([headers,{cells:['1','BS','Q','','1']},{cells:['','LABEL','Ya | ya','','']},{cells:['','P1','one','B','']}]),/Label Benar\/Salah/);

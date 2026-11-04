@@ -277,7 +277,11 @@ export default function BulkImportModal({
             }
             const validation = validateQuestions(result.questions);
             for (const invalid of validation.invalid) {
-                result.errors.push({ row: result.questions.indexOf(invalid.question) + 1, message: invalid.errors.join('; ') });
+                // Nomor soal di file (kolom No), bukan urutan baris hasil baca.
+                const sourceNumber = Number(invalid.question.metadata?.import_source_number);
+                const questionNo = Number.isInteger(sourceNumber) && sourceNumber > 0
+                    ? sourceNumber : result.questions.indexOf(invalid.question) + 1;
+                result.errors.push({ row: questionNo, message: invalid.errors.join('; ') });
             }
             result.success = result.questions.length > 0 && result.errors.length === 0;
             setParseResult(result);
@@ -662,7 +666,7 @@ export default function BulkImportModal({
                                                     <div key={idx} className="flex items-start gap-2 text-xs text-amber-800">
                                                         <span className="text-amber-500 font-bold">•</span>
                                                         <span>
-                                                            {warn.row > 0 && <strong className="font-semibold">Baris/Soal {warn.row}: </strong>}
+                                                            {warn.row > 0 && <strong className="font-semibold">Soal {warn.row}: </strong>}
                                                             {warn.message}
                                                         </span>
                                                     </div>
@@ -759,7 +763,7 @@ export default function BulkImportModal({
                                             </h4>
                                             <div className="space-y-1 max-h-32 overflow-y-auto">
                                                 {parseResult.errors.slice(0, 5).map((err, idx) => (
-                                                    <p key={idx} className="text-xs text-red-600">{err.row > 0 ? `Baris ${err.row}: ` : ''}{getErrorMessage(err)}</p>
+                                                    <p key={idx} className="text-xs text-red-600">{err.row > 0 ? `Soal ${err.row}: ` : ''}{getErrorMessage(err)}</p>
                                                 ))}
                                             </div>
                                         </div>

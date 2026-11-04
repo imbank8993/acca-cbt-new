@@ -1,5 +1,7 @@
 "use client";
-import { trueFalseLabels } from '@acca-cbt/shared';
+import { normalizeTrueFalseLabels,trueFalseLabels,type TrueFalseLabels } from '@acca-cbt/shared';
+import { Modal,ModalBody,ModalFooter } from '@/app/components/ui/modal';
+import { TrueFalseLabelPicker } from './forms/TrueFalseForm';
 import './question-dark-surfaces.css';
 import './question-bank-layout.css';
 import { registerPageFab, unregisterPageFab } from '@/app/components/mobile/page-fab';
@@ -10,7 +12,7 @@ import { FilterSearch } from '@/components/ui/filtertoolbar';
 import { Button } from '@/components/ui/button';
 import { InlineSelectIndicator } from '@/components/ui/InlineSelect';
 import { CollaborationButton } from '@/app/components/CollaborationButton';
-import { confirmDialog } from '@/lib/confirm-dialog';
+import { alertDialog,confirmDialog } from '@/lib/confirm-dialog';
 import { getErrorMessage } from '@/lib/errors';
 import { getProctorOrganization,type ProctorOrganization } from '@/lib/api/proctor';
 import {
@@ -21,6 +23,7 @@ getInstructionsByBank,
 getKisiKisiByBank,
 getQuestionBankAction,
 getStimuliByBank,
+setTrueFalseLabelsAction,
 toggleQuestionBankPublishAction,
 updateQuestionsOrderAction
 } from '@/lib/api/questions';
@@ -40,6 +43,7 @@ CloudUpload,
 CloudOff,
 FileSearch,
 FileText,
+Languages,
 Loader2,
 Plus,
 Printer,
@@ -428,6 +432,41 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
         setDeleteConfirm(null);
     };
 
+    // ── Label Benar-Salah massal ──
+    const [labelDialog, setLabelDialog] = useState<{ ids: string[]; labels: Partial<TrueFalseLabels> | null } | null>(null);
+    const [isSavingLabels, setIsSavingLabels] = useState(false);
+    const selectedTrueFalseIds = questions.filter(q => selectedQuestions.has(q.id) && q.type === 'true_false').map(q => q.id);
+    const openLabelDialog = () => {
+        const chosen = questions.filter(q => selectedTrueFalseIds.includes(q.id));
+        const first = trueFalseLabels(chosen[0]?.metadata);
+        const same = chosen.every(q => { const l = trueFalseLabels(q.metadata); return l.true === first.true && l.false === first.false; });
+        setLabelDialog({ ids: selectedTrueFalseIds, labels: same ? normalizeTrueFalseLabels(first) : null });
+    };
+    const draftLabels = labelDialog?.labels ?? null;
+    const draftLabelsValid = !draftLabels || !!normalizeTrueFalseLabels(draftLabels) ||
+        (draftLabels.true === 'Benar' && draftLabels.false === 'Salah');
+    const applyLabels = async () => {
+        if (!labelDialog || !draftLabelsValid) return;
+        setIsSavingLabels(true);
+        const result = await setTrueFalseLabelsAction(bankId, labelDialog.ids, normalizeTrueFalseLabels(draftLabels));
+        setIsSavingLabels(false);
+        if (!result.success) {
+            await alertDialog({ title: 'Label belum tersimpan', text: getErrorMessage(result), variant: 'danger' });
+            return;
+        }
+        const total = labelDialog.ids.length;
+        setLabelDialog(null);
+        await loadData();
+        const shown = trueFalseLabels({ true_false_labels: normalizeTrueFalseLabels(draftLabels) });
+        await alertDialog({
+            title: 'Label diperbarui',
+            text: `${result.updated} soal Benar-Salah kini memakai label ${shown.true} / ${shown.false}.` +
+                (result.updated < total ? ` ${total - result.updated} soal lain sudah memakai label ini.` : '') +
+                (result.updatedExams ? ` ${result.updatedExams} ujian aktif ikut diperbarui.` : ''),
+            variant: 'success',
+        });
+    };
+
     const toggleSelectQuestion = (qId: string) => {
         const newSet = new Set(selectedQuestions);
         if (newSet.has(qId)) newSet.delete(qId);
@@ -754,6 +793,11 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                             aria-label={selectedQuestions.size === filteredQuestions.length ? 'Batalkan pilihan semua soal' : 'Pilih semua soal'}
                             aria-pressed={selectedQuestions.size === filteredQuestions.length}
                             leftIcon={selectedQuestions.size === filteredQuestions.length ? <CheckSquare size={16} /> : <Square size={16} />}>Semua</Button>
+                        {selectedTrueFalseIds.length > 0 && (
+                            <Button type="button" variant="outline" size="sm" onClick={openLabelDialog}
+                                title="Ganti label jawaban soal Benar-Salah yang dipilih"
+                                leftIcon={<Languages size={16} />}>Label B/S ({selectedTrueFalseIds.length})</Button>
+                        )}
                         <Button type="button" variant="danger" size="sm" onClick={requestBulkDelete} isLoading={isBulkDeleting}
                             leftIcon={<Trash2 size={16} />}>Hapus ({selectedQuestions.size})</Button>
                     </div>}
@@ -1201,6 +1245,22 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
             />
 
 
+
+            <Modal open={!!labelDialog} onClose={() => { if (!isSavingLabels) setLabelDialog(null); }} size="md"
+                title="Label jawaban Benar-Salah" icon={<Languages size={18} />}
+                subtitle={labelDialog ? `Berlaku untuk ${labelDialog.ids.length} soal Benar-Salah yang dipilih` : undefined}>
+                <ModalBody>
+                    <TrueFalseLabelPicker labels={draftLabels}
+                        onChange={(labels) => setLabelDialog(current => current ? { ...current, labels } : current)} />
+                    <p className="text-xs text-slate-500">Hanya tampilan yang berubah: jawaban dan nilai siswa tidak terpengaruh. Soal jenis lain yang ikut dipilih diabaikan.</p>
+                    {!draftLabelsValid && <p className="mt-2 text-xs font-semibold text-rose-600">Isi dua label yang berbeda.</p>}
+                </ModalBody>
+                <ModalFooter>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setLabelDialog(null)} disabled={isSavingLabels}>Batal</Button>
+                    <Button type="button" variant="primary" size="sm" onClick={applyLabels} isLoading={isSavingLabels}
+                        disabled={!draftLabelsValid}>Terapkan</Button>
+                </ModalFooter>
+            </Modal>
 
             {/* ── Delete Confirmation Modal ── */}
             <AnimatePresence>

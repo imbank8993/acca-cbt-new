@@ -802,7 +802,8 @@ function parseQuestionTable(
                 if (!labels && !isDefault) {
                     throw new Error(`Label Benar/Salah soal ${current.metadata.import_source_number ?? ''} tidak valid. Tulis dua label berbeda, mis. "True | False".`);
                 }
-                if (labels) current.metadata.true_false_labels = labels;
+                // Benar | Salah eksplisit tetap dicatat agar tidak diganti label mapel saat impor.
+                current.metadata.true_false_labels = labels ?? { ...DEFAULT_TRUE_FALSE_LABELS };
             }
             // ── Sub-item BS: Tipe = P1/P2/P3... ───────────────────────────────────
             else if (current.type === 'true_false' && /^(P)?\d+$/i.test(tipeRaw) && !isBlank(soalRaw)) {

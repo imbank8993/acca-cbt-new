@@ -160,6 +160,20 @@ export class UpdateQuestionMetadataDto {
     expectedRevision?: number;
 }
 
+export class SetTrueFalseLabelsDto {
+    @ApiProperty({ type: [String], description: 'Id soal Benar-Salah yang labelnya diganti.' })
+    @IsArray()
+    @ArrayNotEmpty({ message: 'Pilih minimal satu soal' })
+    @ArrayMaxSize(500, { message: 'Maksimal 500 soal sekaligus' })
+    @IsUUID('4', { each: true, message: 'questionIds memuat id yang tidak valid' })
+    questionIds!: string[];
+
+    @ApiPropertyOptional({ description: 'Label baru { true, false }; null = Benar/Salah.' })
+    @IsOptional()
+    @IsObject({ message: 'labels harus berupa objek' })
+    labels?: { true: string; false: string } | null;
+}
+
 export class ReorderQuestionsDto {
     @ApiProperty({ type: [String], description: 'Id soal dalam urutan akhir yang diinginkan.' })
     @IsArray()

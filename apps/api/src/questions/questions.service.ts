@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { normalizeTrueFalseLabels, type AuthUser } from '@acca-cbt/shared';
+import { isDefaultTrueFalseLabels, normalizeTrueFalseLabels, type AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { GradingService } from '../grading/grading.service';
 import { insertIdempotentlyWithStatus } from '../common/idempotent-create';
@@ -452,6 +452,55 @@ export class QuestionsService {
             await this.touchBank(bankId, db);
 
             return { bankId, updated };
+        });
+    }
+
+    /**
+     * Ganti label tampilan banyak soal Benar-Salah sekaligus. Label hanya
+     * tampilan (jawaban tetap benar/salah), jadi soal yang sudah dipakai ujian
+     * tetap boleh diubah; ujian yang masih berjalan ikut diperbarui.
+     * `labels` null atau Benar/Salah = kembali ke label bawaan.
+     */
+    async setTrueFalseLabels(user: AuthUser, bankId: string, questionIds: string[], labels: unknown) {
+        const organizationId = await this.authz.assertBankAccess(user, bankId);
+        const next = normalizeTrueFalseLabels(labels);
+        if (labels !== null && labels !== undefined && !next && !isDefaultTrueFalseLabels(labels)) {
+            throw new BadRequestException('Label jawaban tidak valid. Isi dua label yang berbeda.');
+        }
+        const ids = [...new Set(questionIds)].sort();
+
+        return this.db.transaction(async db => {
+            for (const id of ids) {
+                await db.raw('SELECT id FROM public.cbt_bank_questions WHERE id = $1::uuid AND bank_id = $2::uuid FOR UPDATE', id, bankId);
+            }
+            const { data, error: readError } = await db
+                .from('cbt_bank_questions')
+                .select('id, type, metadata, revision')
+                .eq('bank_id', bankId)
+                .in('id', ids);
+            if (readError) throw new BadRequestException(`Gagal membaca soal: ${readError.message}`);
+
+            const rows = ((data as Array<{ id: string; type: string; metadata: Record<string, unknown> | null; revision?: number }>) || [])
+                .filter(row => row.type === 'true_false' && !row.metadata?._deleted);
+            let updated = 0;
+            let updatedExams = 0;
+            for (const row of rows) {
+                const current = normalizeTrueFalseLabels(row.metadata?.true_false_labels);
+                if (JSON.stringify(current) === JSON.stringify(next)) continue;
+                const metadata = { ...(row.metadata || {}) };
+                if (next) metadata.true_false_labels = next;
+                else delete metadata.true_false_labels;
+                const { error } = await db
+                    .from('cbt_bank_questions')
+                    .update({ metadata, revision: (Number(row.revision) || 1) + 1 })
+                    .eq('id', row.id)
+                    .eq('bank_id', bankId);
+                if (error) throw new BadRequestException(`Gagal memperbarui label soal: ${error.message}`);
+                updatedExams += await syncLiveExamQuestion(db, row.id, organizationId, user.id);
+                updated++;
+            }
+            if (updated) await this.touchBank(bankId, db);
+            return { bankId, updated, skipped: ids.length - rows.length, updatedExams };
         });
     }
 
