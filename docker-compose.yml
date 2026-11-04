@@ -1,6 +1,7 @@
 services:
   cbt-latex:
     build: ./apps/latex-renderer
+    container_name: acca-cbt-latex
     restart: unless-stopped
     read_only: true
     tmpfs:
@@ -18,7 +19,7 @@ services:
     build:
       context: .
       dockerfile: apps/scoring/Dockerfile
-    container_name: cbt-scoring
+    container_name: acca-cbt-scoring
     restart: unless-stopped
     env_file:
       - .env
@@ -35,7 +36,7 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    container_name: cbt-api
+    container_name: acca-cbt-api
     restart: unless-stopped
     depends_on:
       cbt-scoring:
@@ -65,7 +66,7 @@ services:
       args:
         - NEXT_PUBLIC_ACCA_URL=${NEXT_PUBLIC_ACCA_URL:-https://acca.icgowa.sch.id}
         - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL:-https://acca-cbt.icgowa.sch.id}
-    container_name: cbt-web
+    container_name: acca-cbt-web
     restart: unless-stopped
     depends_on:
       cbt-api:
@@ -86,7 +87,8 @@ services:
 
 networks:
   latex-network:
+    name: acca-latex-network
     internal: true
   cbt-network:
-    name: cbt-network
+    name: acca-cbt-network
     driver: bridge
