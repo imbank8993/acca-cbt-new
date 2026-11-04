@@ -586,7 +586,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                                     }}
                                                     className={`flex-1 sm:flex-none px-3.5 sm:px-4 py-2 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all
                                                         ${currentVal === 'benar'
-                                                            ? (showFeedback ? (isCorrectAnswer ? 'bg-[#3083FF] text-white shadow-sm' : 'bg-rose-100 text-rose-700 border border-rose-300 dark:bg-rose-900/60 dark:text-rose-200 dark:border-rose-700 font-bold') : 'bg-[#3083FF] text-white')
+                                                            ? (showFeedback ? (isCorrectAnswer ? 'bg-emerald-500 text-white shadow-sm' : 'bg-rose-100 text-rose-700 border border-rose-300 dark:bg-rose-900/60 dark:text-rose-200 dark:border-rose-700 font-bold') : 'bg-emerald-500 text-white')
                                                             : (showFeedback && isCorrectAnswer ? 'bg-emerald-500 text-white border border-emerald-500 shadow-sm font-bold' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-[#24324f] dark:text-slate-200 dark:border-slate-600 dark:hover:bg-[#2e3e62] border border-slate-200')
                                                         }`}
                                                     aria-pressed={currentVal === 'benar'}
@@ -602,7 +602,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                                     }}
                                                     className={`flex-1 sm:flex-none px-3.5 sm:px-4 py-2 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all
                                                         ${currentVal === 'salah'
-                                                            ? (showFeedback ? (!isCorrectAnswer ? 'bg-[#3083FF] text-white shadow-sm' : 'bg-rose-100 text-rose-700 border border-rose-300 dark:bg-rose-900/60 dark:text-rose-200 dark:border-rose-700 font-bold') : 'bg-[#3083FF] text-white')
+                                                            ? (showFeedback ? (!isCorrectAnswer ? 'bg-rose-500 text-white shadow-sm' : 'bg-rose-100 text-rose-700 border border-rose-300 dark:bg-rose-900/60 dark:text-rose-200 dark:border-rose-700 font-bold') : 'bg-rose-500 text-white')
                                                             : (showFeedback && !isCorrectAnswer ? 'bg-emerald-500 text-white border border-emerald-500 shadow-sm font-bold' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-[#24324f] dark:text-slate-200 dark:border-slate-600 dark:hover:bg-[#2e3e62] border border-slate-200')
                                                         }`}
                                                     aria-pressed={currentVal === 'salah'}

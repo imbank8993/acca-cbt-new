@@ -23,10 +23,12 @@
   max-height: none !important;
 }
 
-/* Force SVGs to be inline regardless of inline styles */
-svg[style*="display: block"],
-svg[style*="display:block"],
-svg[style*="width:"] {
+/* Force SVGs to be inline regardless of inline styles.
+   KaTeX dikecualikan: potongan sambungan kurung besar (cases, matriks) adalah
+   SVG ber-style width yang harus tetap block/absolute di posisinya. */
+svg[style*="display: block"]:not(.katex svg),
+svg[style*="display:block"]:not(.katex svg),
+svg[style*="width:"]:not(.katex svg) {
   display: inline !important;
 }
 
@@ -316,13 +318,14 @@ textarea {
   font-family: 'Merriweather', 'Source Serif 4', var(--font-open-sans), 'Open Sans', Georgia, serif;
 }
 
-.question-content p,
-.question-content span,
-.question-content div,
-.question-content li,
-.latex-renderer *,
+/* Isi rumus KaTeX dikecualikan (lihat aturan .katex di bawah). */
+.question-content p:where(:not(.katex, .katex *)),
+.question-content span:where(:not(.katex, .katex *)),
+.question-content div:where(:not(.katex, .katex *)),
+.question-content li:where(:not(.katex, .katex *)),
+.latex-renderer *:where(:not(.katex, .katex *)),
 .tiptap-preview-editor .ProseMirror,
-.tiptap-preview-editor .ProseMirror * {
+.tiptap-preview-editor .ProseMirror *:where(:not(.katex, .katex *)) {
   font-family: inherit;
 }
 
@@ -338,14 +341,13 @@ textarea.essay-answer-input {
   font-family: var(--font-open-sans), 'Open Sans', system-ui, -apple-system, sans-serif !important;
 }
 
-/* Ensure Math / KaTeX rendering stays untouched */
-.katex,
-.katex *,
-mjx-container,
-mjx-container *,
-.math-node,
-.math-node * {
-  font-family: KaTeX_Main, KaTeX_Math, 'Times New Roman', serif !important;
+/* Ensure Math / KaTeX rendering stays untouched.
+   Hanya akar .katex yang diberi font. Elemen di dalamnya memilih font sendiri
+   lewat CSS KaTeX (KaTeX_Size1–4 untuk kurung besar, ∫ dan Σ; KaTeX_Math untuk
+   variabel; KaTeX_AMS, dst.). Memaksa satu font ke `.katex *` membuat kurung
+   kurawal cases terpotong dan kurung matriks/integral mengecil. */
+.katex {
+  font-family: KaTeX_Main, 'Times New Roman', serif !important;
 }
 
 /* Ensure icons inside questions/options retain icon font */
@@ -1290,44 +1292,13 @@ html body .katex-display {
   line-height: 1;  /* Let cbt-editor.css control final line-height */
 }
 
-/* ---- Color inheritance — override KaTeX's hardcoded colors ---- */
-html body .katex,
-html body .katex-html,
-html body .katex .katex-html,
-html body .katex svg,
-html body .katex-mathml,
-html body .katex-display > .katex,
-html body .katex-display > .katex-html,
-html body span.katex,
-html body .katex span {
-  color: inherit !important;
-}
-
-html body .katex .mord,
-html body .katex .mbin,
-html body .katex .mrel,
-html body .katex .mopen,
-html body .katex .mclose,
-html body .katex .mpunct,
-html body .katex .mord.numcr,
-html body .katex .mop,
-html body .katex .mover,
-html body .katex .munder,
-html body .katex .munderover,
-html body .katex .mfrac,
-html body .katex .msqrt,
-html body .katex .mroot,
-html body .katex .mi,
-html body .katex .mn,
-html body .katex svg,
-html body .katex svg * {
-  color: inherit !important;
-  fill: currentColor !important;
-  stroke: currentColor !important;
-}
-
-html body .katex svg text {
-  fill: currentColor !important;
+/* ---- Warna ----
+   Rumus mengikuti warna teks di sekitarnya (termasuk mode gelap). Jangan beri
+   !important pada span/SVG di dalam rumus: itu mematikan \color/\textcolor,
+   warna merah pesan galat, dan memberi garis tepi pada path SVG (akar, panah,
+   sambungan kurung) sehingga tampak tebal dan kabur. */
+html body .katex {
+  color: inherit;
 }
 
 /* ---- INLINE MATH: CLEAN & SAFE ---- */
@@ -1401,25 +1372,9 @@ html body .rich-content .katex-inline {
   top: -0.05em;
 }
 
-/* ---- Operator spacing ---- */
-html body .katex .mbin {
-  margin-left: 0.15em;
-  margin-right: 0.15em;
-}
-
-html body .katex .mrel {
-  margin-left: 0.2em;
-  margin-right: 0.2em;
-}
-
-html body .katex .mopen,
-html body .katex .mclose {
-  padding: 0 0.1em;
-}
-
-html body .katex .mord.numcr {
-  font-size: 0.85em;
-}
+/* ---- Operator spacing ----
+   Diatur KaTeX sendiri. Margin/padding tambahan pada +, =, ≤ dan kurung membuat
+   rumus renggang dan menggeser kolom pada cases/matriks. */
 
 /* ---- Mobile responsiveness ---- */
 @media (max-width: 768px) {

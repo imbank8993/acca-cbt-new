@@ -65,12 +65,7 @@ const getAnswerStatus = (q: Question, ans: AnswerValue) => {
         if (type === 'mcq_complex') {
             if (Array.isArray(parsed)) {
                 if (parsed.length === 0) return 'unanswered';
-                // For PGK, if the number of checked boxes is less than the number of options, some might consider it partial if they expected more to be checked.
-                // But usually, any checked is considered complete. However, if the user explicitly wants "partial" for PGK, we could set it to partial if length < optionsCount? 
-                // But that means they would have to check ALL boxes to be green! Which is wrong for PGK.
-                // Most likely, they mean "PGK (matrix format)" but we just use the default.
-                // Let's assume if there's any answer, it's complete, EXCEPT if we have metadata indicating exactly how many should be checked.
-                return 'complete'; 
+                return parsed.length === 1 ? 'partial' : 'complete';
             }
             return 'unanswered';
         }
@@ -431,7 +426,7 @@ export function ExamViewer({
                                 } else if (status === 'complete') {
                                     btnClass = 'bg-green-500 text-white border-green-500';
                                 } else if (status === 'partial') {
-                                    btnClass = 'bg-pink-500 text-white border-pink-500';
+                                    btnClass = 'bg-fuchsia-500 text-white border-fuchsia-500';
                                 }
 
                                 if (isUpdated && !active) {
@@ -775,8 +770,8 @@ export function ExamViewer({
                         <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-emerald-50 text-emerald-700" title="Terjawab Lengkap">
                             <div className="w-3 h-3 rounded-[2px] bg-green-500" /> {completeCount}
                         </div>
-                        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-pink-50 text-pink-700" title="Terjawab Sebagian">
-                            <div className="w-3 h-3 rounded-[2px] bg-pink-500" /> {partialCount}
+                        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-fuchsia-50 text-fuchsia-700" title="Terjawab Sebagian">
+                            <div className="w-3 h-3 rounded-[2px] bg-fuchsia-500" /> {partialCount}
                         </div>
                         <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-yellow-50 text-yellow-700" title="Ragu-Ragu">
                             <div className="w-3 h-3 rounded-[2px] bg-yellow-400" /> {doubtCount}
@@ -818,8 +813,8 @@ export function ExamViewer({
                                     <div className="w-3 h-3 rounded-[2px] bg-green-500 shadow-sm" />
                                     <span>{completeCount} Lengkap</span>
                                 </div>
-                                <div className="flex flex-col items-center gap-1 text-pink-700">
-                                    <div className="w-3 h-3 rounded-[2px] bg-pink-500 shadow-sm" />
+                                <div className="flex flex-col items-center gap-1 text-fuchsia-700">
+                                    <div className="w-3 h-3 rounded-[2px] bg-fuchsia-500 shadow-sm" />
                                     <span>{partialCount} Sebagian</span>
                                 </div>
                                 <div className="flex flex-col items-center gap-1 text-yellow-700">
@@ -847,7 +842,7 @@ export function ExamViewer({
                                         } else if (status === 'complete') {
                                             btnClass = 'bg-green-500 text-white border-green-500';
                                         } else if (status === 'partial') {
-                                            btnClass = 'bg-pink-500 text-white border-pink-500';
+                                            btnClass = 'bg-fuchsia-500 text-white border-fuchsia-500';
                                         }
 
                                         if (isUpdated && !active) {
