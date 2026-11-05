@@ -639,7 +639,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                 className="w-full sm:w-auto">
                                 Pratinjau
                             </Button>
-                            {canManage && (<Button mobileIconOnly aria-label={bankInfo?.is_published ? 'Unpublish' : 'Publish'} title={bankInfo?.is_published ? 'Unpublish' : 'Publish'} type="button" size="sm"
+                            {bankInfo?.canPublish === true && (<Button mobileIconOnly aria-label={bankInfo?.is_published ? 'Unpublish' : 'Publish'} title={bankInfo?.is_published ? 'Unpublish' : 'Publish'} type="button" size="sm"
                                 variant={bankInfo?.is_published ? 'unpublish' : 'primary'}
                                 leftIcon={bankInfo?.is_published ? <CloudOff size={16} /> : <CloudUpload size={16} />}
                                 onClick={async () => {

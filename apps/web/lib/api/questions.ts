@@ -82,6 +82,7 @@ export interface QuestionBank {
     validationId?: string | null;
     validation_summary?: BankValidationSummary | null;
     canManage?: boolean;
+    canPublish?: boolean;
     isOwner?: boolean;
     canShare?: boolean;
     canDelete?: boolean;

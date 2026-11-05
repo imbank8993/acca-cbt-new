@@ -175,7 +175,7 @@ export default function ProktorQuestionBankPage() {
                     setIsDualRole(dualRoleStatus);
                     setCurrentUserId(user.id);
                     const [bankList, labelList, folderList, subjectList] = await Promise.all([
-                        listQuestionBanks(),
+                        listQuestionBanks(false, true),
                         listOrganizationLabels(),
                         listBankFolders(),
                         listSubjects()
@@ -486,19 +486,18 @@ export default function ProktorQuestionBankPage() {
             </div>
             <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                 {(bank.canShare || bank.collaborationPermission) && <CollaborationButton type="bank" resourceId={bank.id} collaboratorCount={bank.collaboratorCount} onChanged={() => void loadData()} />}
-                {bank.canManage === true && (<Button
+                {bank.canPublish === true && (<Button
                     size="sm"
                     variant={bank.is_published ? "warning" : "primary"}
-                    disabled={bank.canManage !== true}
                     onClick={() => handleTogglePublish(bank)}
                 >
                     {bank.is_published ? 'Unpublish' : 'Publish'}
                 </Button>)}
-                <Link href={`/dashboard/proktor/questions/${bank.id}`}>
+                {bank.canRead === false ? <Button size="sm" variant="secondary" disabled title="Isi soal hanya tersedia bagi pembuat bank, pembuat folder, atau pihak yang diberi akses.">Terkunci</Button> : <Link href={`/dashboard/proktor/questions/${bank.id}`}>
                     <Button size="sm" variant="secondary" rightIcon={<ArrowRight size={14} />}>
                         Lihat
                     </Button>
-                </Link>
+                </Link>}
                 {bank.canManage === true && (<ActionButton
                     action="move"
                     iconOnly
@@ -690,23 +689,22 @@ export default function ProktorQuestionBankPage() {
                                 </div>
                             </div>
                             <div className="bank-card-mobile-actions flex items-center gap-1.5">
-                                {bank.canManage === true && (<Button
+                                {bank.canPublish === true && (<Button
                                     aria-label={bank.is_published ? 'Unpublish' : 'Publish'}
                                     title={bank.is_published ? 'Unpublish' : 'Publish'}
                                     leftIcon={bank.is_published ? <CloudOff size={15} /> : <CloudUpload size={15} />}
                                     size="sm"
                                     variant={bank.is_published ? "warning" : "primary"}
-                                    disabled={bank.canManage !== true}
                     onClick={() => handleTogglePublish(bank)}
                                     className="bank-card-publish shrink-0"
                                 >
                                     {bank.is_published ? 'Unpublish' : 'Publish'}
                                 </Button>)}
-                                <Link href={`/dashboard/proktor/questions/${bank.id}`} className="shrink-0">
+                                {bank.canRead === false ? <Button mobileIconOnly aria-label="Bank soal terkunci" title="Isi soal hanya tersedia bagi pembuat bank, pembuat folder, atau pihak yang diberi akses." size="sm" variant="secondary" leftIcon={<Lock size={16} />} disabled>Terkunci</Button> : <Link href={`/dashboard/proktor/questions/${bank.id}`} className="shrink-0">
                                     <Button mobileIconOnly aria-label="Lihat bank soal" title="Lihat bank soal" size="sm" variant="secondary" leftIcon={<Eye size={16} />} className="w-full">
                                         Lihat
                                     </Button>
-                                </Link>
+                                </Link>}
                                 {(bank.canShare || bank.collaborationPermission) && <CollaborationButton mobileIconOnly className="shrink-0" type="bank" resourceId={bank.id} collaboratorCount={bank.collaboratorCount} onChanged={() => void loadData()} />}
 
                                 {bank.canManage === true && (<Button mobileIconOnly aria-label="Edit bank soal" title="Edit bank soal" variant="outline" size="sm" leftIcon={<Edit3 size={16} />} disabled={bank.canManage !== true}

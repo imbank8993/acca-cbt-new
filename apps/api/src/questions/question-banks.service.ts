@@ -65,8 +65,9 @@ export class QuestionBanksService {
      *
      * Guru melihat bank buatannya sendiri. Proktor juga dapat membaca bank orang
      * lain yang dipublikasikan; Admin dan admin platform melihat seluruh bank.
-     * Katalog guru juga memuat kartu terkunci dari folder publik dan tautan tugas
-     * validasi. Daftar pilihan impor/ujian tetap hanya berisi bank yang dapat dibaca.
+     * Katalog staf memuat kartu bank dari folder publik. Pembuat folder dapat
+     * membaca isinya, sedangkan staf lain hanya melihat ringkasan kartu.
+     * Daftar pilihan impor/ujian tetap hanya berisi bank yang dipilih lewat akses biasa.
      */
     async list(user: AuthUser, organizationId: string, onlyPublished = false, catalog = false) {
         await this.authz.assertOrgStaff(user, organizationId);
@@ -87,13 +88,18 @@ export class QuestionBanksService {
         const grants = await collaborationGrants(this.db, 'bank', user.id);
         const sharedIds = [...grants.keys()];
         const collaboration = await this.authz.collaborationListContext(user, organizationId, 'bank');
-        const publicFolderIds: string[] = [];
+        const publicFolders = new Map<string, string | null>();
         const validationByBank = new Map<string, string>();
-        if (!elevated && catalog) {
+        if (catalog) {
             const { data: folders, error: folderError } = await this.db.from('bank_folders')
-                .select('id').eq('organization_id', organizationId).eq('is_public', true);
+                .select('id, created_by').eq('organization_id', organizationId).eq('is_public', true);
             if (folderError) throw new BadRequestException('Folder publik belum dapat dibaca.');
-            publicFolderIds.push(...(folders || []).map((folder: { id: string }) => folder.id));
+            for (const folder of (folders || []) as Array<{ id: string; created_by: string | null }>) {
+                publicFolders.set(folder.id, folder.created_by);
+            }
+        }
+        const publicFolderIds = [...publicFolders.keys()];
+        if (!elevated && catalog) {
             const { data: assignments, error: assignmentError } = await this.db.from('cbt_question_bank_validators')
                 .select('validation_id').eq('validator_id', user.id);
             if (assignmentError) throw new BadRequestException('Penugasan validasi belum dapat dibaca.');
@@ -108,7 +114,11 @@ export class QuestionBanksService {
                 }
             }
         }
-        if (restrictedProctor) query = query.or(`created_by.eq.${user.id},is_published.eq.true`);
+        if (restrictedProctor) {
+            const clauses = [`created_by.eq.${user.id}`, 'is_published.eq.true'];
+            if (publicFolderIds.length) clauses.push(`folder_id.in.(${publicFolderIds.join(',')})`);
+            query = query.or(clauses.join(','));
+        }
         else if (!elevated) {
             const clauses = [`created_by.eq.${user.id}`];
             if (sharedIds.length) clauses.push(`id.in.(${sharedIds.join(',')})`);
@@ -125,7 +135,7 @@ export class QuestionBanksService {
         }
 
         const banks = ((data as any[]) || []).filter(bank => restrictedProctor
-            ? bank.created_by === user.id || bank.is_published === true
+            ? bank.created_by === user.id || bank.is_published === true || publicFolderIds.includes(bank.folder_id)
             : elevated || bank.created_by === user.id || grants.has(bank.id) ||
                 publicFolderIds.includes(bank.folder_id) || validationByBank.has(bank.id));
         const counts = await collaboratorCounts(this.db, 'bank', banks.map(bank => bank.id));
@@ -147,10 +157,12 @@ export class QuestionBanksService {
 
             const questionCount = (bank.bank_questions || []).filter((q: any) => !q.metadata?._deleted).length;
 
-            const access = collaboration.access(bank, grants.get(bank.id));
+            const access = collaboration.access(bank,
+                restrictedProctor && bank.created_by !== user.id ? undefined : grants.get(bank.id));
             const grant = access.grant;
-            const canRead = access.owner || access.admin || !!grant || restrictedProctor && bank.is_published === true;
-            // A public folder exposes a catalogue card, never question metadata or rich content.
+            const canRead = access.owner || access.admin || !!grant ||
+                publicFolders.get(bank.folder_id) === user.id || restrictedProctor && bank.is_published === true;
+            // Kartu folder publik terlihat oleh staf; isi soal hanya bagi pembuat bank/folder atau akses lain yang sah.
             const visibleBank = canRead ? bank : {
                 id: bank.id, title: bank.title, subject: bank.subject, class_level: bank.class_level,
                 created_by: bank.created_by, created_at: bank.created_at, folder_id: bank.folder_id,
@@ -161,11 +173,12 @@ export class QuestionBanksService {
                 canRead,
                 validationId: validationByBank.get(bank.id) || null,
                 // Hanya informasi: hasil validasi tidak membatasi publikasi/pemakaian bank.
-                validation_summary: validationSummaries.get(bank.id) || null,
+                validation_summary: canRead ? validationSummaries.get(bank.id) || null : null,
                 canManage: access.owner || access.admin || !!grant && ['editor', 'manager'].includes(grant.permission),
+                canPublish: access.canShare,
                 isOwner: access.owner, canShare: access.canShare, canDelete: access.canDelete,
                 collaborationPermission: grant?.permission || null,
-                collaboratorCount: counts.get(bank.id) || 0,
+                collaboratorCount: canRead ? counts.get(bank.id) || 0 : 0,
                 question_count: questionCount,
                 total_questions: questionCount,
                 folder_id: bank.folder_id,
@@ -221,6 +234,7 @@ export class QuestionBanksService {
         const counts = await collaboratorCounts(this.db, 'bank', [bankId]);
         const validationSummary = (await this.validationSummaries([bankId])).get(bankId) || null;
         return { ...bank, validation_summary: validationSummary, canManage: access.owner || access.admin || !!access.grant && ['editor', 'manager'].includes(access.grant.permission),
+            canPublish: access.canShare,
             isOwner: access.owner, canShare: access.canShare, canDelete: access.canDelete, collaborationPermission: access.grant?.permission || null,
             collaboratorCount: counts.get(bankId) || 0 };
     }
@@ -332,7 +346,7 @@ export class QuestionBanksService {
         await this.authz.assertBankAccess(user, bankId);
         // Menerbitkan membuka bank (beserta kuncinya) untuk dibaca Proktor lain dan
         // dipakai di ujian siapa pun; menarik dapat mengganggu ujian berjalan.
-        // Keputusan itu milik pembuat, Admin, atau pengelola — bukan editor.
+        // Keputusan itu milik pembuat, Admin, atau pengelola — bukan pembaca folder publik.
         const access = await this.authz.collaborationPermissions(user, 'bank', bankId);
         if (!access.canShare) throw new ForbiddenException('Hanya pembuat, Admin, atau pengelola yang dapat menerbitkan atau menarik bank soal.');
 

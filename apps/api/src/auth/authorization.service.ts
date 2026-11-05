@@ -172,7 +172,8 @@ export class AuthorizationService {
      * stimulus, petunjuk, kisi-kisi, dimensi, dan tafsirannya.
      *
      * Admin memiliki akses penuh dalam sekolahnya. Pemilik boleh mengelola bank;
-     * proktor hanya boleh membaca bank milik orang lain yang sudah dipublikasikan.
+     * proktor boleh membaca bank orang lain yang sudah dipublikasikan atau berada
+     * di folder publik yang ia buat. Staf lain hanya melihat kartu katalognya.
      *
      * Organisasinya diambil dari BARIS BANK-nya, bukan dari parameter pemanggil.
      * Itu yang mencegah id bank milik sekolah lain diselundupkan bersama
@@ -187,13 +188,13 @@ export class AuthorizationService {
 
         const { data } = await db
             .from('cbt_question_banks')
-            .select('organization_id, created_by, is_published')
+            .select('organization_id, created_by, is_published, folder_id')
             .eq('id', bankId)
             .maybeSingle();
 
         if (!data) throw new NotFoundException('Bank soal tidak ditemukan.');
 
-        const bank = data as { organization_id: string; created_by: string | null; is_published?: boolean };
+        const bank = data as { organization_id: string; created_by: string | null; is_published?: boolean; folder_id?: string | null };
 
         await this.assertOrgStaff(user, bank.organization_id);
 
@@ -201,6 +202,13 @@ export class AuthorizationService {
             this.isElevatedGlobally(user) ||
             (await this.roles.hasOrgRole(user.id, bank.organization_id, ['Admin']));
         const restrictedProctor = !elevated && await this.roles.hasOrgRole(user.id, bank.organization_id, ['Proktor']);
+
+        if (access === 'read' && !elevated && bank.created_by !== user.id && bank.folder_id) {
+            const { data: folder, error } = await db.from('bank_folders')
+                .select('is_public, created_by').eq('id', bank.folder_id).eq('organization_id', bank.organization_id).maybeSingle();
+            if (error) throw new ForbiddenException('Akses folder bank soal belum dapat diperiksa.');
+            if (folder?.is_public === true && folder.created_by === user.id) return bank.organization_id;
+        }
 
         if (access === 'delete' && restrictedProctor) {
             throw new ForbiddenException('Proktor tidak dapat menghapus bank soal, termasuk bank soal buatan sendiri.');
@@ -231,7 +239,7 @@ export class AuthorizationService {
 
     async collaborationPermissions(user: AuthUser, type: CollaborativeResource, resourceId: string) {
         const { data: resource, error } = await this.db.from(collaborationResourceTable(type))
-            .select(type === 'bank' ? 'id, organization_id, created_by, is_published' : 'id, organization_id, created_by').eq('id', resourceId).maybeSingle();
+            .select(type === 'bank' ? 'id, organization_id, created_by, is_published, folder_id' : 'id, organization_id, created_by').eq('id', resourceId).maybeSingle();
         if (error || !resource) throw new NotFoundException('Data kolaborasi tidak ditemukan.');
         if (type === 'exam') await this.assertOrgMonitoring(user, resource.organization_id);
         else await this.assertOrgStaff(user, resource.organization_id);
@@ -239,7 +247,13 @@ export class AuthorizationService {
         const admin = this.isElevatedGlobally(user) || await this.roles.hasOrgRole(user.id, resource.organization_id, ['Admin']);
         const owner = staff && resource.created_by === user.id;
         const readOnlyBank = type === 'bank' && !admin && await this.roles.hasOrgRole(user.id, resource.organization_id, ['Proktor']);
-        if (readOnlyBank && !owner && resource.is_published !== true) throw new ForbiddenException('Bank soal ini belum dipublikasikan oleh pembuatnya.');
+        if (readOnlyBank && !owner && resource.is_published !== true) {
+            const { data: folder, error: folderError } = resource.folder_id
+                ? await this.db.from('bank_folders').select('is_public, created_by').eq('id', resource.folder_id)
+                    .eq('organization_id', resource.organization_id).maybeSingle()
+                : { data: null, error: null };
+            if (folderError || folder?.is_public !== true || folder.created_by !== user.id) throw new ForbiddenException('Bank soal ini belum dipublikasikan oleh pembuatnya.');
+        }
         const grant = staff && !admin && !owner && !readOnlyBank ? await collaborationGrant(this.db, type, resourceId, user.id) : null;
         return { resource, owner, admin, grant, canShare: admin || owner || grant?.permission === 'manager', canDelete: admin || (owner && !readOnlyBank) };
     }

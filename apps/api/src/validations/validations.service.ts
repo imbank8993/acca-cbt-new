@@ -487,6 +487,12 @@ export class ValidationsService {
         if (assignmentError) throw new BadRequestException('Gagal memeriksa penugasan validator.');
         if (!assignment) {
             await this.authz.assertBankAccess(user, (val as any).bank_id, 'read');
+            const permission = await this.authz.collaborationPermissions(user, 'bank', (val as any).bank_id);
+            const publishedProctor = (val as any).bank?.is_published === true &&
+                await this.authz.isRestrictedProctor(user, (val as any).organization_id);
+            if (!permission.owner && !permission.admin && !permission.grant && !publishedProctor) {
+                throw new ForbiddenException('Sesi validasi hanya tersedia bagi pembuat, kolaborator, atau validator yang ditugaskan.');
+            }
             return val;
         }
         return (assignment as AssignmentRow).status === 'submitted' ? val : this.hideOtherReviews(val as any, user.id);
