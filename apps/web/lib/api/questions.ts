@@ -218,6 +218,13 @@ export async function listQuestionBanks(onlyPublished?: boolean, catalog = false
     return res.success ? res.banks : [];
 }
 
+/** Daftar katalog untuk halaman bank soal; kegagalan harus terlihat, bukan disamarkan sebagai daftar kosong. */
+export async function listQuestionBankCatalog(): Promise<QuestionBank[]> {
+    const res = await apiGet<{ banks: QuestionBank[] }>('/api/question-banks?catalog=true');
+    if (!res.success) throw new Error(res.error);
+    return res.banks;
+}
+
 export async function getQuestionBankAction(bankId: string): Promise<QuestionBank | null> {
     const res = await apiGet<{ bank: QuestionBank }>(`/api/question-banks/${encodeURIComponent(bankId)}`);
     return res.success ? res.bank : null;

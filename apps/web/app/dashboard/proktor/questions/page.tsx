@@ -12,7 +12,7 @@ import { Spinner } from '@/app/components/ui/Spinner';
 import { LIST_PAGE_SIZE, ListPagination } from '@/app/components/ui/list-pagination';
 import { getProctorOrganization,hasUserDualRole,isUserProctor,listSubjects } from '@/lib/api/proctor';
 import type { ProctorOrganization,SchoolSubject } from '@/lib/api/proctor';
-import { bulkMoveBanksToFolder,createBankFolder,createQuestionBank,deleteBankFolder,deleteQuestionBank,listBankFolders,listOrganizationLabels,listQuestionBanks,moveBankToFolder,toggleQuestionBankPublishAction,updateBankFolder } from '@/lib/api/questions';
+import { bulkMoveBanksToFolder,createBankFolder,createQuestionBank,deleteBankFolder,deleteQuestionBank,listBankFolders,listOrganizationLabels,listQuestionBankCatalog,moveBankToFolder,toggleQuestionBankPublishAction,updateBankFolder } from '@/lib/api/questions';
 import type { BankFolder,OrganizationLabel,QuestionBank } from '@/lib/api/questions';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
@@ -45,6 +45,7 @@ import { registerPageFab, unregisterPageFab } from '@/app/components/mobile/page
 export default function ProktorQuestionBankPage() {
     const [banks, setBanks] = useMemoryState<QuestionBank[]>('proktor_questions_banks', []);
     const [isLoading, setIsLoading] = useMemoryState('proktor_questions_isLoading', true);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [bankToDelete, setBankToDelete] = useState<QuestionBank | null>(null);
@@ -175,7 +176,7 @@ export default function ProktorQuestionBankPage() {
                     setIsDualRole(dualRoleStatus);
                     setCurrentUserId(user.id);
                     const [bankList, labelList, folderList, subjectList] = await Promise.all([
-                        listQuestionBanks(false, true),
+                        listQuestionBankCatalog(),
                         listOrganizationLabels(),
                         listBankFolders(),
                         listSubjects()
@@ -184,10 +185,12 @@ export default function ProktorQuestionBankPage() {
                     setLabels(labelList || []);
                     setFolders(folderList || []);
                     setOrgSubjects(subjectList || []);
+                    setLoadError(null);
                 }
             }
         } catch (err) {
             console.error('Bank: Load error:', err);
+            setLoadError(getErrorMessage(err) || 'Daftar bank soal belum dapat dimuat. Silakan coba lagi.');
         } finally {
             setIsLoading(false);
         }
@@ -525,6 +528,8 @@ export default function ProktorQuestionBankPage() {
 
     return (
         <div className="bank-library max-w-7xl mx-auto pb-24">
+
+            {loadError && <div role="alert" className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{loadError}</div>}
 
             {/* ── Hero Header — Navy Gradient ── */}
             {/* ── Stats Grid ── */}

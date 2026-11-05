@@ -5,6 +5,7 @@ export async function GET(request: NextRequest) {
     const params = request.nextUrl.searchParams;
     const query = new URLSearchParams();
     if (params.get('onlyPublished') === 'true') query.set('onlyPublished', 'true');
+    if (params.get('catalog') === 'true') query.set('catalog', 'true');
     return proxyGet(request, `/question-banks?${query.toString()}`);
 }
 
