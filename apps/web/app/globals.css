@@ -1326,9 +1326,8 @@ html body .katex-inline {
   margin: 0 0.1em !important;
 }
 
-html body .katex-inline .mfrac {
-  font-size: 1.25em !important;
-}
+/* Biarkan KaTeX menghitung ukuran pecahan sendiri. Pembesaran .mfrac setelah
+   render menggeser garis \sqrt{2} melewati garis akar yang membungkusnya. */
 
 /* ---- Block math ($$...$$) ----
    Satu lapis jarak: .katex-block memberi 0.5em di atas dan bawah. .katex-display

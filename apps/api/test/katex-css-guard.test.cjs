@@ -43,6 +43,14 @@ test('KaTeX SVG, colour and operator spacing are left to KaTeX', () => {
     }
 });
 
+test('inline fractions keep KaTeX sizing so nested square roots align', () => {
+    for (const { selectors, body } of rules) {
+        if (selectors.some(selector => /\.mfrac\b/.test(selector))) {
+            assert.doesNotMatch(body, /font-size\s*:/, `ukuran pecahan ditimpa: ${selectors.join(', ')}`);
+        }
+    }
+});
+
 test('global SVG display overrides exclude KaTeX SVGs', () => {
     for (const { selectors, body } of rules) {
         if (!/display\s*:\s*inline\s*!important/.test(body)) continue;

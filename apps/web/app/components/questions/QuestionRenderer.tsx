@@ -1678,12 +1678,12 @@ const ShortAnswerInline = React.memo(({
         return `__PROTECTED_BLOCK_${protectedBlocks.length - 1}__`;
     });
 
-    safeText = safeText.replace(SHORT_ANSWER_BLANK_RE, () => {
+    safeText = safeText.replace(SHORT_ANSWER_BLANK_RE, (placeholder) => {
         counter++;
         if (blanksCount <= 1) {
-            return `<span class="tracking-[0.2em] text-slate-400 font-bold mx-1">.....</span>`;
+            return `<span class="tracking-[0.2em] text-slate-400 font-bold mx-1">${placeholder}</span>`;
         }
-        return `<span class="inline-flex items-center mx-1"><span class="tracking-[0.2em] text-slate-400 font-bold">.....</span><span class="inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full bg-[#3083FF]/10 text-[#3083FF] text-[9px] font-black ml-1 shadow-sm">${counter}</span></span>`;
+        return `<span class="inline-flex items-center mx-1"><span class="tracking-[0.2em] text-slate-400 font-bold">${placeholder}</span><span class="inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full bg-[#3083FF]/10 text-[#3083FF] text-[9px] font-black ml-1 shadow-sm">${counter}</span></span>`;
     });
 
     const replacedText = safeText.replace(/__PROTECTED_BLOCK_(\d+)__/g, (_, i) => protectedBlocks[parseInt(i)]);

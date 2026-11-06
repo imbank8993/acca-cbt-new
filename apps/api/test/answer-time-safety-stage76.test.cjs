@@ -381,7 +381,11 @@ test('essay and short-answer edits reach the parent before any timer or blur', (
     assert.equal(essay.at(-1).text, 'last keystroke');
     assert.equal(essay.at(-1).videoUrl, 'https://example.com/video');
     const short = [];
-    const inputs = find(render('ShortAnswerInline', { questionText: '.... plus ....', answer: '', allVariations: [], onAnswerChange: value => short.push(JSON.parse(value)) }), 'input');
+    const shortPreview = render('ShortAnswerInline', { questionText: '.... plus ....', answer: '', allVariations: [], onAnswerChange: value => short.push(JSON.parse(value)) });
+    const inputs = find(shortPreview, 'input');
+    const previewText = find(shortPreview, 'content')[0].props.content;
+    assert.equal((previewText.match(/\.{4}/g) || []).length, 2);
+    assert.doesNotMatch(previewText, /\.{5}/);
     inputs[0].props.onChange({ target: { value: 'one' } });
     inputs[1].props.onChange({ target: { value: 'two' } });
     assert.deepEqual(short.at(-1), ['one', 'two']);
