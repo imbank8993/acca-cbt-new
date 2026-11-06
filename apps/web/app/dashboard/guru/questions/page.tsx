@@ -40,6 +40,7 @@ import { CreateBankModal } from '@/components/questions/CreateBankModal';
 import { ValidationBadge } from '@/app/components/validations/ValidationBadge';
 import { QuestionBankCover } from '@/app/components/questions/QuestionBankCover';
 import { FolderBankContents } from '@/app/components/questions/FolderBankContents';
+import { MobileBankFolder } from '@/app/components/questions/MobileBankFolder';
 import { registerPageFab, unregisterPageFab } from '@/app/components/mobile/page-fab';
 
 
@@ -429,8 +430,6 @@ export default function GuruQuestionBankPage() {
 
     const totalPages = Math.max(1, Math.ceil(filteredBanks.length / PAGE_SIZE));
     const safePage = Math.min(currentPage, totalPages);
-    const startIndex = (safePage - 1) * PAGE_SIZE;
-    const paginatedBanks = filteredBanks.slice(startIndex, startIndex + PAGE_SIZE);
     const draftCount = banks.filter(bank => !bank.is_published).length;
     const publishedCount = banks.filter(bank => bank.is_published).length;
     const allCount = banks.length;
@@ -528,6 +527,63 @@ export default function GuruQuestionBankPage() {
                     tooltip="Hapus"
                     onClick={() => { setBankToDelete(bank); setIsDeleteModalOpen(true); }}
                 />}
+            </div>
+        </div>
+    );
+
+    const renderMobileBankCard = (bank: QuestionBank) => (
+        <div key={bank.id} className="bank-library-card bg-white border border-[#3083FF]/30 rounded-lg p-4 shadow-sm">
+            <div className="flex items-start gap-3 mb-3">
+                <input
+                    type="checkbox"
+                    checked={selectedBankIds.has(bank.id)}
+                    disabled={bank.canManage !== true}
+                    onChange={() => toggleSelectBank(bank.id)}
+                    className="bank-checkbox bg-transparent w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 shrink-0 cursor-pointer mt-0.5"
+                />
+                <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold ${bank.is_published ? 'bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/30' : 'bg-red-50 text-red-600 border border-red-200'}`}>
+                            {bank.is_published ? 'Published' : 'Draft'}
+                        </span>
+                        <ValidationBadge summary={bank.validation_summary} />
+                        {bank.subject && <span className="text-xs text-slate-400">{bank.subject}</span>}
+                        {bank.class_level && <span className="text-xs text-slate-400">• {bank.class_level}</span>}
+                    </div>
+                    <h3 className="font-semibold text-slate-800 text-sm leading-snug break-words">{bank.title}</h3>
+                    <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                        <span>{bank.question_count || 0} soal</span>
+                        {bank.created_at && <><span>•</span><span>{formatDate(bank.created_at)}</span></>}
+                        <span>•</span><span>Oleh: {bank.creator_name}</span>
+                        {bank.tags && bank.tags.length > 0 && bank.tags.map((tag: string) => (
+                            <span
+                                key={tag}
+                                className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-sm text-[9px] font-bold text-white ml-1 leading-none"
+                                style={{ backgroundColor: getLabelColor(tag) }}
+                            >{tag}</span>
+                        ))}
+                    </div>
+                </div>
+            </div>
+            <div className="bank-card-mobile-actions flex items-center gap-1.5">
+                {bank.canPublish === true && <Button
+                    aria-label={bank.is_published ? 'Unpublish' : 'Publish'}
+                    title={bank.is_published ? 'Unpublish' : 'Publish'}
+                    leftIcon={bank.is_published ? <CloudOff size={15} /> : <CloudUpload size={15} />}
+                    size="sm"
+                    variant={bank.is_published ? "warning" : "primary"}
+                    onClick={() => handleTogglePublish(bank)}
+                    className="bank-card-publish shrink-0"
+                >
+                    {bank.is_published ? 'Unpublish' : 'Publish'}
+                </Button>}
+                {renderReadAction(bank, true)}
+                {(bank.canShare || bank.collaborationPermission) && <CollaborationButton mobileIconOnly className="shrink-0" type="bank" resourceId={bank.id} collaboratorCount={bank.collaboratorCount} onChanged={() => void loadData()} />}
+
+                {bank.canManage === true && <Button mobileIconOnly aria-label="Edit bank soal" title="Edit bank soal" variant="outline" size="sm" leftIcon={<Edit3 size={16} />}
+                    onClick={() => handleOpenEdit(bank)} />}
+                {bank.canDelete === true && <Button mobileIconOnly aria-label="Hapus bank soal" title="Hapus bank soal" variant="danger" size="sm" leftIcon={<Trash2 size={16} />}
+                    onClick={() => { setBankToDelete(bank); setIsDeleteModalOpen(true); }} />}
             </div>
         </div>
     );
@@ -653,74 +709,29 @@ export default function GuruQuestionBankPage() {
                 </div>
             )}
 
-            {/* Mobile Card View */}
+            {/* Mobile folder and bank list */}
             <div className="block md:hidden space-y-3">
                 {isLoading ? (
-                    <div className="flex justify-center py-12">
-                        <Spinner variant="buble" size={32} />
-                    </div>
-                ) : filteredBanks.length === 0 ? (
+                    <div className="flex justify-center py-12"><Spinner variant="buble" size={32} /></div>
+                ) : filteredBanks.length === 0 && folders.length === 0 ? (
                     <div className="py-12 text-center text-slate-400">
                         <BookOpen size={32} className="mx-auto mb-2 opacity-50" />
                         <p>Tidak ada bank soal</p>
                     </div>
                 ) : (
-                    paginatedBanks.map((bank) => (
-                        <div key={bank.id} className="bank-library-card bg-white border border-[#3083FF]/30 rounded-lg p-4 shadow-sm">
-                            <div className="flex items-start gap-3 mb-3">
-                                <input
-                                    type="checkbox"
-                                    checked={selectedBankIds.has(bank.id)}
-                                    disabled={bank.canManage !== true}
-                    onChange={() => toggleSelectBank(bank.id)}
-                                    className="bank-checkbox bg-transparent w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 shrink-0 cursor-pointer mt-0.5"
-                                />
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold ${bank.is_published ? 'bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/30' : 'bg-red-50 text-red-600 border border-red-200'}`}>
-                                            {bank.is_published ? 'Published' : 'Draft'}
-                                        </span>
-                                        <ValidationBadge summary={bank.validation_summary} />
-                                        {bank.subject && <span className="text-xs text-slate-400">{bank.subject}</span>}
-                                        {bank.class_level && <span className="text-xs text-slate-400">• {bank.class_level}</span>}
-                                    </div>
-                                    <h3 className="font-semibold text-slate-800 text-sm leading-snug break-words">{bank.title}</h3>
-                                    <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-400 mt-0.5">
-                                        <span>{bank.question_count || 0} soal</span>
-                                        {bank.created_at && <><span>•</span><span>{formatDate(bank.created_at)}</span></>}
-                                        <span>•</span><span>Oleh: {bank.creator_name}</span>
-                                        {bank.tags && bank.tags.length > 0 && bank.tags.map((tag: string) => (
-                                            <span
-                                                key={tag}
-                                                className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-sm text-[9px] font-bold text-white ml-1 leading-none"
-                                                style={{ backgroundColor: getLabelColor(tag) }}
-                                            >{tag}</span>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="bank-card-mobile-actions flex items-center gap-1.5">
-                                {bank.canPublish === true && <Button
-                                    aria-label={bank.is_published ? 'Unpublish' : 'Publish'}
-                                    title={bank.is_published ? 'Unpublish' : 'Publish'}
-                                    leftIcon={bank.is_published ? <CloudOff size={15} /> : <CloudUpload size={15} />}
-                                    size="sm"
-                                    variant={bank.is_published ? "warning" : "primary"}
-                    onClick={() => handleTogglePublish(bank)}
-                                    className="bank-card-publish shrink-0"
-                                >
-                                    {bank.is_published ? 'Unpublish' : 'Publish'}
-                                </Button>}
-                                {renderReadAction(bank, true)}
-                                {(bank.canShare || bank.collaborationPermission) && <CollaborationButton mobileIconOnly className="shrink-0" type="bank" resourceId={bank.id} collaboratorCount={bank.collaboratorCount} onChanged={() => void loadData()} />}
-
-                                {bank.canManage === true && <Button mobileIconOnly aria-label="Edit bank soal" title="Edit bank soal" variant="outline" size="sm" leftIcon={<Edit3 size={16} />}
-                    onClick={() => handleOpenEdit(bank)} />}
-                                {bank.canDelete === true && <Button mobileIconOnly aria-label="Hapus bank soal" title="Hapus bank soal" variant="danger" size="sm" leftIcon={<Trash2 size={16} />}
-                    onClick={() => { setBankToDelete(bank); setIsDeleteModalOpen(true); }} />}
-                            </div>
-                        </div>
-                    ))
+                    <>
+                        {folders.map(folder => (
+                            <MobileBankFolder
+                                key={folder.id}
+                                folder={folder}
+                                banks={banksByFolder.folderMap.get(folder.id) || []}
+                                expanded={expandedFolders.has(folder.id)}
+                                onToggle={() => toggleFolderExpand(folder.id)}
+                                renderBank={renderMobileBankCard}
+                            />
+                        ))}
+                        {banksByFolder.unfoldered.map(renderMobileBankCard)}
+                    </>
                 )}
             </div>
 

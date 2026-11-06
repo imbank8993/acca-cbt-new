@@ -7,6 +7,17 @@
   text-align: left;
 }
 
+.bank-folder-contents .ftb-toolbar .ftb-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.dark .bank-folder-contents .ftb-toolbar .ftb-label {
+  color: #cbd5e1;
+}
+
 .bank-folder-title {
   display: flex;
   align-items: baseline;

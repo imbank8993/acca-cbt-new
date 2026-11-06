@@ -10,6 +10,7 @@ import AssignmentUploader from './AssignmentUploader';
 import { ExamQuestionCard } from './ExamQuestionCard';
 import { ModeCornerRibbon } from './ModeCornerRibbon';
 import { ExamStatusNotice, type ExamNotice } from './ExamStatusNotice';
+import { countShortAnswerBlanks } from './short-answer-blanks';
 
 const getAnswerStatus = (q: Question, ans: AnswerValue) => {
     if (!ans) return 'unanswered';
@@ -28,8 +29,9 @@ const getAnswerStatus = (q: Question, ans: AnswerValue) => {
         
         const parsed = typeof ans === 'string' ? JSON.parse(ans) : ans;
         if (type === 'short_answer') {
-            const blanksCount = (q.question_text?.match(/\.{4,}/g) || []).length;
-            const totalBlanks = blanksCount > 0 ? blanksCount : (optionsCount > 0 ? optionsCount : 1);
+            const blanksCount = countShortAnswerBlanks(q.question_text || '');
+            if (blanksCount === 0) return 'unanswered';
+            const totalBlanks = blanksCount;
             
             if (Array.isArray(parsed)) {
                 const answeredCount = parsed.filter((value: unknown) => value && String(value).trim() !== '').length;

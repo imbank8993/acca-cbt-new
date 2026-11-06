@@ -13,6 +13,7 @@ import { CustomVideoPlayer } from './CustomVideoPlayer';
 import { InteractiveMatching } from './InteractiveMatching';
 import { LatexRenderer } from './LatexRenderer';
 import { StimulusViewer } from './StimulusViewer';
+import { countShortAnswerBlanks, SHORT_ANSWER_BLANK_RE } from './short-answer-blanks';
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/app/components/ui/modal';
 import { Button } from '@/app/components/ui/button';
 
@@ -1635,7 +1636,7 @@ const ShortAnswerInline = React.memo(({
     allVariations,
     caseSensitive = false,
 }: ShortAnswerInlineProps) => {
-    const blanksCount = (questionText.match(/\.{4,}/g) || []).length;
+    const blanksCount = countShortAnswerBlanks(questionText);
     const studentInputs = parseAnswer<string[]>(answer, new Array(Math.max(0, blanksCount)).fill(''));
 
     const [localInputs, setLocalInputs] = useState(studentInputs);
@@ -1677,7 +1678,7 @@ const ShortAnswerInline = React.memo(({
         return `__PROTECTED_BLOCK_${protectedBlocks.length - 1}__`;
     });
 
-    safeText = safeText.replace(/\.{4,}/g, () => {
+    safeText = safeText.replace(SHORT_ANSWER_BLANK_RE, () => {
         counter++;
         if (blanksCount <= 1) {
             return `<span class="tracking-[0.2em] text-slate-400 font-bold mx-1">.....</span>`;

@@ -43,6 +43,7 @@ import { ValidationNotesPanel } from './ValidationNotesPanel';
 import { LatexRenderer } from './LatexRenderer';
 import { MathToolbar } from './MathToolbar';
 import { TipTapEditor } from './TipTapEditor';
+import { countShortAnswerBlanks } from './short-answer-blanks';
 import { CategorizationForm } from './forms/CategorizationForm';
 import { ChecklistForm } from './forms/ChecklistForm';
 import { EssayForm } from './forms/EssayForm';
@@ -318,10 +319,14 @@ export default function QuestionEditorModal({
         }
 
         if (selectedType === 'short_answer') {
-            const blankCountInText = (questionText.match(/\.{4,}/g) || []).length;
-            const activeBlanksCount = Math.max(1, blankCountInText);
+            const blankCountInText = countShortAnswerBlanks(questionText);
             const blanks = metadata.blanks || [];
-            const activeBlanks = blanks.slice(0, activeBlanksCount);
+            const activeBlanks = blanks.slice(0, blankCountInText);
+            if (blankCountInText === 0) {
+                errors.push('Tambahkan .... di teks soal untuk membuat isian');
+            } else if (activeBlanks.length < blankCountInText) {
+                errors.push('Lengkapi kunci jawaban untuk semua isian');
+            }
             const emptyBlanks = activeBlanks.filter((b) => !b.answer || b.answer.trim() === '');
             if (emptyBlanks.length > 0) {
                 errors.push('Semua jawaban benar harus diisi');
@@ -362,7 +367,7 @@ export default function QuestionEditorModal({
                 ...metadata,
                 categories: selectedType === 'categorization' ? categories : [],
                 blanks: selectedType === 'short_answer' 
-                    ? (metadata.blanks || []).slice(0, Math.max(1, (questionText.match(/\.{4,}/g) || []).length)) 
+                    ? (metadata.blanks || []).slice(0, countShortAnswerBlanks(questionText))
                     : metadata.blanks,
                 kisi_kisi: kisiKisi,
                 pembahasan: pembahasan,

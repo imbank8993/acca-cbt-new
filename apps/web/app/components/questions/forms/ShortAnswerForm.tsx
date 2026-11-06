@@ -6,6 +6,7 @@
  */
 import { Plus,Trash2 } from 'lucide-react';
 import React,{ useEffect,useState } from 'react';
+import { countShortAnswerBlanks } from '../short-answer-blanks';
 
 interface Blank {
   answer: string;
@@ -33,8 +34,7 @@ export const ShortAnswerForm = React.memo(({
   onCaseSensitiveChange,
 }: ShortAnswerFormProps) => {
   // Count how many ..... exist in question text
-  const dotMatch = questionText.match(/\.{4,}/g);
-  const blankCountInText = dotMatch ? dotMatch.length : 0;
+  const blankCountInText = countShortAnswerBlanks(questionText);
 
   // Use ref to avoid stale closures in effect
   const blanksRef = React.useRef(blanks);
@@ -52,7 +52,7 @@ export const ShortAnswerForm = React.memo(({
     }
   }, [blankCountInText]);
 
-  const displayBlanks = blanks.slice(0, Math.max(blankCountInText, 1));
+  const displayBlanks = blanks.slice(0, blankCountInText);
 
   return (
     <div className="space-y-4">
@@ -65,7 +65,9 @@ export const ShortAnswerForm = React.memo(({
         </div>
         <div className="text-xs text-blue-700">
           <p className="font-semibold">Gunakan <code className="px-1 py-0.5 bg-blue-100 rounded text-blue-800">....</code> di teks soal untuk menambah isian.</p>
-          <p className="mt-1 text-blue-500">{blankCountInText === 0 ? 'Belum ada isian. Tambahkan .... di teks soal.' : `Ditemukan ${blankCountInText} isian di teks soal.`}</p>
+          <p className="mt-1 text-blue-500">{blankCountInText === 0
+            ? 'Belum ada isian. Tambahkan .... di teks soal.'
+            : `Ditemukan ${blankCountInText} isian di teks soal.`}</p>
         </div>
       </div>
 
