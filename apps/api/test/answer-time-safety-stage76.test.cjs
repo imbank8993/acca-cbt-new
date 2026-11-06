@@ -385,6 +385,8 @@ test('essay and short-answer edits reach the parent before any timer or blur', (
     inputs[0].props.onChange({ target: { value: 'one' } });
     inputs[1].props.onChange({ target: { value: 'two' } });
     assert.deepEqual(short.at(-1), ['one', 'two']);
-    assert.equal(find(render('ShortAnswerInline', { questionText: '…', answer: '', allVariations: [], onAnswerChange: () => {} }), 'input').length, 1);
+    assert.equal(find(render('ShortAnswerInline', { questionText: '….', answer: '', allVariations: [], onAnswerChange: () => {} }), 'input').length, 1);
+    assert.equal(find(render('ShortAnswerInline', { questionText: '...', answer: '', allVariations: [], onAnswerChange: () => {} }), 'input').length, 0);
+    assert.equal(find(render('ShortAnswerInline', { questionText: '.....', answer: '', allVariations: [], onAnswerChange: () => {} }), 'input').length, 0);
     assert.equal(find(render('ShortAnswerInline', { questionText: 'tanpa isian', answer: '', allVariations: [['old key']], onAnswerChange: () => {} }), 'input').length, 0);
 });
