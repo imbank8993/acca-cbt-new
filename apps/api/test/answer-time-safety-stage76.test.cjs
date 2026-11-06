@@ -341,6 +341,11 @@ test('essay and short-answer edits reach the parent before any timer or blur', (
     const vm = require('node:vm');
     const ts = require('typescript');
     const source = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/questions/QuestionRenderer.tsx'), 'utf8');
+    const blankSource = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/questions/short-answer-blanks.ts'), 'utf8');
+    const blankModule = { exports: {} };
+    vm.runInNewContext(ts.transpileModule(blankSource, {
+        compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+    }).outputText, { module: blankModule, exports: blankModule.exports });
     function render(name, props) {
         const start = source.indexOf('const ' + name + ' = React.memo');
         const end = source.indexOf(name + '.displayName', start);
@@ -353,6 +358,8 @@ test('essay and short-answer edits reach the parent before any timer or blur', (
             AlertTriangle: 'alert', QuestionContent: 'content', safeExternalUrl: x => x,
             normalizeShortAnswer: value => String(value || '').trim().toLowerCase(),
             parseAnswer: (value, fallback) => value ? JSON.parse(value) : fallback,
+            countShortAnswerBlanks: blankModule.exports.countShortAnswerBlanks,
+            SHORT_ANSWER_BLANK_RE: blankModule.exports.SHORT_ANSWER_BLANK_RE,
             setTimeout: () => { throw new Error('Answer publication must not wait for a timer'); },
         };
         vm.runInNewContext(code, context);
@@ -378,4 +385,6 @@ test('essay and short-answer edits reach the parent before any timer or blur', (
     inputs[0].props.onChange({ target: { value: 'one' } });
     inputs[1].props.onChange({ target: { value: 'two' } });
     assert.deepEqual(short.at(-1), ['one', 'two']);
+    assert.equal(find(render('ShortAnswerInline', { questionText: '…', answer: '', allVariations: [], onAnswerChange: () => {} }), 'input').length, 1);
+    assert.equal(find(render('ShortAnswerInline', { questionText: 'tanpa isian', answer: '', allVariations: [['old key']], onAnswerChange: () => {} }), 'input').length, 0);
 });
