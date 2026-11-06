@@ -38,6 +38,7 @@ import React,{ useCallback,useEffect,useRef,useState } from 'react';
 import { CreateBankModal } from '@/components/questions/CreateBankModal';
 import { ValidationBadge } from '@/app/components/validations/ValidationBadge';
 import { QuestionBankCover } from '@/app/components/questions/QuestionBankCover';
+import { FolderBankContents } from '@/app/components/questions/FolderBankContents';
 import { registerPageFab, unregisterPageFab } from '@/app/components/mobile/page-fab';
 
 
@@ -843,9 +844,7 @@ export default function ProktorQuestionBankPage() {
                                     </div>
                                     {/* Folder banks */}
                                     {isExpanded && folderBanks.length > 0 && (
-                                        <div className="bank-folder-contents pl-6 space-y-2">
-                                            {folderBanks.map(bank => renderBankCard(bank))}
-                                        </div>
+                                        <FolderBankContents folderName={folder.name} banks={folderBanks} renderBank={renderBankCard} />
                                     )}
                                     {isExpanded && folderBanks.length === 0 && (
                                         <div className="pl-6 py-4">
