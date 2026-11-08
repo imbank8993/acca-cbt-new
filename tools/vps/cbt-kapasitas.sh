@@ -111,6 +111,11 @@ ip_list_sql() {  # "a b" -> '''a'',''b''' untuk klausa IN; kosong -> NULL
   echo "${out:-NULL}"
 }
 
+deploy_running() {  # 0 bila GitHub Actions (atau skrip ini) sedang memegang kunci deployment
+  [ -e "$DEPLOY_LOCK" ] || return 1
+  ! flock -n "$DEPLOY_LOCK" true 2>/dev/null
+}
+
 code_has_fix() {
   grep -q "sharedAdvisoryTransactionLock" "$APP_DIR/apps/api/src/students/exam-attempts.service.ts" 2>/dev/null &&
     [ -f "$APP_DIR/apps/api/src/prisma/database-url.ts" ]
@@ -167,6 +172,9 @@ cmd_cek() {
   echo "  Beban  : $(cut -d' ' -f1-3 /proc/loadavg)"
 
   title "Kode"
+  if deploy_running; then
+    warn "Deployment sedang berjalan. Hasil di bawah bisa belum final; ulangi 'cek' setelah selesai."
+  fi
   if code_has_fix; then ok "Kode di folder proyek sudah memuat perbaikan submit serentak."
   else fail "Kode di folder proyek BELUM memuat perbaikan. Push ke GitHub lalu tunggu deploy (atau git pull)."
   fi
@@ -228,6 +236,16 @@ cmd_terapkan() {
   [ -f "$ENV_FILE" ] || die "$ENV_FILE tidak ditemukan."
   [ "$(id -u)" -eq 0 ] || command -v sudo >/dev/null || warn "Bukan root; perintah docker mungkin butuh sudo."
 
+  title "Menunggu deployment"
+  # Kunci diambil SEBELUM memeriksa atau mengubah apa pun: bila GitHub Actions sedang
+  # men-deploy, skrip menunggu sampai selesai, lalu memeriksa keadaan yang sudah final.
+  exec 9>"$DEPLOY_LOCK"
+  if ! flock -n 9; then
+    echo "  Deployment sedang berjalan; menunggu sampai selesai (maks. 25 menit, Ctrl+C untuk batal)..."
+    flock -w 1500 9 || die "Deployment belum selesai setelah 25 menit. Tidak ada yang diubah."
+  fi
+  ok "Tidak ada deployment lain yang berjalan."
+
   title "Memeriksa"
   code_has_fix || die "Kode di $APP_DIR belum memuat perbaikan. Push commit ke GitHub dan tunggu deploy, atau jalankan git pull dulu."
   ok "Kode sudah memuat perbaikan."
@@ -258,10 +276,11 @@ cmd_terapkan() {
   ok "DB_CONNECTION_LIMIT=$(env_get DB_CONNECTION_LIMIT), DB_POOL_TIMEOUT=$(env_get DB_POOL_TIMEOUT)"
 
   title "Menyalakan ulang layanan"
-  echo "  Menunggu kunci deployment (agar tidak bentrok dengan GitHub Actions)..."
-  exec 9>"$DEPLOY_LOCK"
-  flock -w 1500 9 || die "Deployment lain masih berjalan. Coba lagi nanti; .env sudah diubah."
-  if image_has_fix; then
+  local current; current="$(effective_pool)"
+  local expected_timeout; expected_timeout="$(env_get DB_POOL_TIMEOUT)"
+  if image_has_fix && [ -z "$url_limit" ] && [ "$current" = "$limit $expected_timeout" ]; then
+    echo "  API sudah berjalan dengan pool $limit / ${expected_timeout} detik → tidak perlu restart."
+  elif image_has_fix; then
     echo "  Image API sudah versi baru → cukup buat ulang kontainer cbt-api agar membaca .env."
     compose up -d --no-deps --force-recreate cbt-api
   else
