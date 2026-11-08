@@ -27,7 +27,7 @@ import {
     orderQuestionsForStudent,
     shuffleOptionsForStudent,
 } from '../common/question-order';
-import { advisoryTransactionLock } from '../common/transaction-lock';
+import { advisoryTransactionLock, sharedAdvisoryTransactionLock } from '../common/transaction-lock';
 import { getSchoolTimeZoneLabel, utcToLocalClock } from '../common/school-time';
 import { GradingService } from '../grading/grading.service';
 import { SettingsService } from '../settings/settings.service';
@@ -1517,7 +1517,10 @@ export class ExamAttemptsService {
             try {
                 const graded = await this.gradeSubmission(examId, committed.answers!);
                 await this.db.transaction(async db => {
-                    await advisoryTransactionLock(db, `exam-key-correction:${examId}`);
+                    // Shared, bukan eksklusif: ratusan siswa yang mengumpulkan ujian yang sama
+                    // dinilai paralel. Koreksi kunci/regrade tetap eksklusif sehingga penilaian
+                    // ini tidak pernah memakai kunci yang sedang diubah.
+                    await sharedAdvisoryTransactionLock(db, `exam-key-correction:${examId}`);
                     if (JSON.stringify(await readExamQuestionVersion(db, examId)) !== JSON.stringify(graded.questions)) {
                         throw new BadRequestException('Soal atau kunci diperbarui. Penilaian akan diulang otomatis.');
                     }

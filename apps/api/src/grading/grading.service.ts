@@ -12,7 +12,7 @@ import {
     loadFrozenExamQuestions,
     readExamQuestionVersion,
 } from '../common/exam-question-snapshots';
-import { advisoryTransactionLock } from '../common/transaction-lock';
+import { advisoryTransactionLock, sharedAdvisoryTransactionLock } from '../common/transaction-lock';
 import { isEssayType } from '../common/answer-storage';
 import { isScoreExcluded } from '../common/score-exclusion';
 import { DbService } from '../prisma/prisma-db-adapter';
@@ -124,7 +124,9 @@ export class GradingService {
                 raw_answer: answers.get(question.id)?.essay_answer ?? answers.get(question.id)?.selected_option_id ?? null })),
         }, { timeoutMs: 15_000 });
         return this.db.transaction(async db => {
-            await advisoryTransactionLock(db, `exam-key-correction:${examId}`);
+            // Shared: penilaian satu pengerjaan boleh paralel dengan pengerjaan lain,
+            // tetapi tetap menunggu koreksi kunci/regrade yang memegang lock eksklusif.
+            await sharedAdvisoryTransactionLock(db, `exam-key-correction:${examId}`);
             if (JSON.stringify(await readExamQuestionVersion(db, examId)) !== JSON.stringify(questions)) {
                 throw new BadRequestException('Kunci ujian berubah selama penilaian. Hitung ulang.');
             }

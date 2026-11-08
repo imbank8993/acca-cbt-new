@@ -1,9 +1,21 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import { withPoolDefaults } from './database-url';
+
+function prismaClientOptions(): { datasourceUrl: string } | undefined {
+  const datasourceUrl = withPoolDefaults(process.env.DATABASE_URL);
+  return datasourceUrl ? { datasourceUrl } : undefined;
+}
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
+
+  constructor() {
+    // Pool bawaan Prisma (~13 koneksi di VPS 6 core) terlalu kecil untuk pengumpulan
+    // ujian serentak; lihat database-url.ts.
+    super(prismaClientOptions());
+  }
 
   async onModuleInit() {
     try {

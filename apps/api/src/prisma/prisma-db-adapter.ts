@@ -659,6 +659,11 @@ export class PostgrestQueryBuilder implements PromiseLike<QueryResult> {
   }
 }
 
+/** How long a transaction may wait for a free pool connection. */
+export const TRANSACTION_MAX_WAIT_MS = 10_000;
+/** Upper bound for one interactive transaction once it has started. */
+export const TRANSACTION_TIMEOUT_MS = 30_000;
+
 /**
  * Pengganti `getSupabaseAdmin()` di dalam NestJS.
  *
@@ -681,12 +686,18 @@ export class DbService {
     return this.prisma.$queryRawUnsafe<T>(sql, ...params);
   }
 
-  /** Every builder inside the callback uses the same database transaction. */
+  /**
+   * Every builder inside the callback uses the same database transaction.
+   *
+   * maxWait: Prisma's default (2 s) to obtain a pool connection turns a short
+   * burst — hundreds of students submitting at the deadline — into immediate
+   * failures. Waiting a little longer lets the burst drain instead.
+   */
   async transaction<T>(work: (db: DbSession) => Promise<T>): Promise<T> {
     return this.prisma.$transaction(async connection => work({
       from: table => new PostgrestQueryBuilder(table, connection, this.registry),
       raw: <R = unknown>(sql: string, ...params: unknown[]) => connection.$queryRawUnsafe<R>(sql, ...params),
-    }), { timeout: 30000 });
+    }), { maxWait: TRANSACTION_MAX_WAIT_MS, timeout: TRANSACTION_TIMEOUT_MS });
   }
 }
 

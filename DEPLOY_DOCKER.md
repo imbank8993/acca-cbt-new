@@ -43,6 +43,11 @@ Pastikan variabel penting berikut disesuaikan:
    ```env
    DATABASE_URL="postgresql://postgres:password_db_anda@host.docker.internal:5432/acca_db?schema=public"
    ```
+   Pool koneksi API diatur lewat `DB_CONNECTION_LIMIT` (bawaan 30) dan `DB_POOL_TIMEOUT`
+   (bawaan 20 detik), kecuali `DATABASE_URL` sudah memuat `connection_limit`/`pool_timeout`.
+   Tanpa ini Prisma hanya membuka ~13 koneksi di VPS 6 core, yang habis saat ratusan siswa
+   mengumpulkan ujian serentak. Jaga total koneksi semua aplikasi di bawah `max_connections`
+   PostgreSQL (`SHOW max_connections;`, bawaan 100).
 2. **`JWT_SECRET` & `CBT_SSO_SECRET`**:
    Wajib sama persis dengan yang ada di `.env` project `acca-new` agar token login SSO kompatibel.
 3. **`NEXT_PUBLIC_SITE_URL` & `NEXT_PUBLIC_ACCA_URL`**:
