@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # =============================================================================
-# ACCA CBT — cek, terapkan, dan pantau kapasitas pengumpulan ujian serentak
+# CBT (acca-cbt-new / unelma-cbt) — cek, terapkan, dan pantau kapasitas submit serentak
 # =============================================================================
-# Jalankan di VPS dari folder proyek (bawaan /www/wwwroot/acca-cbt-new):
+# Jalankan di VPS dari folder proyek (mis. /www/wwwroot/acca-cbt-new atau /www/wwwroot/unelma-cbt):
 #
 #   bash tools/vps/cbt-kapasitas.sh cek           # hanya membaca, tidak mengubah apa pun
 #   bash tools/vps/cbt-kapasitas.sh terapkan [N]  # atur DB_CONNECTION_LIMIT di .env lalu
@@ -12,14 +12,30 @@
 # Variabel opsional:
 #   APP_DIR=/path/proyek     lokasi proyek (bawaan: folder induk skrip ini)
 #   PSQL_URL=postgresql://…  URL psql dari host bila DATABASE_URL di .env tidak cocok
+#   API_CONTAINER=…          nama kontainer API (bawaan: dibaca dari docker-compose.yml)
+#   DEPLOY_LOCK=…            file kunci deploy (bawaan: dibaca dari .github/workflows/deploy.yml)
 # =============================================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="${APP_DIR:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 ENV_FILE="$APP_DIR/.env"
-API_CONTAINER="acca-cbt-api"
-DEPLOY_LOCK="/var/lock/acca-cbt-production-deploy.lock"   # sama dengan GitHub Actions
+
+# Nama kontainer API = container_name milik service cbt-api di docker-compose.yml.
+detect_api_container() {
+  awk '/^  [A-Za-z0-9_-]+:[[:space:]]*$/ { svc=$1 }
+       svc=="cbt-api:" && $1=="container_name:" { gsub(/["\047\r]/,"",$2); print $2; exit }' \
+    "$APP_DIR/docker-compose.yml" 2>/dev/null || true
+}
+# Kunci deploy = kunci yang sama dengan yang dipakai GitHub Actions di VPS.
+detect_deploy_lock() {
+  grep -oE '/var/lock/[A-Za-z0-9._-]+\.lock' "$APP_DIR/.github/workflows/deploy.yml" 2>/dev/null | head -n 1 || true
+}
+API_CONTAINER="${API_CONTAINER:-$(detect_api_container)}"
+API_CONTAINER="${API_CONTAINER:-acca-cbt-api}"
+DEPLOY_LOCK="${DEPLOY_LOCK:-$(detect_deploy_lock)}"
+DEPLOY_LOCK="${DEPLOY_LOCK:-/var/lock/acca-cbt-production-deploy.lock}"
+PROJECT="${API_CONTAINER%-api}"   # mis. acca-cbt / unelma-cbt
 DEFAULT_LIMIT=30
 DEFAULT_POOL_TIMEOUT=20
 MIN_LIMIT=15
@@ -167,6 +183,7 @@ read_db_capacity() {
 cmd_cek() {
   title "Server"
   echo "  Proyek : $APP_DIR"
+  echo "  API    : $API_CONTAINER   (kunci deploy: $DEPLOY_LOCK)"
   echo "  CPU    : $(nproc) core"
   echo "  RAM    : $(free -h | awk '/^Mem:/ {print $2 " total, " $7 " tersedia"}')"
   echo "  Beban  : $(cut -d' ' -f1-3 /proc/loadavg)"
@@ -225,7 +242,7 @@ cmd_cek() {
     ok "DB_CONNECTION_LIMIT yang disarankan: $RECOMMENDED"
     echo "    Jalankan:  bash tools/vps/cbt-kapasitas.sh terapkan"
   fi
-  echo "    Catatan: 'aplikasi lain' diukur saat ini; saat ramai acca-new bisa memakai lebih banyak."
+  echo "    Catatan: 'aplikasi lain' diukur saat ini; saat ramai aplikasi lain (acca-new, CBT lain) bisa memakai lebih banyak."
 }
 
 # --------------------------------------------------------------------------- #
@@ -340,7 +357,7 @@ cmd_pantau() {
     rejected5xx="$(grep -cE ' — 5[0-9]{2} — ' <<< "$logs" || true)"
 
     if [ -t 1 ]; then printf '\033[H\033[2J'; else echo '----------------------------------------'; fi
-    echo "${B}ACCA CBT — pantauan $(date '+%H:%M:%S')${N}   (setiap ${interval} detik, Ctrl+C untuk berhenti)"
+    echo "${B}${PROJECT} — pantauan $(date '+%H:%M:%S')${N}   (setiap ${interval} detik, Ctrl+C untuk berhenti)"
     echo
     echo "${B}PostgreSQL${N}"
     printf "  Koneksi total          : %s / %s\n" "$total" "$maxc"
@@ -355,7 +372,7 @@ cmd_pantau() {
     printf "  Penilaian tertunda     : %s  (jawaban aman; dinilai ulang worker tiap 30 dtk)\n" "$graded_late"
     echo
     echo "${B}Kontainer${N}"
-    docker stats --no-stream --format '  {{.Name}}\t CPU {{.CPUPerc}}\t RAM {{.MemUsage}}' 2>/dev/null | grep acca-cbt || true
+    docker stats --no-stream --format '  {{.Name}}\t CPU {{.CPUPerc}}\t RAM {{.MemUsage}}' 2>/dev/null | grep -F "$PROJECT" || true
     echo
     echo "  Beban server: $(cut -d' ' -f1-3 /proc/loadavg)   RAM tersedia: $(free -h | awk '/^Mem:/ {print $7}')"
     if [[ "$pool_err" =~ ^[0-9]+$ ]] && (( pool_err > 0 )); then
