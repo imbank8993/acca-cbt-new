@@ -175,3 +175,20 @@ Tidak ada migrasi database. Mengubah kode lokal belum menerapkan Force HTTPS ata
 Rilis ini menambahkan service internal `cbt-latex`. Terapkan migrasi `20261006_01_learning_rendered_pdf.sql`, kemudian build dan jalankan ulang `cbt-latex`, `cbt-api`, serta `cbt-web`. Build pertama memasang paket TeX Live dan lebih besar dari service API. Compose membatasi worker tanpa akses internet, tanpa kredensial, dan tanpa port publik. API memperoleh `LATEX_RENDERER_URL` dari Compose; instalasi di luar Compose harus menyediakan worker terisolasi yang setara.
 
 Pada reverse proxy, gunakan `proxy_read_timeout 90s` untuk memungkinkan kompilasi tiga pass (maksimum 60 detik). Jika compiler tidak tersedia atau sumber memiliki kesalahan, unggahan dibatalkan dengan pesan galat; materi yang sudah tersimpan tidak diganti. Materi TeX lama perlu diunggah ulang agar memperoleh PDF. Lihat `docs/LMS.md` untuk engine dan batas dokumen.
+
+## Kapasitas ujian serentak (8 November 2026)
+
+Rilis ini membuat penilaian submit berjalan paralel dan menambah pool koneksi Prisma
+(`DB_CONNECTION_LIMIT`, bawaan 30). Setelah rilis ter-deploy, jalankan di VPS:
+
+```bash
+cd /www/wwwroot/acca-cbt-new
+bash tools/vps/cbt-kapasitas.sh cek        # hanya membaca: kode, PostgreSQL, pool, rekomendasi
+bash tools/vps/cbt-kapasitas.sh terapkan   # tulis DB_CONNECTION_LIMIT ke .env (dengan cadangan) lalu buat ulang cbt-api
+bash tools/vps/cbt-kapasitas.sh pantau     # pantauan langsung koneksi, lock, dan error saat ujian
+```
+
+`terapkan` memakai kunci deployment yang sama dengan GitHub Actions, menolak angka yang
+melebihi sisa `max_connections`, dan hanya membangun ulang image bila API yang berjalan
+masih versi lama. Jangan menjalankannya saat ujian sedang berlangsung: cbt-api dinyalakan
+ulang (sekitar 10–30 detik). Tidak ada migrasi database.
