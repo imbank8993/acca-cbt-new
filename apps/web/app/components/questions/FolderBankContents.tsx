@@ -27,7 +27,7 @@ export function FolderBankContents({ folderName, banks, renderBank }: FolderBank
     );
 
     return (
-        <div className="bank-folder-contents pl-6 space-y-2">
+        <div className="bank-folder-contents pl-6">
             <FilterToolbar className="ftb-toolbar--noSticky" alwaysExpanded>
                 <FilterSearch label="Cari bank soal" value={search} onChange={setSearch} placeholder={`Cari di ${folderName}...`} grow={2} />
                 <FilterSelect label="Mata pelajaran" value={selectedSubject} onChange={setSubject}
@@ -35,11 +35,13 @@ export function FolderBankContents({ folderName, banks, renderBank }: FolderBank
                 <FilterSelect label="Kelas" value={selectedClassLevel} onChange={setClassLevel}
                     options={[{ value: '', label: 'Semua Kelas' }, ...classLevels.map(value => ({ value, label: value }))]} />
             </FilterToolbar>
-            {visibleBanks.length > 0 ? visibleBanks.map(renderBank) : (
-                <p role="status" className="rounded-lg border border-dashed border-slate-200 py-6 text-center text-sm text-slate-500">
-                    Tidak ada bank soal yang cocok di folder ini.
-                </p>
-            )}
+            <div className="mt-4 space-y-2">
+                {visibleBanks.length > 0 ? visibleBanks.map(renderBank) : (
+                    <p role="status" className="rounded-lg border border-dashed border-slate-200 py-6 text-center text-sm text-slate-500">
+                        Tidak ada bank soal yang cocok di folder ini.
+                    </p>
+                )}
+            </div>
         </div>
     );
 }
