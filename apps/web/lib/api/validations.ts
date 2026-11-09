@@ -86,7 +86,7 @@ export interface ValidationSession {
     allow_edit_during_exam?: boolean;
     created_at: string;
     updated_at: string;
-    bank?: QuestionBank | null;
+    bank?: (QuestionBank & { creator?: { full_name: string } | null }) | null;
     creator?: {
         full_name: string;
         email?: string;

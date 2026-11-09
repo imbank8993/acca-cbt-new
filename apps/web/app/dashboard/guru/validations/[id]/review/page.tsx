@@ -26,6 +26,7 @@ import {
     Calendar,
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
+import { InlineSelect } from '@/app/components/ui/inlineselect';
 import { Spinner } from '@/app/components/ui/Spinner';
 import { Modal, ModalBody, ModalFooter } from '@/app/components/ui/modal';
 import {
@@ -616,18 +617,14 @@ export default function ValidatorReviewPage() {
                 {isEditing ? (
                     <div className="space-y-2">
                         <div className="grid grid-cols-2 gap-2">
-                            <select aria-label="Kategori catatan" value={editDraft.category}
-                                onChange={e => setEditDraft(d => ({ ...d, category: e.target.value as NoteCategory }))}
-                                className="text-[11px] px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-                                {Object.entries(CATEGORY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                            </select>
-                            <select aria-label="Status catatan" value={editDraft.statusItem}
-                                onChange={e => setEditDraft(d => ({ ...d, statusItem: e.target.value as NoteStatusItem }))}
-                                className="text-[11px] px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-                                <option value="valid">🟢 Layak</option>
-                                <option value="revision">🟡 Revisi</option>
-                                <option value="rejected">🔴 Tolak</option>
-                            </select>
+                            <InlineSelect aria-label="Kategori catatan" value={editDraft.category} minWidth="0" height="34px"
+                                className="w-full" onChange={value => setEditDraft(d => ({ ...d, category: value as NoteCategory }))}
+                                options={Object.entries(CATEGORY_LABELS).map(([value, label]) => ({ value, label }))}
+                            />
+                            <InlineSelect aria-label="Status catatan" value={editDraft.statusItem} minWidth="0" height="34px"
+                                className="w-full" onChange={value => setEditDraft(d => ({ ...d, statusItem: value as NoteStatusItem }))}
+                                options={[{ value: 'valid', label: '🟢 Layak' }, { value: 'revision', label: '🟡 Revisi' }, { value: 'rejected', label: '🔴 Tolak' }]}
+                            />
                         </div>
                         <textarea rows={3} value={editDraft.comment} aria-label="Ubah isi catatan"
                             onChange={e => setEditDraft(d => ({ ...d, comment: e.target.value }))}
@@ -933,16 +930,10 @@ export default function ValidatorReviewPage() {
                                         <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
                                             Tambah Catatan Butir
                                         </span>
-                                        <select
-                                            aria-label="Status catatan"
-                                            value={statusItem}
-                                            onChange={e => setStatusItem(e.target.value as NoteStatusItem)}
-                                            className="text-[11px] font-bold px-2 py-1 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
-                                        >
-                                            <option value="valid">🟢 Layak</option>
-                                            <option value="revision">🟡 Revisi</option>
-                                            <option value="rejected">🔴 Tolak</option>
-                                        </select>
+                                        <InlineSelect aria-label="Status catatan" value={statusItem}
+                                            onChange={value => setStatusItem(value as NoteStatusItem)} minWidth="120px" height="34px"
+                                            options={[{ value: 'valid', label: '🟢 Layak' }, { value: 'revision', label: '🟡 Revisi' }, { value: 'rejected', label: '🔴 Tolak' }]}
+                                        />
                                     </div>
 
                                     {/* Teks Terpilih / Highlight Quote */}
@@ -960,34 +951,23 @@ export default function ValidatorReviewPage() {
                                             <p className="italic line-clamp-2 font-mono">&quot;{selectedText}&quot;</p>
                                         </div>
                                     )}
-                                    <div className="flex items-center gap-2">
-                                        <select
-                                            aria-label="Kategori catatan"
-                                            value={category}
-                                            onChange={e => setCategory(e.target.value as NoteCategory)}
-                                            className="w-full text-xs px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-medium"
-                                        >
-                                            <option value="typo">Salah Ketik (Typo)</option>
-                                            <option value="kunci_jawaban">Kunci Jawaban</option>
-                                            <option value="materi">Materi / Konsep</option>
-                                            <option value="konstruksi">Konstruksi Butir</option>
-                                            <option value="bahasa">Kaidah Bahasa</option>
-                                            <option value="lainnya">Lainnya</option>
-                                        </select>
-                                    </div>
-                                    <label className="block text-xs font-semibold">
-                                        Bagian yang diberi catatan
-                                        <select value={targetScope} onChange={event => {
-                                            const scope = event.target.value as typeof targetScope;
+                                    <InlineSelect aria-label="Kategori catatan" value={category} onChange={value => setCategory(value as NoteCategory)}
+                                        minWidth="100%" height="44px"
+                                        options={[{ value: 'typo', label: 'Salah Ketik (Typo)' }, { value: 'kunci_jawaban', label: 'Kunci Jawaban' },
+                                            { value: 'materi', label: 'Materi / Konsep' }, { value: 'konstruksi', label: 'Konstruksi Butir' },
+                                            { value: 'bahasa', label: 'Kaidah Bahasa' }, { value: 'lainnya', label: 'Lainnya' }]}
+                                    />
+                                    <div className="text-xs font-semibold">
+                                        <label htmlFor="validation-note-scope" className="mb-1 block">Bagian yang diberi catatan</label>
+                                        <InlineSelect id="validation-note-scope" value={targetScope} onChange={value => {
+                                            const scope = value as typeof targetScope;
                                             setTargetScope(scope);
                                             if (scope !== 'option') setSelectedOptionId(undefined);
-                                        }} className="mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-700 p-2 bg-white dark:bg-slate-800">
-                                            <option value="question_text">Teks soal</option>
-                                            <option value="stimulus">Stimulus</option>
-                                            <option value="general">Umum</option>
-                                            {selectedOptionId && <option value="option">Opsi jawaban yang dipilih</option>}
-                                        </select>
-                                    </label>
+                                        }} minWidth="100%" height="44px"
+                                            options={[{ value: 'question_text', label: 'Teks soal' }, { value: 'stimulus', label: 'Stimulus' },
+                                                { value: 'general', label: 'Umum' }, ...(selectedOptionId ? [{ value: 'option', label: 'Opsi jawaban yang dipilih' }] : [])]}
+                                        />
+                                    </div>
                                     <textarea
                                         rows={3}
                                         value={commentText}

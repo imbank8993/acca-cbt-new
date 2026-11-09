@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { confirmDialog } from '@/lib/confirm-dialog';
 import { DatePicker } from '@/app/components/ui/DatePicker';
+import { InlineSelect } from '@/app/components/ui/inlineselect';
 import { listTeachersAndInvigilators, type PASStaffMember } from '@/lib/api/pas';
 import { Button } from '@/app/components/ui/button';
 import { Spinner } from '@/app/components/ui/Spinner';
@@ -478,27 +479,23 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                     icon={<ShieldCheck size={20} />}
                 >
                     <ModalBody className="space-y-4">
-                        <label className="block text-xs font-semibold space-y-2">
-                            <span>Folder Validasi</span>
-                            <select aria-label="Pindahkan sesi ke folder" value={selectedDetailVal.folder_id || ''} disabled={managing}
-                                onChange={event => { void runManage(() => updateValidation(selectedDetailVal.id, { folderId: event.target.value || null }), 'Sesi gagal dipindahkan.'); }}
-                                className="validation-folder-input">
-                                <option value="">Tanpa Folder</option>
-                                {folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
-                            </select>
-                        </label>
+                        <div className="space-y-2 text-xs font-semibold">
+                            <label htmlFor="validation-detail-folder" className="block">Folder Validasi</label>
+                            <InlineSelect id="validation-detail-folder" aria-label="Pindahkan sesi ke folder"
+                                value={selectedDetailVal.folder_id || ''} disabled={managing} minWidth="100%" height="56px"
+                                onChange={value => { void runManage(() => updateValidation(selectedDetailVal.id, { folderId: value || null }), 'Sesi gagal dipindahkan.'); }}
+                                options={[{ value: '', label: 'Tanpa Folder' }, ...folders.map(folder => ({ value: folder.id, label: folder.name }))]}
+                            />
+                        </div>
                         {selectedDetailVal.approval_rule === 'admin_decides' && (
                             <div className="space-y-3 rounded-xl border border-slate-200 dark:border-slate-800 p-3 text-xs">
                                 <label htmlFor="validation-decision" className="font-bold">Keputusan akhir Admin/Proktor</label>
                                 <p className="text-slate-500">Keputusan ini menjadi catatan dan pemberitahuan; Guru tetap dapat memublikasikan bank soal.</p>
-                                <select id="validation-decision" value={decision}
-                                    onChange={event => setDecision(event.target.value as typeof decision)}
-                                    disabled={savingDecision}
-                                    className="w-full rounded-lg border border-slate-300 bg-white p-2 dark:bg-slate-900">
-                                    <option value="approved">Disetujui</option>
-                                    <option value="revision_needed">Perlu Revisi</option>
-                                    <option value="rejected">Ditolak</option>
-                                </select>
+                                <InlineSelect id="validation-decision" value={decision}
+                                    onChange={value => setDecision(value as typeof decision)} disabled={savingDecision}
+                                    minWidth="100%" height="46px"
+                                    options={[{ value: 'approved', label: 'Disetujui' }, { value: 'revision_needed', label: 'Perlu Revisi' }, { value: 'rejected', label: 'Ditolak' }]}
+                                />
                                 {(!selectedDetailVal.validators?.length || selectedDetailVal.validators.some(v => v.status !== 'submitted')) && (
                                     <p className="text-amber-600">Menunggu seluruh validator menyelesaikan rekomendasinya.</p>
                                 )}
@@ -547,18 +544,17 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                             </div>
                             {RUNNING_STATUSES.includes(selectedDetailVal.status) ? (
                                 <div className="flex flex-col sm:flex-row sm:items-end gap-2">
-                                    <label className="flex-1">
-                                        <span className="block text-slate-500 mb-1">Tambah validator</span>
-                                        <select value={addValidatorId} onChange={event => setAddValidatorId(event.target.value)} disabled={managing}
-                                            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-2">
-                                            <option value="">Pilih guru…</option>
-                                            {staffList
+                                    <div className="flex-1 min-w-0">
+                                        <label htmlFor="validation-add-validator" className="block text-slate-500 mb-1">Tambah validator</label>
+                                        <InlineSelect id="validation-add-validator" value={addValidatorId} onChange={setAddValidatorId}
+                                            disabled={managing} minWidth="100%" height="46px"
+                                            options={[{ value: '', label: 'Pilih guru…' }, ...staffList
                                                 .filter(staff => (staff.roles || []).some(role => VALIDATOR_ROLES.includes(role)))
                                                 .filter(staff => staff.id !== selectedDetailVal.bank?.created_by)
                                                 .filter(staff => !selectedDetailVal.validators?.some(v => v.validator_id === staff.id))
-                                                .map(staff => <option key={staff.id} value={staff.id}>{staff.name}</option>)}
-                                        </select>
-                                    </label>
+                                                .map(staff => ({ value: staff.id, label: staff.name }))]}
+                                        />
+                                    </div>
                                     <Button size="sm" onClick={addValidator} disabled={managing || !addValidatorId} className="flex items-center gap-1">
                                         <UserPlus size={13} /> Tambah
                                     </Button>

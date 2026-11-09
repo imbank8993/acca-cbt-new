@@ -237,7 +237,7 @@ export function ValidationReportModal({
                                         <tr>
                                             <td className="w-36 py-1 font-semibold text-slate-700">Judul Bank Soal</td>
                                             <td className="w-4 py-1">:</td>
-                                            <td className="py-1 font-bold text-slate-900">{validation.title}</td>
+                                            <td className="py-1 font-bold text-slate-900">{validation.bank?.title || '-'}</td>
                                         </tr>
                                         <tr>
                                             <td className="py-1 font-semibold text-slate-700">Mata Pelajaran</td>
@@ -250,21 +250,21 @@ export function ValidationReportModal({
                                             <td className="py-1">{validation.bank?.class_level || 'Semua Kelas'}</td>
                                         </tr>
                                         <tr>
-                                            <td className="py-1 font-semibold text-slate-700">Guru Penyusun (Author)</td>
+                                            <td className="py-1 font-semibold text-slate-700">Guru Penyusun</td>
                                             <td className="py-1">:</td>
                                             <td className="py-1">
-                                                {validation.bank?.creator_name || (validation.bank as { creator?: { full_name?: string } } | null)?.creator?.full_name || 'Guru Mapel'}
+                                                {validation.bank?.creator?.full_name || '-'}
                                             </td>
                                         </tr>
                                         <tr>
-                                            <td className="py-1 font-semibold text-slate-700">Tanggal Sesi Validasi</td>
+                                            <td className="py-1 font-semibold text-slate-700">Tanggal Validasi</td>
                                             <td className="py-1">:</td>
                                             <td className="py-1">
                                                 {validation.created_at ? new Date(validation.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}
                                             </td>
                                         </tr>
                                         <tr>
-                                            <td className="py-1 font-semibold text-slate-700">Status Kelayakan Bank Soal</td>
+                                            <td className="py-1 font-semibold text-slate-700">Status Kelayakan</td>
                                             <td className="py-1">:</td>
                                             <td className="py-1">
                                                 <span className="font-bold uppercase tracking-wider">

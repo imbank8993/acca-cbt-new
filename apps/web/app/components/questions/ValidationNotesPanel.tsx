@@ -1,6 +1,8 @@
 "use client";
 import React, { useCallback, useEffect, useState } from 'react';
+import { Check, RotateCcw } from 'lucide-react';
 import { getBankValidationFeedback, resolveValidationNote, type ValidationSession } from '@/lib/api/validations';
+import { InlineSelect } from '@/app/components/ui/inlineselect';
 
 export function ValidationNotesPanel({ bankId, questionId }: { bankId: string; questionId: string }) {
     const [sessions, setSessions] = useState<ValidationSession[]>([]);
@@ -26,7 +28,17 @@ export function ValidationNotesPanel({ bankId, questionId }: { bankId: string; q
         <p className="text-xs text-slate-500">Simpan perubahan soal sebelum menandai catatan sudah diperbaiki. Tanda ini bukan persetujuan ulang validator.</p>
         {loading && <p role="status">Memuat catatan…</p>}
         {error && <div role="alert" className="text-red-700">{error}<button type="button" onClick={() => void load()} className="block underline">Coba lagi</button></div>}
-        {!!sessions.length && <label className="block">Sesi validasi<select className="mt-1 w-full rounded border bg-white p-2" value={session.id} onChange={event => setSelected(event.target.value)}>{sessions.map(item => <option key={item.id} value={item.id}>{item.title} — {new Date(item.created_at).toLocaleDateString('id-ID')}</option>)}</select></label>}
+        {!!sessions.length && <div>
+            <label htmlFor="validation-notes-session" className="mb-1.5 block font-medium text-slate-700 dark:text-slate-200">Sesi validasi</label>
+            <InlineSelect
+                id="validation-notes-session"
+                value={session.id}
+                onChange={setSelected}
+                minWidth="100%"
+                height="42px"
+                options={sessions.map(item => ({ value: item.id, label: `${item.title} — ${new Date(item.created_at).toLocaleDateString('id-ID')}` }))}
+            />
+        </div>}
         {!loading && !error && !notes.length && <p>Belum ada catatan untuk soal ini pada sesi yang dipilih.</p>}
         {notes.map(note => <article key={note.id} className="space-y-2 rounded-lg border border-blue-100 bg-white p-3">
             <p className="text-xs font-semibold text-blue-700">{note.category} · {note.target_scope === 'option' ? 'Pilihan jawaban' : note.target_scope === 'stimulus' ? 'Stimulus' : note.target_scope === 'question_text' ? 'Teks soal' : 'Umum'}</p>
@@ -36,7 +48,7 @@ export function ValidationNotesPanel({ bankId, questionId }: { bankId: string; q
             {note.verification === 'accepted' && <p className="text-xs font-semibold text-emerald-700">✓ Perbaikan diterima validator</p>}
             {note.verification === 'not_fixed' && !note.is_resolved && <p className="text-xs font-semibold text-rose-600">Validator menilai perbaikan belum sesuai.</p>}
             {session?.status === 'resubmitted' && <p className="text-xs text-violet-700">Sedang ditelaah ulang validator; tanda perbaikan dikunci.</p>}
-            <button type="button" disabled={!!busy || session?.status === 'resubmitted' || note.verification === 'accepted'} className="text-xs font-semibold text-blue-700 disabled:opacity-50" onClick={async () => {
+            <button type="button" disabled={!!busy || session?.status === 'resubmitted' || note.verification === 'accepted'} className={`inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-center text-xs font-semibold shadow-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60 ${note.is_resolved ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200' : 'border-blue-700 bg-blue-700 text-white hover:bg-blue-800'}`} onClick={async () => {
                 setBusy(note.id); setError('');
                 try {
                     const result = await resolveValidationNote(note.id, !note.is_resolved);
@@ -45,7 +57,7 @@ export function ValidationNotesPanel({ bankId, questionId }: { bankId: string; q
                     window.dispatchEvent(new Event('validation-feedback-updated'));
                 } catch (err) { setError(err instanceof Error ? err.message : 'Status perbaikan gagal disimpan.'); }
                 finally { setBusy(''); }
-            }}>{busy === note.id ? 'Menyimpan…' : note.is_resolved ? 'Sudah diperbaiki · Batalkan tanda' : 'Tandai sudah diperbaiki'}</button>
+            }}>{note.is_resolved && note.verification !== 'accepted' ? <RotateCcw size={15} aria-hidden="true" /> : <Check size={15} aria-hidden="true" />}{busy === note.id ? 'Menyimpan…' : note.verification === 'accepted' ? 'Sudah diperbaiki' : note.is_resolved ? 'Batalkan tanda diperbaiki' : 'Tandai sudah diperbaiki'}</button>
         </article>)}
     </aside>;
 }

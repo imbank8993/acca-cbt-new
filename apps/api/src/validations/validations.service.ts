@@ -461,7 +461,7 @@ export class ValidationsService {
             .from('cbt_question_bank_validations')
             .select(
                 `*,
-                 bank:cbt_question_banks(*),
+                 bank:cbt_question_banks(*, creator:cbt_profiles!cbt_question_banks_created_by_fkey(full_name)),
                  creator:cbt_profiles!cbt_question_bank_validations_created_by_fkey(full_name, email),
                  validators:cbt_question_bank_validators(*, profile:cbt_profiles(full_name, email)),
                  notes:cbt_question_validation_notes(*, validator:cbt_profiles!cbt_question_validation_notes_validator_id_fkey(full_name))`
