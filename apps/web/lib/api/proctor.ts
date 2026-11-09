@@ -170,7 +170,13 @@ export interface DeviceInfo {
 }
 
 export interface ExamAttemptRecord {
-    screen_share_exception?: { reason: string; created_at: string; created_by: string | null } | null;
+    screen_share_exception?: {
+        reason: string; created_at: string | null; created_by: string | null;
+        /** exam = ujian ini saja; period = semua ujian di periode ASAS/ASAT/AM. */
+        scope?: 'exam' | 'period'; pas_period_id?: string | null;
+    } | null;
+    /** Periode ASAS/ASAT/AM ujian ini; ada bila pengecualian seluruh periode dapat diberikan. */
+    screen_share_period?: { id: string; name: string | null } | null;
     pas_location?: {
         status: 'assigned' | 'unassigned' | 'unavailable';
         room_id: string | null;
@@ -642,10 +648,11 @@ export function finishAttemptAction(attemptId: string, reason: string) {
     );
 }
 
-export function setExamScreenShareExceptionAction(examId: string, studentId: string, enabled: boolean, reason?: string) {
-    return apiSend<{ examId: string; studentId: string; enabled: boolean; reason?: string }>(
+export function setExamScreenShareExceptionAction(examId: string, studentId: string, enabled: boolean, reason?: string,
+    scope: 'exam' | 'period' = 'exam') {
+    return apiSend<{ examId: string; studentId: string; enabled: boolean; reason?: string; scope?: 'exam' | 'period' }>(
         `/api/proctor/exams/${encodeURIComponent(examId)}/screen-share-exceptions/${encodeURIComponent(studentId)}`,
-        { enabled, reason }, 'PUT',
+        { enabled, reason, scope }, 'PUT',
     );
 }
 

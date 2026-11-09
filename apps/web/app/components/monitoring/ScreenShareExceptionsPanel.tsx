@@ -26,6 +26,10 @@ export function ScreenShareExceptionsPanel({ examId, attempts, onChanged }: {
     const [query, setQuery] = useState('');
     const [reasons, setReasons] = useState<Record<string, string>>({});
     const [busyId, setBusyId] = useState<string | null>(null);
+    // Periode ASAS/ASAT/AM ujian ini (bila ada): pengecualian bisa berlaku untuk semua mapelnya.
+    const period = participants.find(row => row.screen_share_period)?.screen_share_period || null;
+    const periodLabel = period?.name ? `periode ${period.name}` : 'periode ini';
+    const [periodWide, setPeriodWide] = useState(false);
 
     const exceptedCount = participants.filter(row => row.screen_share_exception).length;
     const filtered = useMemo(() => {
@@ -54,7 +58,11 @@ export function ScreenShareExceptionsPanel({ examId, attempts, onChanged }: {
         }
         setBusyId(row.user_id);
         try {
-            const result = await setExamScreenShareExceptionAction(examId, row.user_id, enabled, enabled ? reason : (row.screen_share_exception?.reason || ''));
+            const scope = enabled
+                ? (periodWide && period ? 'period' : 'exam')
+                : (row.screen_share_exception?.scope === 'period' ? 'period' : 'exam');
+            const result = await setExamScreenShareExceptionAction(examId, row.user_id, enabled,
+                enabled ? reason : (row.screen_share_exception?.reason || ''), scope);
             if (!result.success) {
                 await alertDialog({ title: 'Pengecualian belum tersimpan', text: result.error || 'Silakan coba lagi.', variant: 'danger' });
                 return;
@@ -78,8 +86,18 @@ export function ScreenShareExceptionsPanel({ examId, attempts, onChanged }: {
             <div className="border-t border-amber-100 p-4">
                 <p className="mb-3 flex items-start gap-2 text-xs leading-relaxed text-slate-600">
                     <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-600" />
-                    Pengecualian hanya berlaku untuk peserta terpilih pada ujian ini. Alasannya dicatat; aturan ujian lainnya tetap berlaku.
+                    Pengecualian hanya berlaku untuk peserta terpilih. Alasannya dicatat; aturan ujian lainnya tetap berlaku.
+                    Siswa yang sedang menunggu di layar persiapan dapat langsung memulai tanpa memuat ulang halaman.
                 </p>
+                {period && (
+                    <label className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-xs text-slate-700">
+                        <input type="checkbox" checked={periodWide} onChange={event => setPeriodWide(event.target.checked)} className="mt-0.5" />
+                        <span>
+                            <span className="font-semibold">Berlakukan untuk semua ujian di {periodLabel}</span>
+                            <span className="block text-slate-500">Cocok untuk siswa yang memakai tablet/HP sepanjang periode, sehingga tidak perlu diberi pengecualian di setiap mapel. Hanya pengelola periode yang dapat memberikannya.</span>
+                        </span>
+                    </label>
+                )}
                 <label className="relative mb-3 block">
                     <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Cari nama siswa atau kelas"
@@ -108,7 +126,7 @@ export function ScreenShareExceptionsPanel({ examId, attempts, onChanged }: {
                                         </div>
                                         {exception ? (
                                             <div className="min-w-0 text-xs text-emerald-800">
-                                                <span className="font-semibold">Dikecualikan:</span> {exception.reason}
+                                                <span className="font-semibold">{exception.scope === 'period' ? `Dikecualikan (semua ujian ${periodLabel}):` : 'Dikecualikan:'}</span> {exception.reason}
                                                 {active && <span className="block text-slate-500">Tidak dapat dicabut selama peserta sedang mengerjakan.</span>}
                                             </div>
                                         ) : (
@@ -121,7 +139,7 @@ export function ScreenShareExceptionsPanel({ examId, attempts, onChanged }: {
                                         <button type="button" onClick={() => void save(row)}
                                             disabled={Boolean(busyId) || (Boolean(exception) && active) || (!exception && !reason.trim())}
                                             className={`inline-flex min-w-[96px] items-center justify-center rounded-lg px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 ${exception ? 'bg-slate-600 hover:bg-slate-700' : 'bg-amber-600 hover:bg-amber-700'}`}>
-                                            {busy ? <Loader2 size={14} className="animate-spin" /> : exception ? 'Cabut' : 'Beri pengecualian'}
+                                            {busy ? <Loader2 size={14} className="animate-spin" /> : exception ? 'Cabut' : periodWide && period ? 'Beri (seluruh periode)' : 'Beri pengecualian'}
                                         </button>
                                     </li>
                                 );

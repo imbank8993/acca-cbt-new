@@ -2008,6 +2008,31 @@ export default function ExamPage() {
 
     const safeMode = exam?.metadata?.is_safe_mode !== false;
     const screenShareBlocked = exam?.metadata?.screenshot_enabled === true && !screenshots.sharing && !isCompleted && !submissionOnly;
+    // Siswa yang tertahan berbagi layar (mis. memakai tablet) terbuka sendiri begitu
+    // pengawas memberi pengecualian, tanpa harus memuat ulang halaman.
+    const waitingForScreenShareException = exam?.metadata?.screenshot_enabled === true && !screenshots.sharing &&
+        !isCompleted && (awaitingStart || screenShareBlocked);
+    useEffect(() => {
+        if (!waitingForScreenShareException) return;
+        let disposed = false;
+        let checking = false;
+        const check = async () => {
+            if (disposed || checking || !navigator.onLine) return;
+            checking = true;
+            try {
+                const detail = await getExamForAttempt(examId);
+                if (disposed || !detail.success || detail.exam?.metadata?.screen_share_exception !== true) return;
+                const granted = detail.exam.metadata;
+                setExam(previous => previous ? { ...previous, metadata: { ...(previous.metadata || {}), ...granted } } : detail.exam);
+            } catch {
+                // Dicoba lagi pada putaran berikutnya.
+            } finally {
+                checking = false;
+            }
+        };
+        const timer = window.setInterval(() => void check(), 15_000);
+        return () => { disposed = true; window.clearInterval(timer); };
+    }, [waitingForScreenShareException, examId]);
     const networkLabel = examNetworkLabel(isOffline, !!serverUnavailableAt, isNetworkWeak);
     const rejectedAnswerNumbers = Object.keys(rejectedAnswers)
         .map(id => questions.findIndex(question => question.id === id) + 1)
@@ -2039,7 +2064,7 @@ export default function ExamPage() {
         return <ExamStartPreparation
             key={examId}
             exam={exam}
-            screenShare={{ sharing: screenshots.sharing, busy: screenshots.busy, error: screenshots.error, supported: screenshots.supported, request: screenshots.requestShare }}
+            screenShare={{ sharing: screenshots.sharing, busy: screenshots.busy, error: screenshots.error, supported: screenshots.supported, unsupportedMessage: screenshots.unsupportedMessage, request: screenshots.requestShare }}
             onBack={() => router.push('/dashboard/siswa/schedule')}
             onConfirm={(fullscreenReady) => {
                 setIsFullScreen(fullscreenReady);
@@ -2198,7 +2223,7 @@ export default function ExamPage() {
                                     : 'Berbagi layar terlalu lama terputus dan telah dicatat sebagai pelanggaran. Pindah tab atau aplikasi selama layar terkunci juga tetap dihitung.'}
                             </p>
                         )}
-                        {screenshots.supported === false && <p className="mt-2 text-sm font-medium text-amber-700">Browser/perangkat ini tidak menyediakan berbagi layar. Gunakan komputer dengan browser desktop atau hubungi pengawas. Waktu ujian tetap berjalan.</p>}
+                        {screenshots.supported === false && <p className="mt-2 text-sm font-medium text-amber-700">Browser/perangkat ini tidak menyediakan berbagi layar. Gunakan komputer dengan browser desktop atau hubungi pengawas. Layar ini terbuka sendiri setelah pengawas memberi pengecualian. Waktu ujian tetap berjalan.</p>}
                         {screenshots.error && <p role="alert" className="mt-2 text-sm text-red-600">{screenshots.error}</p>}
                         <button type="button" disabled={screenshots.busy || screenshots.supported === false} onClick={() => void screenshots.requestShare()} className="mt-4 rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white disabled:opacity-50">Bagikan Layar</button>
                     </div>

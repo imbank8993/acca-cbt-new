@@ -207,3 +207,15 @@ bash tools/vps/pindahkan-gambar-base64.sh pulihkan /var/backups/acca-cbt/gambar-
 Yang dipindahkan: bank soal, opsi, stimulus, petunjuk, dan salinan soal ujian (wajib ikut agar siswa berhak membuka gambarnya). Nilai asli tiap baris dicadangkan ke `/var/backups/<proyek>/` sebelum diubah. Skrip menolak berjalan bila ada ujian yang sedang dikerjakan, memegang kunci deployment yang sama dengan GitHub Actions, dan aman dijalankan ulang. Gambar EMF/WMF dibiarkan karena tidak dapat ditampilkan browser.
 
 **Urutan wajib:** deploy rilis yang memuat cache gambar offline (`exam-sw.js` dengan `CACHE_EXAM_IMAGES`) lebih dulu, baru jalankan pemindahan. Gambar base64 tampil saat siswa offline karena tersimpan bersama soal; gambar berkas baru tampil offline setelah service worker menyimpannya saat siswa membuka ujian secara online.
+
+## Berbagi layar di tablet/HP dan pengecualian per periode (9 November 2026)
+
+Tablet dan HP (Android, iPhone, iPad) tidak dapat membagikan layar dari browser. Siswa di perangkat itu kini langsung melihat pesan yang tepat, dan layar persiapan/terkunci terbuka sendiri begitu pengawas memberi pengecualian. Di panel *Pengecualian berbagi layar*, pengelola periode dapat memilih **Berlakukan untuk semua ujian di periode ini** agar satu pengecualian berlaku untuk semua mapel ASAS/ASAT/AM.
+
+Pengecualian per periode memerlukan migrasi berikut (pengecualian per ujian tetap berjalan tanpa migrasi ini):
+
+```bash
+psql "$DATABASE_URL_HOST" -f database/migrations/20261109_01_pas_screen_share_exceptions.sql
+```
+
+`DATABASE_URL_HOST` = `DATABASE_URL` dari `.env` dengan `host.docker.internal` diganti `127.0.0.1` dan tanpa `?schema=public`. Migrasi aman dijalankan ulang. API mengenali tabel baru dalam satu menit tanpa restart.

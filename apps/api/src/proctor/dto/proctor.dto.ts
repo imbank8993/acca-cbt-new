@@ -246,6 +246,11 @@ export class SetExamScreenShareExceptionDto {
     @IsString()
     @MaxLength(240)
     reason?: string;
+
+    @ApiPropertyOptional({ enum: ['exam', 'period'], description: 'exam = ujian ini saja; period = semua ujian di periode ASAS/ASAT/AM ujian ini.' })
+    @IsOptional()
+    @IsIn(['exam', 'period'])
+    scope?: 'exam' | 'period';
 }
 
 export class ClassIdsDto {

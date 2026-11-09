@@ -19,6 +19,7 @@ import { canAccessExam, loadExamAudience } from '../students/exam-access';
 import { RELEASED_DEVICE_MESSAGE, isReleasedDevice } from '../common/device-context';
 import { GradingService } from '../grading/grading.service';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
+import { findScreenShareException } from '../common/screen-share-exceptions';
 
 /** Status attempt yang boleh di-reset proktor. */
 const RESETTABLE_STATUSES = ['auto_submitted', 'submitted'];
@@ -286,8 +287,7 @@ export class ProctoringService {
                 const required = examRow?.metadata?.screenshot_enabled === true;
                 // Dicatat sekali per perubahan, bukan setiap 15 detik.
                 if (required && !screenSharing && metadata.screen_share_confirmed !== false) {
-                    const { data: exception } = await db.from('cbt_exam_screen_share_exceptions')
-                        .select('user_id').eq('exam_id', attempt.exam_id).eq('user_id', user.id).maybeSingle();
+                    const exception = await findScreenShareException(db, attempt.exam_id, user.id).catch(() => null);
                     if (!exception) await log('SCREEN_SHARE_UNCONFIRMED', { evidence: 'client_report', reported_at: now.toISOString() });
                 }
                 if (required) {

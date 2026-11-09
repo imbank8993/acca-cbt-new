@@ -28,6 +28,7 @@ import {
     shuffleOptionsForStudent,
 } from '../common/question-order';
 import { advisoryTransactionLock, sharedAdvisoryTransactionLock } from '../common/transaction-lock';
+import { findScreenShareException } from '../common/screen-share-exceptions';
 import { getSchoolTimeZoneLabel, utcToLocalClock } from '../common/school-time';
 import { GradingService } from '../grading/grading.service';
 import { SettingsService } from '../settings/settings.service';
@@ -263,9 +264,9 @@ export class ExamAttemptsService {
                 .select('metadata').eq('exam_id', examId).eq('user_id', user.id).eq('status', 'in_progress').maybeSingle();
             const submitOnly = (recovering as { metadata?: Record<string, unknown> | null } | null)?.metadata?.recovery_submit_only === true;
             if (!submitOnly) {
-                const { data: exception, error: exceptionError } = await this.db.from('cbt_exam_screen_share_exceptions')
-                    .select('user_id').eq('exam_id', examId).eq('user_id', user.id).maybeSingle();
-                if (exceptionError) throw new BadRequestException('Izin pengecualian berbagi layar belum dapat diperiksa.');
+                const exception = await findScreenShareException(this.db, examId, user.id).catch(() => {
+                    throw new BadRequestException('Izin pengecualian berbagi layar belum dapat diperiksa.');
+                });
                 if (!exception) throw new ForbiddenException('Bagikan seluruh layar sebelum memulai atau melanjutkan ujian.');
             }
         }
@@ -985,9 +986,9 @@ export class ExamAttemptsService {
             // jawaban tetap tersimpan lokal hingga berbagi layar dipulihkan.
             if ((exam.metadata as { screenshot_enabled?: boolean } | null)?.screenshot_enabled === true &&
                 attempt.metadata?.screen_share_confirmed === false) {
-                const { data: exception, error: exceptionError } = await db.from('cbt_exam_screen_share_exceptions')
-                    .select('user_id').eq('exam_id', attempt.exam_id).eq('user_id', user.id).maybeSingle();
-                if (exceptionError) throw new BadRequestException('Izin pengecualian berbagi layar belum dapat diperiksa.');
+                const exception = await findScreenShareException(db, attempt.exam_id, user.id).catch(() => {
+                    throw new BadRequestException('Izin pengecualian berbagi layar belum dapat diperiksa.');
+                });
                 if (!exception) {
                     throw new ForbiddenException({ code: 'SCREEN_SHARE_REQUIRED',
                         message: 'Bagikan kembali seluruh layar untuk melanjutkan. Waktu ujian tetap berjalan.' });

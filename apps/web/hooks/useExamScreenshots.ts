@@ -2,6 +2,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { encodeScreenFrame, latestScreenFrame, SCREENSHOT_CAPTURE_DELAY_MS, SCREENSHOT_COOLDOWN_MS, SCREENSHOT_MAX_COUNT, screenshotBase64, sendScreenshotWithRetry } from '@/lib/exam-screenshots';
 import { apiSend } from '@/lib/api/client';
+import {
+    currentScreenShareEnvironment, isUnsupportedRejection, screenShareSupport,
+    SCREEN_SHARE_UNSUPPORTED_BROWSER_MESSAGE, SCREEN_SHARE_UNSUPPORTED_DEVICE_MESSAGE, type ScreenShareSupport,
+} from '@/lib/screen-share-support';
 
 export function useExamScreenshots(examId: string, completed: boolean) {
     const stream = useRef<MediaStream | null>(null);
@@ -16,7 +20,11 @@ export function useExamScreenshots(examId: string, completed: boolean) {
     const [sharing, setSharing] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
-    const [supported, setSupported] = useState(true);
+    /** Alasan berbagi layar tidak tersedia, untuk pesan yang tepat di layar persiapan. */
+    const [support, setSupport] = useState<ScreenShareSupport>('supported');
+    const supported = support === 'supported';
+    const unsupportedMessage = support === 'unsupported-device' ? SCREEN_SHARE_UNSUPPORTED_DEVICE_MESSAGE
+        : support === 'unsupported-browser' ? SCREEN_SHARE_UNSUPPORTED_BROWSER_MESSAGE : '';
 
     const releaseStream = useCallback(() => {
         sharingRef.current = false;
@@ -42,7 +50,7 @@ export function useExamScreenshots(examId: string, completed: boolean) {
         stop();
         // Browser-only capability detection must follow hydration.
         // eslint-disable-next-line react-hooks/set-state-in-effect
-        setSupported(Boolean(navigator.mediaDevices?.getDisplayMedia));
+        setSupport(screenShareSupport(currentScreenShareEnvironment()));
         count.current = 0; lastCapture.current = 0;
         return () => { mounted.current = false; stop(); };
     }, [examId, stop]);
@@ -51,9 +59,9 @@ export function useExamScreenshots(examId: string, completed: boolean) {
     const requestShare = useCallback(async () => {
         if (completed || !mounted.current || requesting.current || sharingRef.current) return;
         setError('');
-        if (!navigator.mediaDevices?.getDisplayMedia) {
-            setSupported(false);
-            setError('Browser/perangkat ini tidak menyediakan berbagi layar. Untuk ujian ini, gunakan laptop atau komputer dengan browser desktop, atau hubungi pengawas sebelum ujian dimulai. Waktu ujian belum berjalan.');
+        const detected = screenShareSupport(currentScreenShareEnvironment());
+        if (detected !== 'supported') {
+            setSupport(detected);
             return;
         }
         requesting.current = true; setBusy(true);
@@ -108,7 +116,11 @@ export function useExamScreenshots(examId: string, completed: boolean) {
             track.onmute = () => { if (stream.current === next) muted.current = true; };
             track.onunmute = () => { if (stream.current === next) muted.current = false; };
         } catch (error) {
-            if (isCurrentRequest()) {
+            if (isCurrentRequest() && isUnsupportedRejection(error, currentScreenShareEnvironment())) {
+                // Browser menolak seketika tanpa menampilkan pilihan layar: perangkat tidak mendukung.
+                setSupport('unsupported-device');
+                setError('');
+            } else if (isCurrentRequest()) {
                 const message = error instanceof Error ? error.message : '';
                 setError(message.includes('Pilih Seluruh') || message.includes('tidak menghasilkan') || message.includes('Browser tidak dapat memverifikasi')
                     ? message
@@ -161,5 +173,5 @@ export function useExamScreenshots(examId: string, completed: boolean) {
             return false;
         }
     }, []);
-    return { sharing, sharingRef, busy, requesting, error, supported, requestShare, capture, upload, stop };
+    return { sharing, sharingRef, busy, requesting, error, supported, unsupportedMessage, requestShare, capture, upload, stop };
 }

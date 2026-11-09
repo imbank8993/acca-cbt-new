@@ -16,6 +16,7 @@ import { buildTopicAnalysis, hasStoredAnswer, publicStudentScores, type AuthUser
 import { DbService } from '../prisma/prisma-db-adapter';
 import { assertExamAccess, canAccessExam, loadExamAudience } from './exam-access';
 import { studentExamMetadata } from './student-exam-metadata';
+import { findScreenShareException } from '../common/screen-share-exceptions';
 
 /** Status attempt yang berarti siswa sudah selesai mengerjakan. */
 const FINISHED_STATUSES = ['submitted', 'auto_submitted'];
@@ -313,11 +314,9 @@ export class StudentsService {
 
         let screenShareException: { reason: string } | null = null;
         if ((data as any).metadata?.screenshot_enabled === true) {
-            const { data: exception, error: exceptionError } = await this.db
-                .from('cbt_exam_screen_share_exceptions').select('reason')
-                .eq('exam_id', examId).eq('user_id', user.id).maybeSingle();
-            if (exceptionError) throw new BadRequestException('Izin pengecualian berbagi layar belum dapat diperiksa.');
-            screenShareException = exception as { reason: string } | null;
+            screenShareException = await findScreenShareException(this.db, examId, user.id).catch(() => {
+                throw new BadRequestException('Izin pengecualian berbagi layar belum dapat diperiksa.');
+            });
         }
 
         const { data: profile } = await this.db

@@ -13,6 +13,7 @@ import { GradingService } from '../grading/grading.service';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { ScoringClient } from '../scoring/scoring.client';
 import { loadPasParticipantLocations } from '../common/pas-participant-location';
+import { examPasPeriods, loadScreenShareExceptions } from '../common/screen-share-exceptions';
 
 /** Batas id per klausa `IN (...)`, supaya pernyataan SQL tidak membengkak. */
 const ID_BATCH = 300;
@@ -221,13 +222,16 @@ export class ExamMonitoringService {
 
         const locations = await loadPasParticipantLocations(this.db, exam || { id: examId }, rows.map(row => row.user_id));
         for (const row of rows) row.pas_location = locations.get(row.user_id) || null;
-        const { data: screenShareExceptions, error: exceptionError } = await this.db.from('cbt_exam_screen_share_exceptions')
-            .select('user_id, reason, created_at, created_by').eq('exam_id', examId);
-        if (exceptionError) throw new BadRequestException('Pengecualian berbagi layar belum dapat dibaca.');
-        const exceptionByStudent = new Map((screenShareExceptions || []).map((item: any) => [item.user_id, {
-            reason: item.reason, created_at: item.created_at, created_by: item.created_by,
-        }]));
-        for (const row of rows) row.screen_share_exception = exceptionByStudent.get(row.user_id) || null;
+        const [exceptionByStudent, pasPeriods] = await Promise.all([
+            loadScreenShareExceptions(this.db, examId),
+            examPasPeriods(this.db, examId),
+        ]).catch(() => { throw new BadRequestException('Pengecualian berbagi layar belum dapat dibaca.'); });
+        // Opsi "seluruh periode" hanya bila ujian ini tepat milik satu periode ASAS/ASAT/AM.
+        const screenSharePeriod = pasPeriods.length === 1 ? pasPeriods[0] : null;
+        for (const row of rows) {
+            row.screen_share_exception = exceptionByStudent.get(row.user_id) || null;
+            row.screen_share_period = screenSharePeriod;
+        }
         await this.fillMissingIdentityNumbers(rows);
         return rows;
     }

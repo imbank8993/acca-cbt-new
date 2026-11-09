@@ -337,7 +337,7 @@ export class ProctorController {
         @Param('studentId', ParseUUIDPipe) studentId: string,
         @Body() dto: SetExamScreenShareExceptionDto,
     ) {
-        return this.exams.setScreenShareException(user, examId, studentId, dto.enabled, dto.reason);
+        return this.exams.setScreenShareException(user, examId, studentId, dto.enabled, dto.reason, dto.scope ?? 'exam');
     }
 
     // ── Pemantauan & hasil ───────────────────────────────────────────────────

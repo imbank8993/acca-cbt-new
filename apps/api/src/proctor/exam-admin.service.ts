@@ -19,6 +19,7 @@ import { assignedPasExamStudents, isPasMonitoringExam } from '../common/pas-moni
 import { isSemesterAssessmentExam, semesterAssessmentSourceLabel } from '../common/exam-types';
 import { resolveExamBankIds } from '../common/exam-question-sources';
 import { assertNoActiveAttempts } from '../common/exam-active-attempts';
+import { assertPeriodExceptionsAvailable, examPasPeriods, type ScreenShareExceptionScope } from '../common/screen-share-exceptions';
 import { COMPLEX_SCORING_RULE_KEY, examComplexScoringRule, MATCHING_SCORING_RULE_KEY, examMatchingScoringRule } from '../common/complex-scoring';
 import { ALLOWED_EXTENSIONS } from '../storage/storage.service';
 import type { CreateExamDto, UpdateExamDto } from './dto/proctor.dto';
@@ -361,7 +362,8 @@ export class ExamAdminService {
         });
     }
 
-    async setScreenShareException(user: AuthUser, examId: string, studentId: string, enabled: boolean, reason?: string) {
+    async setScreenShareException(user: AuthUser, examId: string, studentId: string, enabled: boolean, reason?: string,
+        scope: ScreenShareExceptionScope = 'exam') {
         await this.authz.assertExamStaff(user, examId);
         const { data: exam, error: examError } = await this.db.from('cbt_exams')
             .select('id, metadata').eq('id', examId).maybeSingle();
@@ -372,6 +374,7 @@ export class ExamAdminService {
         }
 
         await this.assertExamParticipantAssigned(examId, studentId);
+        if (scope === 'period') return this.setPeriodScreenShareException(user, examId, studentId, enabled, reason);
         const table = 'cbt_exam_screen_share_exceptions';
         if (!enabled) {
             const { data: active, error: activeError } = await this.db.from('cbt_exam_attempts')
@@ -390,7 +393,47 @@ export class ExamAdminService {
             reason: normalizedReason, created_by: user.id, created_at: new Date().toISOString() },
         { onConflict: 'exam_id,user_id' });
         if (error) throw new BadRequestException('Pengecualian berbagi layar belum dapat disimpan.');
-        return { examId, studentId, enabled: true, reason: normalizedReason };
+        return { examId, studentId, enabled: true, reason: normalizedReason, scope: 'exam' as const };
+    }
+
+    /**
+     * Pengecualian untuk semua ujian di periode ASAS/ASAT/AM tempat ujian ini
+     * dijadwalkan. Hanya pengelola periode (pembuat, Admin, kolaborator edit)
+     * yang boleh, karena berlaku juga untuk ujian mapel lain di periode itu.
+     */
+    private async setPeriodScreenShareException(user: AuthUser, examId: string, studentId: string, enabled: boolean, reason?: string) {
+        const periods = await examPasPeriods(this.db, examId);
+        if (periods.length !== 1) {
+            throw new BadRequestException('Ujian ini tidak terhubung ke satu periode ASAS/ASAT/AM. Gunakan pengecualian untuk ujian ini saja.');
+        }
+        const period = periods[0];
+        await this.authz.assertPasPeriodManage(user, period.id, 'write');
+        await assertPeriodExceptionsAvailable(this.db);
+        if (!enabled) {
+            const active = await this.db.raw<Array<{ ok: number }>>(
+                `SELECT 1 AS ok FROM public.cbt_exam_attempts a
+                 WHERE a.user_id = $1::uuid AND a.status = 'in_progress' AND a.exam_id IN (
+                     SELECT s.exam_id FROM public.cbt_pas_class_schedules s WHERE s.pas_period_id = $2::uuid AND s.exam_id IS NOT NULL)
+                 LIMIT 1`, studentId, period.id);
+            if (active.length) {
+                throw new ConflictException('Pengecualian periode tidak dapat dicabut saat peserta sedang mengerjakan salah satu ujian periode ini.');
+            }
+            await this.db.raw(
+                `DELETE FROM public.cbt_pas_screen_share_exceptions WHERE pas_period_id = $1::uuid AND user_id = $2::uuid RETURNING 1 AS ok`,
+                period.id, studentId);
+            return { examId, studentId, enabled: false, scope: 'period' as const, period };
+        }
+        const normalizedReason = String(reason || '').trim();
+        if (!normalizedReason) throw new BadRequestException('Tuliskan alasan pengecualian.');
+        if (normalizedReason.length > 240) throw new BadRequestException('Alasan pengecualian maksimal 240 karakter.');
+        await this.db.raw(
+            `INSERT INTO public.cbt_pas_screen_share_exceptions (pas_period_id, user_id, reason, created_by, created_at)
+             VALUES ($1::uuid, $2::uuid, $3, $4::uuid, now())
+             ON CONFLICT (pas_period_id, user_id) DO UPDATE
+               SET reason = EXCLUDED.reason, created_by = EXCLUDED.created_by, created_at = EXCLUDED.created_at
+             RETURNING 1 AS ok`,
+            period.id, studentId, normalizedReason, user.id);
+        return { examId, studentId, enabled: true, reason: normalizedReason, scope: 'period' as const, period };
     }
 
     private async assertExamParticipantAssigned(examId: string, studentId: string): Promise<void> {
