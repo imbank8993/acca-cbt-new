@@ -2,7 +2,7 @@
 import '@/app/components/pas-room-management.css';
 import { PASScheduleStatus } from '@/app/components/PASScheduleStatus';
 
-import { confirmDialog, deleteConfirmDialog } from '@/lib/confirm-dialog';
+import { alertDialog, confirmDialog, deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { PASRoomInput } from "@/app/components/PASRoomInput";
 import {
     assignProctorsToRoomAction,
@@ -342,7 +342,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                 setSelectedRoomId(null);
             }
         } else {
-            alert(result.error);
+            await alertDialog({ title: 'Gagal menghapus ruang ujian', text: result.error, variant: 'danger' });
         }
         setIsSaving(false);
     };
@@ -422,7 +422,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
     const handleAddStudentsToRoom = async () => {
         if (!selectedRoom || selectedStudentIds.length === 0 || isSaving || isClassLoading) return;
         if (exceedsCapacity) {
-            alert(`Kapasitas ruang tidak mencukupi. Tersedia ${remainingCapacity} kursi.`);
+            await alertDialog({ title: 'Kapasitas ruang tidak mencukupi', text: `Tersedia ${remainingCapacity} kursi.`, variant: 'warning' });
             return;
         }
         const studentIds = [...new Set(selectedStudentIds)].filter(id => !roomElsewhere(id));

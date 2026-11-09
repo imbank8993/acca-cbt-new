@@ -5,7 +5,8 @@ import { AlertTriangle, CheckCircle2, Layers, Lock } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/app/components/ui/modal';
-import { SettingsList, SettingsRow } from '@/app/components/ui/settings-list';
+import { SettingsDetailLink, SettingsList, SettingsRow } from '@/app/components/ui/settings-list';
+import { ExpandableClassList } from '@/app/components/ui/ExpandableClassList';
 import type { ReactNode } from 'react';
 import type { PASPeriod } from '@/app/types/pas';
 import { mergePASExamsAction, updatePASExamSettingsAction } from '@/lib/api/pas';
@@ -46,6 +47,11 @@ interface BankRow {
     generated: number;
 }
 
+function BankClassSummary({ classes }: { classes: string[] }) {
+    if (classes.length === 0) return <>Kelas belum ditetapkan</>;
+    return <ExpandableClassList classes={classes} />;
+}
+
 /** Bank soal yang dijadwalkan di folder, dengan kelas dan jumlah jadwal yang sudah dibangkitkan. */
 export function folderBanks(period: Pick<PASPeriod, 'pas_class_schedules'>): BankRow[] {
     const banks = new Map<string, BankRow>();
@@ -71,7 +77,7 @@ export function folderBanks(period: Pick<PASPeriod, 'pas_class_schedules'>): Ban
 function SettingHint({ text, choice }: { text?: ReactNode; choice: { label: string; hint: string } | null }) {
     return <>
         {text && <p>{text}</p>}
-        {choice && <p className={`${text ? 'mt-2 ' : ''}rounded-lg border-l-[3px] border-blue-500 bg-blue-50/70 px-3 py-2 text-slate-700`}>
+        {choice && <p className={`${text ? 'mt-3 ' : ''}rounded-lg border-l-[3px] border-blue-500 bg-blue-50/70 px-3 py-2 text-slate-700`}>
             <span className="font-semibold text-slate-900">{choice.label}:</span> {choice.hint}
         </p>}
     </>;
@@ -82,45 +88,42 @@ export function PASExamSettingsFields({ idPrefix, value, onChange, disabled }: {
     idPrefix: string; value: PASExamSettings; onChange: (next: PASExamSettings) => void; disabled?: boolean;
 }) {
     const safety = safetyChoice(value);
+    const [detail, setDetail] = useState<{ title: string; text: string; choice: { label: string; hint: string } | null } | null>(null);
+    const detailLink = (title: string, text: string, choice: { label: string; hint: string } | null) =>
+        <SettingsDetailLink title={title} onClick={() => setDetail({ title, text, choice })} />;
     return <SettingsList label="Pengaturan ujian">
         <SettingsRow htmlFor={`${idPrefix}-scoring`} title="Penilaian"
-            description={<SettingHint text="Menentukan cara nilai siswa dihitung. Pada model IRT, perhitungan memakai jawaban seluruh peserta yang mengerjakan bank soal ini."
-                choice={choiceHint(SCORING_CHOICES, value.scoring)} />}>
+            description={detailLink('Penilaian', 'Menentukan cara nilai siswa dihitung. Pada model IRT, perhitungan memakai jawaban seluruh peserta yang mengerjakan bank soal ini.', choiceHint(SCORING_CHOICES, value.scoring))}>
             <InlineSelect id={`${idPrefix}-scoring`} value={value.scoring} disabled={disabled} minWidth="220px"
                 onChange={next => onChange({ ...value, scoring: next as PASScoringModel })}
                 options={SCORING_CHOICES.map(({ value: v, label }) => ({ value: v, label }))} />
         </SettingsRow>
         <SettingsRow htmlFor={`${idPrefix}-complex`} title="Skor Benar-Salah & Kategorisasi"
-            description={<SettingHint text="Berlaku untuk soal Benar-Salah dan soal Kategorisasi. Aturan ini tidak dapat diubah lagi setelah ada siswa yang mengerjakan."
-                choice={choiceHint(COMPLEX_SCORING_CHOICES, value.complex_scoring)} />}>
+            description={detailLink('Skor Benar-Salah & Kategorisasi', 'Berlaku untuk soal Benar-Salah dan soal Kategorisasi. Aturan ini tidak dapat diubah lagi setelah ada siswa yang mengerjakan.', choiceHint(COMPLEX_SCORING_CHOICES, value.complex_scoring))}>
             <InlineSelect id={`${idPrefix}-complex`} value={value.complex_scoring} disabled={disabled} minWidth="220px"
                 onChange={next => onChange({ ...value, complex_scoring: next as PASComplexScoringRule })}
                 options={COMPLEX_SCORING_CHOICES.map(({ value: v, label }) => ({ value: v, label }))} />
         </SettingsRow>
         <SettingsRow htmlFor={`${idPrefix}-matching`} title="Skor Menjodohkan"
-            description={<SettingHint text="Berlaku khusus untuk soal Menjodohkan. Aturan ini tidak dapat diubah lagi setelah ada siswa yang mengerjakan."
-                choice={choiceHint(MATCHING_SCORING_CHOICES, value.matching_scoring)} />}>
+            description={detailLink('Skor Menjodohkan', 'Berlaku khusus untuk soal Menjodohkan. Aturan ini tidak dapat diubah lagi setelah ada siswa yang mengerjakan.', choiceHint(MATCHING_SCORING_CHOICES, value.matching_scoring))}>
             <InlineSelect id={`${idPrefix}-matching`} value={value.matching_scoring} disabled={disabled} minWidth="220px"
                 onChange={next => onChange({ ...value, matching_scoring: next as PASComplexScoringRule })}
                 options={MATCHING_SCORING_CHOICES.map(({ value: v, label }) => ({ value: v, label }))} />
         </SettingsRow>
         <SettingsRow htmlFor={`${idPrefix}-results`} title="Hasil untuk siswa"
-            description={<SettingHint text="Menentukan apa yang dapat dilihat siswa setelah ujian."
-                choice={choiceHint(RESULTS_CHOICES, resultsChoice(value))} />}>
+            description={detailLink('Hasil untuk siswa', 'Menentukan apa yang dapat dilihat siswa setelah ujian.', choiceHint(RESULTS_CHOICES, resultsChoice(value)))}>
             <InlineSelect id={`${idPrefix}-results`} value={resultsChoice(value)} disabled={disabled} minWidth="220px"
                 onChange={next => onChange(withResultsChoice(value, next as ResultsChoice))}
                 options={RESULTS_CHOICES.map(({ value: v, label }) => ({ value: v, label }))} />
         </SettingsRow>
         <SettingsRow htmlFor={`${idPrefix}-order`} title="Urutan soal"
-            description={<SettingHint text="Pengacakan mengurangi peluang siswa saling mencontek. Tidak berubah pada ujian yang sudah dikerjakan siswa."
-                choice={choiceHint(ORDER_CHOICES, orderChoice(value))} />}>
+            description={detailLink('Urutan soal', 'Pengacakan mengurangi peluang siswa saling mencontek. Tidak berubah pada ujian yang sudah dikerjakan siswa.', choiceHint(ORDER_CHOICES, orderChoice(value)))}>
             <InlineSelect id={`${idPrefix}-order`} value={orderChoice(value)} disabled={disabled} minWidth="220px"
                 onChange={next => onChange(withOrderChoice(value, next as OrderChoice))}
                 options={ORDER_CHOICES.map(({ value: v, label }) => ({ value: v, label }))} />
         </SettingsRow>
         <SettingsRow htmlFor={`${idPrefix}-safety`} title="Mode aman"
-            description={<SettingHint text="Yang dihitung sebagai pelanggaran: keluar dari layar penuh, berpindah tab, atau membuka aplikasi lain."
-                choice={choiceHint(SAFETY_CHOICES, safety)} />}>
+            description={detailLink('Mode aman', 'Yang dihitung sebagai pelanggaran: keluar dari layar penuh, berpindah tab, atau membuka aplikasi lain.', choiceHint(SAFETY_CHOICES, safety))}>
             {safety === 'limit' && <label className="flex items-center gap-1.5 text-xs text-slate-600">
                 <input type="number" min={1} max={100} step={1} aria-label="Batas jumlah pelanggaran" disabled={disabled}
                     value={value.max_violations ?? 3}
@@ -133,12 +136,20 @@ export function PASExamSettingsFields({ idPrefix, value, onChange, disabled }: {
                 options={SAFETY_CHOICES.map(({ value: v, label }) => ({ value: v, label }))} />
         </SettingsRow>
         <SettingsRow htmlFor={`${idPrefix}-screenshot`} title="Screenshot pelanggaran"
-            description={<SettingHint text="Merekam tangkapan layar siswa saat terjadi pelanggaran."
-                choice={choiceHint(SCREENSHOT_CHOICES, value.screenshot_enabled ? 'on' : 'off')} />}>
+            description={detailLink('Screenshot pelanggaran', 'Merekam tangkapan layar siswa saat terjadi pelanggaran.', choiceHint(SCREENSHOT_CHOICES, value.screenshot_enabled ? 'on' : 'off'))}>
             <InlineSelect id={`${idPrefix}-screenshot`} value={value.screenshot_enabled ? 'on' : 'off'} disabled={disabled} minWidth="220px"
                 onChange={next => onChange({ ...value, screenshot_enabled: next === 'on' })}
                 options={SCREENSHOT_CHOICES.map(({ value: v, label }) => ({ value: v, label }))} />
         </SettingsRow>
+        <Modal open={Boolean(detail)} onClose={() => setDetail(null)} size="md" title={detail?.title || 'Detail Pengaturan'}
+            labelledBy={`${idPrefix}-detail-title`}>
+            <ModalBody>
+                {detail && <div className="text-sm leading-relaxed text-slate-600">
+                    <SettingHint text={detail.text} choice={detail.choice} />
+                </div>}
+            </ModalBody>
+            <ModalFooter><Button type="button" variant="outline" onClick={() => setDetail(null)}>Tutup</Button></ModalFooter>
+        </Modal>
     </SettingsList>;
 }
 
@@ -263,7 +274,7 @@ export function PASExamSettingsPanel({ period, onSaved, onReload }: {
 
         <section aria-labelledby="pas-settings-defaults" className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
             <h3 id="pas-settings-defaults" className="text-sm font-bold text-slate-900">Pengaturan bawaan</h3>
-            <p className="mb-4 mt-0.5 text-xs text-slate-500">Berlaku untuk semua bank soal dalam folder ini, kecuali bank soal yang diberi pengaturan khusus. Keterangan di bawah setiap pengaturan menjelaskan pilihan yang sedang aktif.</p>
+            <p className="mb-4 mt-0.5 text-xs text-slate-500">Berlaku untuk semua bank soal dalam folder ini, kecuali bank soal yang diberi pengaturan khusus. Klik Detail pada setiap pengaturan untuk melihat penjelasan pilihan yang sedang aktif.</p>
             <PASExamSettingsFields idPrefix="pas-default" value={config.defaults} disabled={locked || saving}
                 onChange={next => setConfig(current => ({ ...current, defaults: next }))} />
         </section>
@@ -283,7 +294,7 @@ export function PASExamSettingsPanel({ period, onSaved, onReload }: {
                         return <tr key={bank.id} className="align-top">
                             <td className="px-4 py-3 sm:px-5">
                                 <p className="font-semibold text-slate-900">{bank.title}</p>
-                                <p className="mt-0.5 text-[11px] text-slate-500">{bank.classes.length ? `Kelas ${bank.classes.join(', ')}` : 'Kelas belum ditetapkan'}</p>
+                                <p className="mt-0.5 text-[11px] text-slate-500"><BankClassSummary classes={bank.classes} /></p>
                             </td>
                             <td className="px-3 py-3">
                                 <div className="flex flex-wrap gap-1">
@@ -317,7 +328,7 @@ export function PASExamSettingsPanel({ period, onSaved, onReload }: {
         <Modal open={Boolean(editing && draft)} onClose={closeBank} size="lg" labelledBy="pas-bank-settings-title">
             {editing && draft && <>
                 <ModalHeader id="pas-bank-settings-title" title={editing.title}
-                    subtitle={editing.classes.length ? `Kelas ${editing.classes.join(', ')}` : undefined} onClose={closeBank} />
+                    subtitle={<BankClassSummary key={editing.id} classes={editing.classes} />} onClose={closeBank} />
                 <ModalBody>
                     <PASExamSettingsFields idPrefix={`pas-bank-${editing.id}`} value={draft} onChange={setDraft} />
                 </ModalBody>

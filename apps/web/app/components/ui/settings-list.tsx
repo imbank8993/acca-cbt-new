@@ -28,3 +28,10 @@ export function SettingsRow({ title, description, children, htmlFor }: {
         <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">{children}</div>
     </div>;
 }
+
+export function SettingsDetailLink({ title, onClick }: { title: string; onClick: () => void }) {
+    return <button type="button" onClick={onClick} aria-label={`Detail ${title}`}
+        className="font-semibold text-blue-600 hover:text-blue-800 hover:underline focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
+        Detail
+    </button>;
+}

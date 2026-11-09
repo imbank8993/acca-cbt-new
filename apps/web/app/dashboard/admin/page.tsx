@@ -1,6 +1,7 @@
 "use client";
 import { getErrorMessage } from '@/lib/errors';
 import { Spinner } from '@/app/components/ui/Spinner';
+import { ExamSourceSummary } from '@/app/components/exams/ExamSourceSummary';
 import {
     getOrganizationStats,
     getProctorOrganization,
@@ -293,7 +294,7 @@ export default function AdminDashboard() {
                                             <p className="text-sm font-semibold leading-snug text-slate-800 whitespace-normal break-words group-hover:text-[#3083FF] transition-colors">{exam.title}</p>
                                             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 mt-1">
                                                 {exam.creatorName && exam.creatorName !== 'Unknown' && (
-                                                    <span className="font-medium text-slate-600">{exam.creatorName}</span>
+                                                    <span className="font-medium text-slate-600"><ExamSourceSummary label={exam.creatorName} /></span>
                                                 )}
                                                 {exam.creatorName && exam.creatorName !== 'Unknown' && exam.start_time && (
                                                     <span className="text-slate-300">|</span>

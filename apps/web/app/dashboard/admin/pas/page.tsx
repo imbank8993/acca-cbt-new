@@ -132,7 +132,7 @@ export default function ProctorPASPage({ activeTab = 'all', typeFilter = 'all', 
                 router.push(`/dashboard/admin/exams/pas/${result.id}`);
             }
         } else {
-            alert(result.error || 'Gagal membuat folder ujian');
+            await alertDialog({ title: 'Gagal membuat folder ujian', text: result.error, variant: 'danger' });
         }
         setIsSubmitting(false);
     };

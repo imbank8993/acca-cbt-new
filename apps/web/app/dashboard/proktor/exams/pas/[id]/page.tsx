@@ -152,7 +152,7 @@ export default function ProctorPASDetailPage() {
     const handleAddSchedule = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!scheduleForm.bank_id || scheduleForm.class_ids.length === 0 || !scheduleForm.scheduled_date || !scheduleForm.session_id) {
-            alert('Lengkapi bank soal, minimal satu kelas, tanggal, dan sesi.');
+            await alertDialog({ title: 'Jadwal belum lengkap', text: 'Lengkapi bank soal, minimal satu kelas, tanggal, dan sesi.', variant: 'warning' });
             return;
         }
         setIsSubmitting(true);
@@ -168,7 +168,7 @@ export default function ProctorPASDetailPage() {
                 room: scheduleForm.room || undefined,
             });
             if (!result.success) {
-                alert('Gagal: ' + result.error);
+                await alertDialog({ title: 'Gagal menambah jadwal', text: result.error, variant: 'danger' });
                 setIsSubmitting(false);
                 return;
             }

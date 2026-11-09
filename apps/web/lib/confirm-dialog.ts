@@ -122,16 +122,19 @@ export async function alertDialog({
     iconColor: (icon || style.icon) === 'success' ? '#3083FF' : undefined,
     confirmButtonText: confirmText,
     buttonsStyling: false,
+    width: 440,
+    padding: 0,
     customClass: {
       container: 'acca-confirm-overlay',
-      popup: 'acca-alert',
-      title: 'acca-alert-title',
-      htmlContainer: 'acca-alert-body',
-      actions: 'acca-alert-actions',
-      confirmButton: 'acca-alert-btn',
+      popup: 'acca-confirm',
+      icon: 'acca-confirm-icon',
+      title: 'acca-confirm-title',
+      htmlContainer: 'acca-confirm-body',
+      actions: 'acca-confirm-actions',
+      confirmButton: 'acca-confirm-yes',
     },
     didOpen: (popup) => {
-      const btn = popup.querySelector('.acca-alert-btn') as HTMLElement | null;
+      const btn = popup.querySelector('.acca-confirm-yes') as HTMLElement | null;
       if (btn) btn.style.backgroundColor = style.confirmBtn;
     },
   });
