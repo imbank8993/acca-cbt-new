@@ -192,3 +192,16 @@ bash tools/vps/cbt-kapasitas.sh pantau     # pantauan langsung koneksi, lock, da
 melebihi sisa `max_connections`, dan hanya membangun ulang image bila API yang berjalan
 masih versi lama. Jangan menjalankannya saat ujian sedang berlangsung: cbt-api dinyalakan
 ulang (sekitar 10–30 detik). Tidak ada migrasi database.
+
+## Memindahkan gambar base64 soal lama (9 November 2026)
+
+Soal yang dulu diimpor dari Word bisa menyimpan gambar sebagai base64 di dalam teks soal. Data itu memperberat database, setiap pemuatan soal, dan setiap pengumpulan ujian. Impor baru sudah mengunggah gambar sebagai berkas; soal lama dipindahkan dengan:
+
+```bash
+cd /www/wwwroot/acca-cbt-new
+bash tools/vps/pindahkan-gambar-base64.sh cek        # hanya membaca: lokasi dan ukuran base64
+bash tools/vps/pindahkan-gambar-base64.sh jalankan   # unggah gambar, ganti dengan URL (minta konfirmasi)
+bash tools/vps/pindahkan-gambar-base64.sh pulihkan /var/backups/acca-cbt/gambar-base64-<waktu>.ndjson
+```
+
+Yang dipindahkan: bank soal, opsi, stimulus, petunjuk, dan salinan soal ujian (wajib ikut agar siswa berhak membuka gambarnya). Nilai asli tiap baris dicadangkan ke `/var/backups/<proyek>/` sebelum diubah. Skrip menolak berjalan bila ada ujian yang sedang dikerjakan, memegang kunci deployment yang sama dengan GitHub Actions, dan aman dijalankan ulang. Gambar EMF/WMF dibiarkan karena tidak dapat ditampilkan browser.
