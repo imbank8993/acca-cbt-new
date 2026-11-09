@@ -36,7 +36,7 @@ validateExamRecoverySession,
 writeExamRecoverySession,
 writeExamSnapshot,
 } from '@/lib/exam-durable-storage';
-import { cacheExamOfflineShell,isExamPwaEnabled,removeExamOfflineShell } from '@/lib/exam-pwa';
+import { cacheExamOfflineImages,cacheExamOfflineShell,isExamPwaEnabled,removeExamOfflineShell } from '@/lib/exam-pwa';
 import { examAutoRetryDelay } from '@/lib/exam-retry';
 import { mergeExamQuestionUpdates } from '@/lib/exam-question-updates';
 import { sampleExamNetwork, examNetworkLabel } from '@/lib/exam-network';
@@ -269,6 +269,7 @@ export default function ExamPage() {
                     setQuestions(next);
                     try { await updateExamRecoveryQuestions(examId, attemptId, next); }
                     catch { /* Online revisions still render when offline storage is unavailable. */ }
+                    void cacheExamOfflineImages(examId, next);
                     if (disposed || attemptRef.current?.id !== attemptId) return;
 
                     // Add to updatedQuestionIds for badge & red pulse indicator
@@ -958,6 +959,8 @@ export default function ExamPage() {
                             'Data jawaban tersimpan, tetapi halaman offline belum selesai disiapkan. Jangan tutup browser saat jaringan terputus.',
                         );
                     }
+                    // Gambar soal disimpan di latar belakang; tidak menahan siswa memulai.
+                    void cacheExamOfflineImages(examId, loadedQuestions, { jitterMs: 8_000 });
                 } catch {
                     setStorageWarning(
                         'Paket pemulihan offline tidak dapat disimpan. Jangan memuat ulang halaman saat jaringan terputus.',

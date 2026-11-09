@@ -205,3 +205,5 @@ bash tools/vps/pindahkan-gambar-base64.sh pulihkan /var/backups/acca-cbt/gambar-
 ```
 
 Yang dipindahkan: bank soal, opsi, stimulus, petunjuk, dan salinan soal ujian (wajib ikut agar siswa berhak membuka gambarnya). Nilai asli tiap baris dicadangkan ke `/var/backups/<proyek>/` sebelum diubah. Skrip menolak berjalan bila ada ujian yang sedang dikerjakan, memegang kunci deployment yang sama dengan GitHub Actions, dan aman dijalankan ulang. Gambar EMF/WMF dibiarkan karena tidak dapat ditampilkan browser.
+
+**Urutan wajib:** deploy rilis yang memuat cache gambar offline (`exam-sw.js` dengan `CACHE_EXAM_IMAGES`) lebih dulu, baru jalankan pemindahan. Gambar base64 tampil saat siswa offline karena tersimpan bersama soal; gambar berkas baru tampil offline setelah service worker menyimpannya saat siswa membuka ujian secara online.

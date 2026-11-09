@@ -1,3 +1,5 @@
+import { examImageUrls } from './exam-offline-images';
+
 const SW_PATH = '/exam-sw.js';
 const EXAM_CACHE_PREFIX = 'acca-exam-shell-';
 
@@ -62,6 +64,24 @@ export async function cacheExamOfflineShell(examId: string): Promise<boolean> {
                 }
             });
     return postToWorker({ type: 'CACHE_EXAM_SHELL', path: examPath(examId), assets }, 30_000);
+}
+
+/**
+ * Simpan gambar soal ujian ini agar tetap tampil saat jaringan terputus atau
+ * halaman dimuat ulang offline. Dipanggil setelah soal berhasil dimuat online
+ * dan setiap kali soal diperbarui; gambar yang sudah tersimpan tidak diunduh lagi.
+ * Daftar kosong tetap dikirim agar gambar lama ujian ini dibersihkan.
+ */
+export async function cacheExamOfflineImages(
+    examId: string,
+    questions: unknown,
+    options: { jitterMs?: number } = {},
+): Promise<boolean> {
+    if (!pwaEnabled()) return false;
+    const images = examImageUrls(questions, window.location.origin);
+    // Sebar unduhan ratusan siswa yang membuka ujian pada detik yang sama.
+    if (options.jitterMs) await new Promise(resolve => window.setTimeout(resolve, Math.random() * options.jitterMs!));
+    return postToWorker({ type: 'CACHE_EXAM_IMAGES', path: examPath(examId), images }, 180_000);
 }
 
 export async function removeExamOfflineShell(examId: string): Promise<void> {
