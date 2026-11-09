@@ -74,6 +74,7 @@ export default function BulkImportModal({
     const [isProcessing, setIsProcessing] = useState(false);
     const [parseResult, setParseResult] = useState<ImportResult | null>(null);
     const [importProgress, setImportProgress] = useState(0);
+    const [imageProgress, setImageProgress] = useState<{ done: number; total: number } | null>(null);
     const [importError, setImportError] = useState<string | null>(null);
     const [selectedQuestions, setSelectedQuestions] = useState<Set<number>>(new Set());
     const [editableQuestions, setEditableQuestions] = useState<ParsedQuestion[]>([]);
@@ -167,11 +168,18 @@ export default function BulkImportModal({
         setSelectedCrossQuestions(new Set());
     }, []);
 
+    /** Unggah gambar memakai 0–90% lingkaran progres; sisanya penyimpanan soal. */
+    const trackImageUpload = useCallback(({ done, total }: { done: number; total: number }) => {
+        setImageProgress({ done, total });
+        setImportProgress(total ? Math.round((done / total) * 90) : 0);
+    }, []);
+
     const handleStartCrossImport = useCallback(async () => {
         if (selectedCrossQuestions.size === 0) return;
 
         setStep('importing');
         setImportProgress(0);
+        setImageProgress(null);
         setImportError(null);
 
         try {
@@ -192,7 +200,7 @@ export default function BulkImportModal({
 
             const pendingRequest = await pendingImportRequest(bankId, questionsToImport);
             const clientRequestId = pendingRequest.id;
-            const result = await bulkImportQuestions(bankId, questionsToImport, clientRequestId);
+            const result = await bulkImportQuestions(bankId, questionsToImport, clientRequestId, { onImageProgress: trackImageUpload });
 
             if (result.success && result.failed === 0 && result.errors.length === 0 && result.imported === questionsToImport.length) {
                 pendingRequest.complete();
@@ -210,7 +218,7 @@ export default function BulkImportModal({
             console.error('Cross-import error:', error);
             setImportError(getErrorMessage(error) || 'Terjadi kesalahan saat mengimpor.');
         }
-    }, [selectedCrossQuestions, sourceBankQuestions, bankId, onImportComplete, handleClose]);
+    }, [selectedCrossQuestions, sourceBankQuestions, bankId, onImportComplete, handleClose, trackImageUpload]);
 
     // ── File import handlers ───────────────────────────────────────────────────
     const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -305,6 +313,7 @@ export default function BulkImportModal({
         if (selectedQuestions.size === 0 || parseResult?.errors.length) return;
         setStep('importing');
         setImportProgress(0);
+        setImageProgress(null);
         setImportError(null);
 
         const questionsToImport = editableQuestions
@@ -327,7 +336,7 @@ export default function BulkImportModal({
         try {
             const pendingRequest = await pendingImportRequest(bankId, questionsToImport);
             const clientRequestId = pendingRequest.id;
-            const result = await bulkImportQuestions(bankId, questionsToImport, clientRequestId);
+            const result = await bulkImportQuestions(bankId, questionsToImport, clientRequestId, { onImageProgress: trackImageUpload });
             if (result.success && result.failed === 0 && result.errors.length === 0 && result.imported === questionsToImport.length) {
                 pendingRequest.complete();
                 setImportProgress(100);
@@ -344,7 +353,7 @@ export default function BulkImportModal({
             console.error('Import error:', error);
             setImportError(getErrorMessage(error) || 'Terjadi kesalahan saat mengimpor.');
         }
-    }, [editableQuestions, selectedQuestions, parseResult, bankId, onImportComplete, handleClose]);
+    }, [editableQuestions, selectedQuestions, parseResult, bankId, onImportComplete, handleClose, trackImageUpload]);
 
     const toggleQuestionSelection = useCallback((index: number) => {
         setSelectedQuestions(prev => {
@@ -791,7 +800,9 @@ export default function BulkImportModal({
                                     <div className="text-center">
                                         <p className="text-lg font-semibold text-slate-700">Memproses Import...</p>
                                         <p className="text-sm text-slate-500">
-                                            {importTab === 'bank' ? selectedCrossQuestions.size : selectedQuestions.size} soal sedang diimport
+                                            {imageProgress && imageProgress.done < imageProgress.total
+                                                ? `Mengunggah gambar ${imageProgress.done} dari ${imageProgress.total}...`
+                                                : `${importTab === 'bank' ? selectedCrossQuestions.size : selectedQuestions.size} soal sedang diimport`}
                                         </p>
                                     </div>
                                 </div>

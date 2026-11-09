@@ -1,3 +1,5 @@
+import { replaceInlineImages, type InlineImageProgress } from '@/lib/inline-image-upload';
+import { uploadToHosting } from '@/lib/uploader';
 import { apiSend } from './client';
 
 /**
@@ -31,14 +33,39 @@ export interface BulkImportResult {
     questionIds?: string[];
 }
 
+async function uploadQuestionImage(file: File): Promise<string> {
+    const result = await uploadToHosting(file, 'questions');
+    if (result.success && result.url) return result.url;
+    throw new Error(result.error || 'Gagal mengunggah gambar.');
+}
+
 export async function bulkImportQuestions(
     bankId: string,
     questions: BulkQuestionData[],
     clientRequestId?: string,
+    options: { onImageProgress?: (progress: InlineImageProgress) => void } = {},
 ): Promise<BulkImportResult> {
+    // Gambar base64 hasil baca Word diunggah dulu sebagai berkas, lalu soal hanya
+    // memuat URL-nya. Tanpa ini dokumen bergambar melewati batas body 10 MB dan
+    // tiba di server dalam keadaan terpotong. Lihat lib/inline-image-upload.ts.
+    let payload: BulkQuestionData[];
+    try {
+        payload = await replaceInlineImages(questions, {
+            upload: uploadQuestionImage,
+            onProgress: options.onImageProgress,
+        });
+    } catch (error) {
+        return {
+            success: false,
+            imported: 0,
+            failed: questions.length,
+            errors: [{ index: -1, message: error instanceof Error ? error.message : 'Gagal mengunggah gambar soal.' }],
+        };
+    }
+
     const res = await apiSend<BulkImportResult>(
         `/api/question-banks/${encodeURIComponent(bankId)}/bulk-import`,
-        { questions, clientRequestId },
+        { questions: payload, clientRequestId },
     );
 
     // Kegagalan di tingkat permintaan (401, 403, jaringan putus) tidak punya

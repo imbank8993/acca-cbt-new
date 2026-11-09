@@ -4,6 +4,25 @@ import { nestFetchAsUser } from '@/lib/nest-api';
 import { proxy, rejectCrossOriginMutation } from '@/lib/nest-proxy';
 import { NextRequest,NextResponse } from 'next/server';
 
+/**
+ * Next.js memotong body yang melewati middleware pada 10 MB (proxyClientMaxBodySize)
+ * tanpa galat, sehingga JSON yang tiba di sini rusak. Klien kini mengunggah gambar
+ * lebih dulu; batas ini hanya memberi pesan yang jelas bila muatan tetap terlalu besar.
+ */
+const IMPORT_BODY_LIMIT_BYTES = 10 * 1024 * 1024;
+
+function oversizedImport(bytes: number) {
+    const mb = (bytes / (1024 * 1024)).toFixed(1);
+    return NextResponse.json(
+        {
+            success: false,
+            error: `Data impor terlalu besar (${mb} MB; maksimal 10 MB). ` +
+                'Impor soal dalam beberapa bagian, atau perkecil gambar di dokumen.',
+        },
+        { status: 413 },
+    );
+}
+
 type BulkImportQuestion = Record<string, unknown> & {
     question_text?: string;
     options?: Array<Record<string, unknown>>;
@@ -25,10 +44,14 @@ export async function POST(
     if (originError) return originError;
     const { bankId } = await context.params;
 
+    const declaredBytes = Number(request.headers.get('content-length') || 0);
+    if (declaredBytes > IMPORT_BODY_LIMIT_BYTES) return oversizedImport(declaredBytes);
+
     let payload: { questions?: BulkImportQuestion[]; clientRequestId?: string };
     try {
         payload = (await request.json()) as { questions?: BulkImportQuestion[]; clientRequestId?: string };
     } catch {
+        if (declaredBytes >= IMPORT_BODY_LIMIT_BYTES) return oversizedImport(declaredBytes);
         return NextResponse.json(
             { success: false, error: 'Muatan permintaan bukan JSON yang sah.' },
             { status: 400 },
