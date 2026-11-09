@@ -110,13 +110,15 @@ test('Author editor panel selects history, scopes notes and exposes resolve fail
     const source = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/questions/ValidationNotesPanel.tsx'), 'utf8');
     const code = ts.transpileModule(source, { compilerOptions: { jsx: ts.JsxEmit.React, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
     const module = { exports: {} };
-    new Function('require','module','exports','window',code)(name => name === 'react' ? React : api, module, module.exports, { location: { search: '' }, dispatchEvent() {} });
+    // Pemilih sesi kini memakai InlineSelect (bukan <select> bawaan): onChange menerima nilai langsung.
+    function InlineSelect() { return null; }
+    new Function('require','module','exports','window',code)(name => name === 'react' ? React : name.endsWith('/inlineselect') ? { InlineSelect } : api, module, module.exports, { location: { search: '' }, dispatchEvent() {} });
     const render = () => { cursor = 0; const tree = module.exports.ValidationNotesPanel({ bankId: 'bank', questionId: 'q1' }); initial = false; return tree; };
     const nodes = root => !root || typeof root !== 'object' ? [] : Array.isArray(root) ? root.flatMap(nodes) : [root, ...nodes(root.children)];
     const text = root => root == null || typeof root === 'boolean' ? '' : typeof root !== 'object' ? String(root) : Array.isArray(root) ? root.map(text).join('') : text(root.children);
     render(); effects.forEach(fn => fn()); await new Promise(resolve => setTimeout(resolve, 0));
     let tree = render(); assert.match(text(tree), /new correction/); assert.doesNotMatch(text(tree), /other question/);
-    nodes(tree).find(n => n.type === 'select').props.onChange({ target: { value: 'old' } });
+    nodes(tree).find(n => n.type === InlineSelect).props.onChange('old');
     tree = render(); assert.match(text(tree), /old correction/);
     fail = true; await nodes(tree).find(n => n.type === 'button' && text(n).includes('Tandai')).props.onClick();
     tree = render(); assert.match(text(tree), /Save failed/); assert.match(text(tree), /Tandai sudah/);
