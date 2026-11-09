@@ -168,6 +168,13 @@
   animation: ssFadeIn 0.12s ease-out;
 }
 
+.ss__drop--portal {
+  position: fixed;
+  z-index: 100000;
+  margin: 0;
+  animation: none;
+}
+
 .ss__drop--top {
   bottom: 100%;
   margin-top: 0;

@@ -1,6 +1,7 @@
 'use client';
 
-import React,{ useEffect,useMemo,useRef,useState } from 'react';
+import React,{ useCallback,useEffect,useMemo,useRef,useState } from 'react';
+import { createPortal } from 'react-dom';
 import './searchable-select.css';
 
 export interface Option {
@@ -20,6 +21,7 @@ export interface SearchableSelectProps {
   placeholder?: string;
   searchPlaceholder?: string;
   label?: string;
+  ariaLabel?: string;
   className?: string;
   triggerClassName?: string;
   disabled?: boolean;
@@ -28,6 +30,7 @@ export interface SearchableSelectProps {
   itemLabel?: string;
   showQuickActions?: boolean;
   keepHighlightedVisible?: boolean;
+  portal?: boolean;
 }
 
 function DropDownIcon({ size = 16, className = '' }: { size?: number; className?: string }) {
@@ -140,12 +143,14 @@ export function SearchableSelect({
   placeholder = 'Pilih...',
   searchPlaceholder,
   label,
+  ariaLabel,
   className = '',
   triggerClassName = '',
   disabled = false,
   multiple = false,
   placement = 'bottom',
   keepHighlightedVisible = false,
+  portal = false,
   itemLabel = 'item',
   showQuickActions = true,
 }: SearchableSelectProps) {
@@ -155,10 +160,36 @@ export function SearchableSelect({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const [portalPosition, setPortalPosition] = useState<{ top: number; left: number; width: number; above: boolean } | null>(null);
+
+  const updatePortalPosition = useCallback(() => {
+    if (!portal || !wrapperRef.current) return;
+    const rect = wrapperRef.current.getBoundingClientRect();
+    const width = Math.min(window.innerWidth - 24, Math.max(rect.width, 240));
+    const above = placement === 'top' || (window.innerHeight - rect.bottom < 300 && rect.top > window.innerHeight - rect.bottom);
+    setPortalPosition({
+      top: above ? rect.top - 6 : rect.bottom + 6,
+      left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)),
+      width,
+      above,
+    });
+  }, [portal, placement]);
+
+  useEffect(() => {
+    if (!isOpen || !portal) return;
+    updatePortalPosition();
+    window.addEventListener('resize', updatePortalPosition);
+    window.addEventListener('scroll', updatePortalPosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePortalPosition);
+      window.removeEventListener('scroll', updatePortalPosition, true);
+    };
+  }, [isOpen, portal, updatePortalPosition]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node) && !dropRef.current?.contains(event.target as Node)) {
         setSearch('');
         setIsOpen(false);
       }
@@ -208,6 +239,7 @@ export function SearchableSelect({
   }, [keepHighlightedVisible, isOpen, highlightedIndex, filteredOptions]);
 
   const openDropdown = () => {
+    updatePortalPosition();
     const index = filteredOptions.findIndex(option => option.value === value);
     setHighlightedIndex(index >= 0 ? index : 0);
     setIsOpen(true);
@@ -317,7 +349,7 @@ export function SearchableSelect({
           type="text"
           className={`ss__mainInput ${selectedOptions.length > 0 && !search ? 'ss__mainInput--selected' : ''}`}
           placeholder={isOpen && searchPlaceholder ? searchPlaceholder : dynamicPlaceholder}
-          aria-label={label || searchPlaceholder || placeholder}
+          aria-label={ariaLabel || label || searchPlaceholder || placeholder}
           value={search}
           disabled={disabled}
           onKeyDown={handleInputKeyDown}
@@ -357,8 +389,25 @@ export function SearchableSelect({
       </div>
 
       {/* Dropdown Panel */}
-      {isOpen && (
-        <div className={`ss__drop ${placement === 'top' ? 'ss__drop--top' : ''}`} role="listbox">
+      {isOpen && (portal && typeof document !== 'undefined' ? createPortal(
+        <div ref={dropRef} className="ss__drop ss__drop--portal" role="listbox" style={portalPosition ? {
+          top: portalPosition.top,
+          left: portalPosition.left,
+          width: portalPosition.width,
+          transform: portalPosition.above ? 'translateY(-100%)' : undefined,
+        } : { visibility: 'hidden' }}>
+          {renderOptions()}
+        </div>, document.body
+      ) : (
+        <div ref={dropRef} className={`ss__drop ${placement === 'top' ? 'ss__drop--top' : ''}`} role="listbox">
+          {renderOptions()}
+        </div>
+      ))}
+    </div>
+  );
+
+  function renderOptions() {
+    return <>
           {multiple && showQuickActions && options.length > 0 && (
             <div className="ss__quickActions">
               <button
@@ -422,10 +471,8 @@ export function SearchableSelect({
               })
             )}
           </div>
-        </div>
-      )}
-    </div>
-  );
+    </>;
+  }
 }
 
 export default SearchableSelect;

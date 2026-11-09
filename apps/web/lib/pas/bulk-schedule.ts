@@ -8,7 +8,6 @@ export interface BulkScheduleRow {
     date: string;
     session_id: string;
     duration_minutes?: number;
-    room: string;
     status: BulkScheduleRowStatus;
     error?: string;
 }
@@ -21,7 +20,6 @@ export interface BulkScheduleActionInput {
     scheduled_date: string;
     session_id: string;
     duration_override?: number;
-    room?: string;
 }
 
 interface ActionResult {
@@ -48,7 +46,7 @@ const REQUIRED_FIELDS: Array<keyof Pick<
 >> = ['class_id', 'bank_id', 'date', 'session_id'];
 
 export function isBlankScheduleRow(row: BulkScheduleRow): boolean {
-    return REQUIRED_FIELDS.every((field) => !row[field]) && !row.subject_id && !row.room.trim();
+    return REQUIRED_FIELDS.every((field) => !row[field]) && !row.subject_id;
 }
 
 export function isCompleteScheduleRow(row: BulkScheduleRow): boolean {
@@ -118,9 +116,7 @@ export function parseImportedScheduleRows(
         const dateRaw = pickField(raw, ['tanggal', 'tanggal ujian', 'scheduled_date', 'date']);
         const sessionRaw = String(pickField(raw, ['sesi ujian', 'sesi', 'session_id', 'session']) || '').trim();
         const durationRaw = pickField(raw, ['durasi (menit)', 'durasi', 'duration_minutes', 'duration']);
-        const roomRaw = String(pickField(raw, ['ruangan', 'ruang', 'nama ruang', 'room']) || '').trim();
-
-        if (!bankRaw && !subjectRaw && !classRaw && !dateRaw && !sessionRaw && !roomRaw) {
+        if (!bankRaw && !subjectRaw && !classRaw && !dateRaw && !sessionRaw) {
             continue;
         }
 
@@ -173,7 +169,6 @@ export function parseImportedScheduleRows(
                 date: dateValue,
                 session_id: matchedSession?.id || '',
                 duration_minutes: durationMinutes,
-                room: roomRaw,
                 status: missingNotes.length > 0 ? 'error' : 'idle',
                 error: missingNotes.length > 0 ? `${missingNotes.join('; ')}.` : undefined,
             });
@@ -229,7 +224,6 @@ export async function saveBulkScheduleRows(
                 class_id: row.class_id,
                 scheduled_date: row.date,
                 session_id: row.session_id,
-                room: row.room.trim() || undefined,
             };
             if (typeof row.duration_minutes === 'number' && row.duration_minutes > 0) {
                 payload.duration_override = row.duration_minutes;

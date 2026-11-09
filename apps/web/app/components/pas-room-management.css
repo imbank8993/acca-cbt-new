@@ -83,13 +83,7 @@
   outline: none;
 }
 
-.pas-room-management .pas-room-detail-tabs {
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 12px;
-}
-
-/* Keep the room dialog frame stable across participants, supervisors and schedules. */
+/* Keep the room dialog frame stable while managing participants. */
 .mdl-panel.pas-room-detail-modal {
   width: min(768px, 100%);
   height: min(720px, calc(100vh - 32px)) !important;
@@ -99,7 +93,6 @@
 }
 
 .pas-room-detail-modal > .mdl-head,
-.pas-room-detail-modal > .pas-room-detail-tabs,
 .pas-room-detail-modal > .mdl-foot {
   flex: 0 0 auto;
 }

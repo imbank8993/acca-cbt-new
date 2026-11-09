@@ -1,6 +1,5 @@
 "use client";
 import '@/app/components/pas-room-management.css';
-import { PASScheduleStatus } from '@/app/components/PASScheduleStatus';
 
 import { alertDialog, confirmDialog, deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { PASRoomInput } from "@/app/components/PASRoomInput";
@@ -30,6 +29,7 @@ import {
 import type { PASPeriod, PASSession } from '@/app/types/pas';
 import { Modal, ModalBody, ModalField, ModalFooter } from '@/app/components/ui/modal';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
+import { SearchableSelect } from '@/app/components/ui/SearchableSelect';
 import { Button } from '@/app/components/ui/button';
 import { formatStudentName } from '@/lib/monitoring-health';
 import { getSchoolTimeZoneLabel, schoolTodayDate } from '@/lib/school-time';
@@ -99,9 +99,8 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
     const [newSessionEnd, setNewSessionEnd] = useState('09:30');
     const [sessionError, setSessionError] = useState('');
 
-    // State for selected room to manage (Peserta & Jadwal)
+    // State for selected room's participants.
     const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
-    const [roomDetailTab, setRoomDetailTab] = useState<'students' | 'schedules'>('students');
     const [addingStudents, setAddingStudents] = useState(false);
     const [studentSearch, setStudentSearch] = useState('');
     const [isClassLoading, setIsClassLoading] = useState(false);
@@ -163,7 +162,6 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
     const openRoom = (roomId: string) => {
         classRequest.current++;
         setSelectedRoomId(roomId);
-        setRoomDetailTab('students');
         setAddingStudents(false);
         setStudentSearch('');
         setSelectedClassId('');
@@ -543,12 +541,6 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
     // Schedules in the period
     const allSchedules = useMemo(() => period.pas_class_schedules || [], [period.pas_class_schedules]);
 
-    // Filter schedules for currently selected room
-    const roomSchedules = useMemo(() => {
-        if (!selectedRoom) return [];
-        return allSchedules.filter((sc) => (sc.room || '').trim().toLowerCase() === selectedRoom.name.trim().toLowerCase());
-    }, [allSchedules, selectedRoom]);
-
     const tzLabel = getSchoolTimeZoneLabel(timeZone);
 
     return (
@@ -806,8 +798,10 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                         options={[{ value: '', label: 'Pilih ruang…' }, ...rooms.map(r => ({ value: r.id, label: r.name }))]} />
                                 </ModalField>
                                 <ModalField label="Pengawas" required hint="Satu pengawas hanya bertugas di satu ruang pada sesi yang sama.">
-                                    <InlineSelect value={assignTarget?.teacherId || ''} minWidth="100%" height="40px" aria-label="Pengawas" disabled={!assignRoom}
-                                        onChange={teacherId => setAssignTarget(target => target ? { ...target, teacherId } : target)}
+                                    <SearchableSelect value={assignTarget?.teacherId || ''} disabled={!assignRoom}
+                                        onChange={value => setAssignTarget(target => target ? { ...target, teacherId: String(value || '') } : target)}
+                                        placeholder={assignRoom ? 'Pilih pengawas…' : 'Pilih ruang terlebih dahulu'}
+                                        searchPlaceholder="Ketik nama pengawas..."
                                         options={[{ value: '', label: assignRoom ? 'Pilih pengawas…' : 'Pilih ruang terlebih dahulu' }, ...assignableTeachers.map(t => ({ value: t.id, label: t.name }))]} />
                                 </ModalField>
                             </div>
@@ -823,91 +817,14 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                         </ModalFooter>
                     </Modal>
 
-                    {/* ── DETAIL RUANGAN TERPILIH (PESERTA & JADWAL SAJA) ── */}
+                    {/* ── PESERTA RUANGAN TERPILIH ── */}
                     {selectedRoom && (
                         <Modal open onClose={() => { if (!isSaving) setSelectedRoomId(null); }} size="2xl"
                             title={selectedRoom.name} subtitle={`${assignedStudentIds.size} dari ${selectedRoom.capacity} kursi terisi · ${remainingCapacity} kursi tersedia`} icon="door-open"
                             className="pas-room-management pas-room-detail-modal !max-w-3xl">
-                        <div className="pas-room-detail-tabs flex gap-1 px-4 sm:px-6 pt-3" role="tablist" aria-label="Pengaturan ruang">
-                            {([{ id: 'students', label: 'Peserta' }, { id: 'schedules', label: 'Jadwal' }] as const).map(tab => (
-                                <button key={tab.id} type="button" role="tab" aria-selected={roomDetailTab === tab.id}
-                                    id={`room-tab-${tab.id}`} aria-controls={`room-panel-${tab.id}`} disabled={isSaving}
-                                    onClick={() => setRoomDetailTab(tab.id)}
-                                    className={`px-4 py-2.5 text-sm font-semibold rounded-lg ${roomDetailTab === tab.id ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50'}`}>
-                                    {tab.label}
-                                </button>
-                            ))}
-                        </div>
                         <ModalBody className="p-4 sm:p-6">
                             {roomError && <div role="alert" className="text-sm text-red-600">{roomError}</div>}
-
-                            {/* SEKSI JADWAL UJIAN DI RUANG INI */}
-                            {roomDetailTab === 'schedules' && <div role="tabpanel" id="room-panel-schedules" aria-labelledby="room-tab-schedules" className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2 font-bold text-slate-800 text-xs uppercase tracking-wider">
-                                        <Calendar size={15} className="text-[#3083FF]" />
-                                        Jadwal Ujian di Ruangan Ini ({roomSchedules.length})
-                                    </div>
-                                    <span className="text-[11px] text-slate-500 font-medium">
-                                        Pengawas diatur pada tab Pengawas
-                                    </span>
-                                </div>
-
-                                {roomSchedules.length === 0 ? (
-                                    <div className="p-4 bg-white rounded-xl border border-slate-200 text-center text-xs text-slate-400">
-                                        Belum ada bank soal yang dijadwalkan di ruangan ini. Anda dapat memilih <strong>{selectedRoom.name}</strong> saat menjadwalkan bank soal.
-                                    </div>
-                                ) : (
-                                    <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
-                                        <table className="w-full text-left text-xs border-collapse">
-                                            <thead>
-                                                <tr className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500">
-                                                    <th className="py-2 px-3">Tanggal & Sesi</th>
-                                                    <th className="py-2 px-3">Bank Soal / Mapel</th>
-                                                    <th className="py-2 px-3">Kelas</th>
-                                                    <th className="py-2 px-3">Durasi</th>
-                                                    <th className="py-2 px-3">Status</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100">
-                                                {roomSchedules.map((sc) => {
-                                                    const sessionObj = sessions.find((s) => s.id === sc.session_id);
-                                                    const timeLabel = sessionObj
-                                                        ? `${sessionObj.name} (${sessionObj.start_time.substring(0, 5)} - ${sessionObj.end_time.substring(0, 5)})`
-                                                        : sc.scheduled_time || '-';
-
-                                                    return (
-                                                        <tr key={sc.id} className="hover:bg-slate-50/70">
-                                                            <td className="py-2.5 px-3">
-                                                                <div className="font-semibold text-slate-800">{sc.scheduled_date || '-'}</div>
-                                                                <div className="text-[10px] text-slate-400 font-mono">{timeLabel}</div>
-                                                            </td>
-                                                            <td className="py-2.5 px-3">
-                                                                <div className="font-bold text-slate-800">
-                                                                    {sc.question_banks?.title || 'Bank Soal'}
-                                                                </div>
-                                                            </td>
-                                                            <td className="py-2.5 px-3">
-                                                                <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-semibold">
-                                                                    Kelas {sc.classes?.name || 'Semua'}
-                                                                </span>
-                                                            </td>
-                                                            <td className="py-2.5 px-3 font-medium text-slate-600">
-                                                                {sc.duration_minutes || 90} mnt
-                                                            </td>
-                                                            <td className="py-2.5 px-3">
-                                                                <PASScheduleStatus schedule={sc} />
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
-                            </div>}
-
-                            {roomDetailTab === 'students' && <div role="tabpanel" id="room-panel-students" aria-labelledby="room-tab-students" className="space-y-4">
+                            <div className="space-y-4">
                                 <div className="flex items-center justify-between gap-3">
                                     <h3 className="text-sm font-semibold text-slate-900">{addingStudents ? 'Tambah peserta' : `Peserta ruangan (${assignedStudentIds.size})`}</h3>
                                     <div className="flex items-center gap-2">
@@ -919,8 +836,9 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                 </div>
 
                                 {addingStudents && <div className="space-y-3">
-                                    <InlineSelect value={selectedClassId} disabled={isSaving || readOnly} onChange={val => void handleLoadClassStudents(val)}
-                                        minWidth="100%" height="40px" title="Kelas asal peserta"
+                                    <SearchableSelect value={selectedClassId} disabled={isSaving || readOnly}
+                                        onChange={value => void handleLoadClassStudents(String(value || ''))}
+                                        placeholder="Pilih kelas asal" searchPlaceholder="Ketik nama kelas..."
                                         options={[{ value: '', label: 'Pilih kelas asal' }, ...classes.map(c => ({ value: c.id, label: c.name.replace(/^kelas\s+/i, '') }))]} />
                                     <p className="text-xs text-slate-500">Centang peserta yang akan ditempatkan di ruangan ini. Satu siswa hanya boleh di satu ruang; siswa yang sudah di ruang lain dapat dipindahkan lewat tombol Pindahkan.</p>
                                 </div>}
@@ -987,7 +905,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                             aria-label={`Keluarkan ${formatStudentName(student.profiles?.full_name, 'peserta')} dari ruang`}>Keluarkan</Button>
                                     </div>)}
                                 </div>}
-                            </div>}
+                            </div>
                         </ModalBody>
                         <ModalFooter>
                             {addingStudents ? <>

@@ -24,7 +24,6 @@ function row(id, changes = {}) {
         bank_id: 'bank-1',
         date: '2026-09-20',
         session_id: 'session-1',
-        room: '',
         status: 'idle',
         ...changes,
     };
@@ -58,7 +57,7 @@ test('BULK-02: retry tidak mengirim ulang baris yang sudah tersimpan', async () 
 test('BULK-03: baris kosong diabaikan dan baris sebagian ditandai', async () => {
     let calls = 0;
     const blank = row('blank', {
-        subject_id: '', class_id: '', bank_id: '', date: '', session_id: '', room: '',
+        subject_id: '', class_id: '', bank_id: '', date: '', session_id: '',
     });
     const partial = row('partial', { session_id: '' });
     const result = await saveBulkScheduleRows('period-1', [blank, partial], async () => {
@@ -142,10 +141,10 @@ test('BULK-07: database dan klien mempertahankan pengaman retry dan duplikasi', 
     assert.match(client, /result\.success \|\| !result\.retryable/);
 });
 
-test('BULK-08: subject_id opsional dan duration_minutes dipetakan ke duration_override', async () => {
+test('BULK-08: payload memetakan durasi dan tidak mengirim ruang', async () => {
     const payloads = [];
     const result = await saveBulkScheduleRows('period-1', [
-        row('no-subj', { subject_id: '', duration_minutes: 90, room: 'Lab 1' }),
+        row('no-subj', { subject_id: '', duration_minutes: 90 }),
     ], async (input) => {
         payloads.push(input);
         return { success: true };
@@ -155,7 +154,7 @@ test('BULK-08: subject_id opsional dan duration_minutes dipetakan ke duration_ov
     assert.equal(result.outcomes[0].success, true);
     assert.equal(payloads[0].subject_id, undefined);
     assert.equal(payloads[0].duration_override, 90);
-    assert.equal(payloads[0].room, 'Lab 1');
+    assert.equal(Object.hasOwn(payloads[0], 'room'), false);
 });
 
 test('BULK-09: import Excel/CSV memetakan referensi, memecah multi-kelas, dan menandai referensi yang tidak cocok', () => {
@@ -199,7 +198,7 @@ test('BULK-09: import Excel/CSV memetakan referensi, memecah multi-kelas, dan me
     assert.equal(parsed[0].date, '2026-12-20');
     assert.equal(parsed[0].session_id, 'ses-1');
     assert.equal(parsed[0].duration_minutes, 90);
-    assert.equal(parsed[0].room, 'Ruang 01');
+    assert.equal(Object.hasOwn(parsed[0], 'room'), false);
     assert.equal(parsed[0].status, 'idle');
 
     assert.equal(parsed[1].class_id, 'cls-10b');

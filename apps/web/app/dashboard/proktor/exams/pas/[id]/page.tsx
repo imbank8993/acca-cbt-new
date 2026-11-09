@@ -3,10 +3,10 @@ import '@/app/components/pas-room-management.css';
 import { alertDialog, confirmDialog, deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { PASScheduleActions } from '@/app/components/PASScheduleActions';
 import { PASScheduleRooms } from '@/app/components/PASScheduleRooms';
-import { PASRoomInput } from "@/app/components/PASRoomInput";
 import { PASScheduleStatus, isPASScheduleReady } from '@/app/components/PASScheduleStatus';
 import RoomManagementPanel from '@/app/components/pas/RoomManagementPanel';
 import { InlineSelect } from '@/components/ui/InlineSelect';
+import { DatePicker } from '@/app/components/ui/DatePicker';
 import { SearchableSelect } from '@/app/components/ui/SearchableSelect';
 import type { PASClassSchedule,PASPeriod,PASSession } from '@/app/types/pas';
 import {
@@ -93,7 +93,6 @@ export default function ProctorPASDetailPage() {
         scheduled_date: '',
         session_id: '',
         duration_minutes: 90,
-        room: '',
     });
 
     const loadData = useCallback(async () => {
@@ -165,7 +164,6 @@ export default function ProctorPASDetailPage() {
                 scheduled_date: scheduleForm.scheduled_date,
                 session_id: scheduleForm.session_id,
                 duration_override: scheduleForm.duration_minutes,
-                room: scheduleForm.room || undefined,
             });
             if (!result.success) {
                 await alertDialog({ title: 'Gagal menambah jadwal', text: result.error, variant: 'danger' });
@@ -174,7 +172,7 @@ export default function ProctorPASDetailPage() {
             }
         }
         setIsAddScheduleOpen(false);
-        setScheduleForm({ bank_id: '', subject_id: '', class_ids: [], scheduled_date: '', session_id: '', duration_minutes: 90, room: '' });
+        setScheduleForm({ bank_id: '', subject_id: '', class_ids: [], scheduled_date: '', session_id: '', duration_minutes: 90 });
         await loadData();
         setIsSubmitting(false);
     };
@@ -573,7 +571,6 @@ export default function ProctorPASDetailPage() {
                     subjects={subjects}
                     qBanks={qBanks}
                     sessions={sessions}
-                    rooms={rooms}
                     onComplete={() => {
                         setActiveTab('schedules');
                         void loadData();
@@ -954,18 +951,15 @@ export default function ProctorPASDetailPage() {
 
                                 <div>
                                     <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Mata Pelajaran (Opsional)</label>
-                                    <InlineSelect
+                                    <SearchableSelect
                                         value={scheduleForm.subject_id}
-                                        onChange={(val) => setScheduleForm(p => ({ ...p, subject_id: val }))}
-                                        minWidth="100%"
-                                        height="40px"
-                                        title="Pilih Mata Pelajaran"
+                                        onChange={val => setScheduleForm(p => ({ ...p, subject_id: String(val || '') }))}
+                                        placeholder="Otomatis dari Bank Soal"
+                                        searchPlaceholder="Ketik nama mata pelajaran..."
+                                        ariaLabel="Mata Pelajaran"
                                         options={[
                                             { value: '', label: 'Otomatis dari Bank Soal' },
-                                            ...subjects.map((s) => ({
-                                                value: s.id,
-                                                label: s.name,
-                                            })),
+                                            ...subjects.map(s => ({ value: s.id, label: s.name })),
                                         ]}
                                     />
                                 </div>
@@ -989,14 +983,13 @@ export default function ProctorPASDetailPage() {
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
                                         <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Tanggal ({getSchoolTimeZoneLabel(timeZone)}) *</label>
-                                        <input
-                                            type="date"
+                                        <DatePicker
                                             required
                                             min={period.start_date?.split('T')[0]}
                                             max={period.end_date?.split('T')[0]}
                                             value={scheduleForm.scheduled_date}
-                                            onChange={e => setScheduleForm(p => ({ ...p, scheduled_date: e.target.value }))}
-                                            className="w-full h-[40px] px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+                                            onChange={date => setScheduleForm(p => ({ ...p, scheduled_date: date }))}
+                                            style={{ height: '40px' }}
                                         />
                                     </div>
                                     <div>
@@ -1018,22 +1011,15 @@ export default function ProctorPASDetailPage() {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Durasi (menit)</label>
-                                        <input
-                                            type="number"
-                                            min="1"
-                                            value={scheduleForm.duration_minutes}
-                                            onChange={e => setScheduleForm(p => ({ ...p, duration_minutes: parseInt(e.target.value) || 0 }))}
-                                            className="w-full h-[40px] px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Ruang (opsional)</label>
-                                        <PASRoomInput value={scheduleForm.room} onChange={room => setScheduleForm(p => ({ ...p, room }))} existingRooms={rooms} />
-                                        <p className="mt-1 text-xs text-slate-500">Nama bebas, tidak harus dari master. Penempatan peserta dan pengawas diatur pada tab Ruang.</p>
-                                    </div>
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Durasi (menit)</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={scheduleForm.duration_minutes}
+                                        onChange={e => setScheduleForm(p => ({ ...p, duration_minutes: parseInt(e.target.value) || 0 }))}
+                                        className="w-full h-[40px] px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+                                    />
                                 </div>
 
                                 <div className="pt-2">

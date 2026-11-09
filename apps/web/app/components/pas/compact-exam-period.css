@@ -95,6 +95,9 @@
 .cp-detail-grid dd { font-size: 12px; overflow-wrap: anywhere; }
 .cp-detail-rooms { padding: 18px 0; border-top: 1px solid var(--cp-line); }
 .cp-tabs button:focus-visible, .cp-room:focus-visible, .cp-warning:focus-visible, .cp-table-scroll:focus-visible { outline: 2px solid var(--cp-blue); outline-offset: 3px; }
+.bulk-schedule__table .bulk-schedule__search .ss__trigger { min-height: 36px; height: 36px; padding-top: 0; padding-bottom: 0; }
+.bulk-schedule__table .bulk-schedule__date .dpk-trigger { height: 36px; padding: 0 10px; font-size: 12px; }
+
 @media (max-width: 900px) {
   .cp-heading { flex-direction: column; gap: 15px; }
   .cp-hero { align-items: stretch; }
@@ -160,9 +163,10 @@
   .bulk-schedule__table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 14px 0 18px; border-bottom: 1px solid var(--border, #e2e8f0); }
   .bulk-schedule__table td { display: block; min-width: 0; padding: 0; border: 0; }
   .bulk-schedule__table td::before { content: attr(data-label); display: block; margin-bottom: 6px; color: var(--muted-foreground, #64748b); font-size: 12px; font-weight: 500; text-align: left; }
-  .bulk-schedule__table td:nth-child(1), .bulk-schedule__table td:nth-child(2), .bulk-schedule__table td:nth-child(5), .bulk-schedule__table td:nth-child(n+8) { grid-column: 1 / -1; }
-  .bulk-schedule__table td:nth-child(8)::before, .bulk-schedule__table td:nth-child(9)::before { display: none; }
+  .bulk-schedule__table td:nth-child(1), .bulk-schedule__table td:nth-child(2), .bulk-schedule__table td:nth-child(5), .bulk-schedule__table td:nth-child(n+7) { grid-column: 1 / -1; }
+  .bulk-schedule__table td:nth-child(7)::before, .bulk-schedule__table td:nth-child(8)::before { display: none; }
   .bulk-schedule__table select.uisel-input, .bulk-schedule__table input { height: 44px; min-height: 44px; min-width: 0; max-width: 100%; font-size: 13px; }
+  .bulk-schedule__table .bulk-schedule__search .ss__trigger, .bulk-schedule__table .bulk-schedule__date .dpk-trigger { min-height: 44px; height: 44px; }
   .bulk-schedule__table td:last-child > div { justify-content: flex-end; }
   .bulk-schedule__table td:last-child button { min-width: 44px; min-height: 44px; border: 1px solid var(--border, #e2e8f0); }
   .bulk-schedule__footer { align-items: stretch; flex-direction: column; padding: 14px 12px; }

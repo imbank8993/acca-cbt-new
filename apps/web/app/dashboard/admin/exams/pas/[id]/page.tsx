@@ -3,10 +3,10 @@ import '@/app/components/pas-room-management.css';
 import { alertDialog, confirmDialog, deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { PASScheduleActions } from '@/app/components/PASScheduleActions';
 import { PASScheduleRooms } from '@/app/components/PASScheduleRooms';
-import { PASRoomInput } from "@/app/components/PASRoomInput";
 import { PASScheduleStatus, isPASScheduleReady } from '@/app/components/PASScheduleStatus';
 import RoomManagementPanel from '@/app/components/pas/RoomManagementPanel';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
+import { DatePicker } from '@/app/components/ui/DatePicker';
 import { Modal, ModalBody, ModalFooter, ModalField } from '@/app/components/ui/modal';
 import { SearchableSelect } from '@/app/components/ui/SearchableSelect';
 import type { PASClassSchedule,PASPeriod,PASSession } from '@/app/types/pas';
@@ -94,7 +94,6 @@ export default function AdminPASDetailPage() {
         scheduled_date: '',
         session_id: '',
         duration_minutes: 90,
-        room: '',
     });
 
     const loadData = useCallback(async () => {
@@ -169,7 +168,6 @@ export default function AdminPASDetailPage() {
                 scheduled_date: scheduleForm.scheduled_date,
                 session_id: scheduleForm.session_id,
                 duration_override: scheduleForm.duration_minutes,
-                room: scheduleForm.room || undefined,
             });
             if (!result.success) {
                 await alertDialog({ title: 'Gagal menambah jadwal', text: result.error, variant: 'danger' });
@@ -178,7 +176,7 @@ export default function AdminPASDetailPage() {
             }
         }
         setIsAddScheduleOpen(false);
-        setScheduleForm({ bank_id: '', subject_id: '', class_ids: [], scheduled_date: '', session_id: '', duration_minutes: 90, room: '' });
+        setScheduleForm({ bank_id: '', subject_id: '', class_ids: [], scheduled_date: '', session_id: '', duration_minutes: 90 });
         await loadData();
         setIsSubmitting(false);
     };
@@ -583,7 +581,6 @@ export default function AdminPASDetailPage() {
                     subjects={subjects}
                     qBanks={qBanks}
                     sessions={sessions}
-                    rooms={rooms}
                     onComplete={() => {
                         setActiveTab('schedules');
                         void loadData();
@@ -960,18 +957,15 @@ export default function AdminPASDetailPage() {
                             </ModalField>
 
                             <ModalField label="Mata Pelajaran (Opsional)" hint="Secara default terisi otomatis dari bank soal">
-                                <InlineSelect
+                                <SearchableSelect
                                     value={scheduleForm.subject_id}
-                                    onChange={(val) => setScheduleForm(p => ({ ...p, subject_id: val }))}
-                                    minWidth="100%"
-                                    height="40px"
-                                    title="Pilih Mata Pelajaran"
+                                    onChange={val => setScheduleForm(p => ({ ...p, subject_id: String(val || '') }))}
+                                    placeholder="Otomatis dari Bank Soal"
+                                    searchPlaceholder="Ketik nama mata pelajaran..."
+                                    ariaLabel="Mata Pelajaran"
                                     options={[
                                         { value: '', label: 'Otomatis dari Bank Soal' },
-                                        ...subjects.map((s) => ({
-                                            value: s.id,
-                                            label: s.name,
-                                        })),
+                                        ...subjects.map(s => ({ value: s.id, label: s.name })),
                                     ]}
                                 />
                             </ModalField>
@@ -996,14 +990,13 @@ export default function AdminPASDetailPage() {
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <ModalField label={`Tanggal (${getSchoolTimeZoneLabel(timeZone)})`} required>
-                                <input
-                                    type="date"
+                                <DatePicker
                                     required
                                     min={period.start_date?.split('T')[0]}
                                     max={period.end_date?.split('T')[0]}
                                     value={scheduleForm.scheduled_date}
-                                    onChange={e => setScheduleForm(p => ({ ...p, scheduled_date: e.target.value }))}
-                                    className="w-full h-[40px] px-3.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-[#3083FF] focus:ring-1 focus:ring-[#3083FF]/20 transition-all"
+                                    onChange={date => setScheduleForm(p => ({ ...p, scheduled_date: date }))}
+                                    style={{ height: '40px' }}
                                 />
                             </ModalField>
 
@@ -1025,25 +1018,15 @@ export default function AdminPASDetailPage() {
                             </ModalField>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <ModalField label="Durasi Pengerjaan (menit)" required>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    value={scheduleForm.duration_minutes}
-                                    onChange={e => setScheduleForm(p => ({ ...p, duration_minutes: parseInt(e.target.value) || 0 }))}
-                                    className="w-full h-[40px] px-3.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-[#3083FF] focus:ring-1 focus:ring-[#3083FF]/20 transition-all"
-                                />
-                            </ModalField>
-
-                            <ModalField label="Ruang Ujian (Opsional)" hint="Nama bebas, tidak harus dari master. Penempatan peserta diatur pada tab Ruang dan pengawas pada tab Pengawas.">
-                                <PASRoomInput
-                                    value={scheduleForm.room}
-                                    onChange={room => setScheduleForm(p => ({ ...p, room }))}
-                                    existingRooms={rooms}
-                                />
-                            </ModalField>
-                        </div>
+                        <ModalField label="Durasi Pengerjaan (menit)" required>
+                            <input
+                                type="number"
+                                min="1"
+                                value={scheduleForm.duration_minutes}
+                                onChange={e => setScheduleForm(p => ({ ...p, duration_minutes: parseInt(e.target.value) || 0 }))}
+                                className="w-full h-[40px] px-3.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-[#3083FF] focus:ring-1 focus:ring-[#3083FF]/20 transition-all"
+                            />
+                        </ModalField>
                     </ModalBody>
 
                     <ModalFooter align="between" className="px-6 py-3.5 bg-slate-50/80 border-t border-slate-200">

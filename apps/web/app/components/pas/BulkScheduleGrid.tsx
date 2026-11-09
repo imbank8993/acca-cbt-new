@@ -1,9 +1,11 @@
 "use client";
 
 import { InlineSelect } from '@/app/components/ui/inlineselect';
+import { SearchableSelect } from '@/app/components/ui/SearchableSelect';
+import { DatePicker } from '@/app/components/ui/DatePicker';
 
 import type { PASPeriod,PASSession } from '@/app/types/pas';
-import { addPASScheduleAction,listMasterRooms,type MasterRoom,type PASRoom,type PASSubjectSummary } from '@/lib/api/pas';
+import { addPASScheduleAction,type PASSubjectSummary } from '@/lib/api/pas';
 import type { OrganizationClass } from '@/lib/api/proctor';
 import type { QuestionBank } from '@/lib/api/questions';
 import {
@@ -29,7 +31,7 @@ import {
     XCircle,
 } from 'lucide-react';
 import './compact-exam-period.css';
-import React,{ useEffect,useId,useMemo,useRef,useState } from 'react';
+import React,{ useRef,useState } from 'react';
 
 interface BulkScheduleGridProps {
     periodId: string;
@@ -38,7 +40,6 @@ interface BulkScheduleGridProps {
     subjects: PASSubjectSummary[];
     qBanks: QuestionBank[];
     sessions: PASSession[];
-    rooms?: PASRoom[];
     onComplete: () => void;
     onCancel: () => void;
 }
@@ -55,47 +56,26 @@ function createRow(defaults?: Partial<BulkScheduleRow>): BulkScheduleRow {
         date: '',
         session_id: '',
         duration_minutes: 90,
-        room: '',
         status: 'idle',
         ...defaults,
     };
 }
 
 export default function BulkScheduleGrid({
-    periodId, period, classes, subjects, qBanks, sessions, rooms = [], onComplete, onCancel,
+    periodId, period, classes, subjects, qBanks, sessions, onComplete, onCancel,
 }: BulkScheduleGridProps) {
     const { timeZone, error: timeZoneError } = useSchoolTimeZone();
-    const roomDatalistId = useId();
     const defaultDate = period?.start_date?.split('T')[0] || '';
     const defaultSessionId = sessions[0]?.id || '';
 
     const [rows, setRows] = useState<BulkScheduleRow[]>(() => [
         createRow({ date: defaultDate, session_id: defaultSessionId }),
     ]);
-    const [masterRooms, setMasterRooms] = useState<MasterRoom[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const [isImporting, setIsImporting] = useState(false);
     const [summary, setSummary] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
     const tableRef = useRef<HTMLTableElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-
-    useEffect(() => {
-        let cancelled = false;
-        listMasterRooms().then((data) => {
-            if (!cancelled) setMasterRooms(data);
-        }).catch(() => {
-            // Saran master ruang bersifat opsional pada tabel massal
-        });
-        return () => { cancelled = true; };
-    }, []);
-
-    const roomSuggestions = useMemo(() => {
-        const combined = [...rooms.map((r) => r.name), ...masterRooms.map((r) => r.name)];
-        return combined.filter((name, index) =>
-            Boolean(name?.trim()) &&
-            combined.findIndex((candidate) => candidate.trim().toLowerCase() === name.trim().toLowerCase()) === index,
-        );
-    }, [rooms, masterRooms]);
 
     const handleAddRow = () => {
         const lastRow = rows[rows.length - 1];
@@ -120,7 +100,6 @@ export default function BulkScheduleGrid({
             date: source.date,
             session_id: source.session_id,
             duration_minutes: source.duration_minutes ?? 90,
-            room: source.room,
         });
         setRows((previous) => [
             ...previous.slice(0, index + 1),
@@ -161,11 +140,11 @@ export default function BulkScheduleGrid({
     };
 
     const handleKeyDown = (event: React.KeyboardEvent, index: number, field: string) => {
-        if (event.key !== 'Tab' || event.shiftKey || index !== rows.length - 1 || field !== 'room') return;
+        if (event.key !== 'Tab' || event.shiftKey || index !== rows.length - 1 || field !== 'duration_minutes') return;
         event.preventDefault();
         handleAddRow();
         setTimeout(() => {
-            const nextSelect = tableRef.current?.querySelector('tbody tr:last-child td:first-child select') as HTMLElement;
+            const nextSelect = tableRef.current?.querySelector('tbody tr:last-child td:first-child input') as HTMLElement;
             nextSelect?.focus();
         }, 50);
     };
@@ -176,7 +155,6 @@ export default function BulkScheduleGrid({
         const sampleSubject = subjects[0]?.name || '';
         const sampleClass = classes[0]?.name || '';
         const sampleSession = sessions[0]?.name || '';
-        const sampleRoom = roomSuggestions[0] || '';
 
         const templateRows = [
             {
@@ -186,17 +164,15 @@ export default function BulkScheduleGrid({
                 'Tanggal': defaultDate,
                 'Sesi Ujian': sampleSession,
                 'Durasi (Menit)': 90,
-                'Ruangan': sampleRoom,
             },
         ];
 
-        const maxRefLen = Math.max(qBanks.length, subjects.length, classes.length, sessions.length, roomSuggestions.length, 1);
+        const maxRefLen = Math.max(qBanks.length, subjects.length, classes.length, sessions.length, 1);
         const refRows = Array.from({ length: maxRefLen }, (_, idx) => ({
             'Daftar Bank Soal': qBanks[idx]?.title || '',
             'Daftar Mata Pelajaran': subjects[idx]?.name || '',
             'Daftar Kelas': classes[idx]?.name || '',
             'Daftar Sesi Ujian': sessions[idx] ? `${sessions[idx].name} (${sessions[idx].start_time.slice(0, 5)}-${sessions[idx].end_time.slice(0, 5)})` : '',
-            'Daftar Ruangan': roomSuggestions[idx] || '',
         }));
 
         const workbook = XLSX.utils.book_new();
@@ -208,7 +184,6 @@ export default function BulkScheduleGrid({
             { wch: 15 },
             { wch: 18 },
             { wch: 16 },
-            { wch: 20 },
         ];
         const refSheet = XLSX.utils.json_to_sheet(refRows);
         refSheet['!cols'] = [
@@ -216,7 +191,6 @@ export default function BulkScheduleGrid({
             { wch: 24 },
             { wch: 18 },
             { wch: 26 },
-            { wch: 20 },
         ];
 
         XLSX.utils.book_append_sheet(workbook, scheduleSheet, 'Jadwal Massal');
@@ -382,14 +356,8 @@ export default function BulkScheduleGrid({
                 </div>
             )}
 
-            <datalist id={roomDatalistId}>
-                {roomSuggestions.map((roomName) => (
-                    <option key={roomName} value={roomName} />
-                ))}
-            </datalist>
-
             <div className="bulk-schedule__body p-4 overflow-x-auto">
-                <table ref={tableRef} className="bulk-schedule__table w-full min-w-[1040px] text-xs border-collapse">
+                <table ref={tableRef} className="bulk-schedule__table w-full min-w-[960px] text-xs border-collapse">
                     <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-600">
                             <th className="px-2.5 py-2.5 text-left font-semibold min-w-[210px]">Bank Soal *</th>
@@ -398,7 +366,6 @@ export default function BulkScheduleGrid({
                             <th className="px-2.5 py-2.5 text-left font-semibold min-w-[140px]">Tanggal * ({tzLabel})</th>
                             <th className="px-2.5 py-2.5 text-left font-semibold min-w-[165px]">Sesi Ujian *</th>
                             <th className="px-2.5 py-2.5 text-left font-semibold w-[96px]">Durasi (Mnt)</th>
-                            <th className="px-2.5 py-2.5 text-left font-semibold min-w-[135px]">Ruangan</th>
                             <th className="px-2.5 py-2.5 text-left font-semibold min-w-[150px]">Status</th>
                             <th className="px-2.5 py-2.5 text-center font-semibold w-[80px]">Aksi</th>
                         </tr>
@@ -412,21 +379,18 @@ export default function BulkScheduleGrid({
                             return (
                                 <tr key={row.id} aria-label={`Jadwal baris ${index + 1}`} className={row.status === 'saved' ? 'bg-emerald-50/40' : 'hover:bg-slate-50/60'}>
                                     <td data-label="Bank Soal *" className="p-1.5">
-                                        <InlineSelect
+                                        <SearchableSelect
                                             value={row.bank_id}
                                             disabled={disabled}
-                                            onChange={(value) => handleChange(row.id, 'bank_id', value)}
-                                            onKeyDown={(event) => handleKeyDown(event, index, 'bank_id')}
-                                            aria-label={`Bank soal baris ${index + 1}`}
-                                            minWidth="0"
-                                            height="36px"
-                                            className={`w-full ${row.status === 'error' ? '[&>select]:border-red-300 [&>select]:bg-red-50/40' : ''}`}
-                                        >
-                                            <option value="">Pilih Bank Soal...</option>
-                                            {qBanks.map((bank) => (
-                                                <option key={bank.id} value={bank.id}>{bank.title}</option>
-                                            ))}
-                                        </InlineSelect>
+                                            onChange={(value) => handleChange(row.id, 'bank_id', String(value))}
+                                            ariaLabel={`Bank soal baris ${index + 1}`}
+                                            placeholder="Pilih Bank Soal..."
+                                            searchPlaceholder="Cari bank soal..."
+                                            className="bulk-schedule__search"
+                                            triggerClassName={row.status === 'error' ? 'border-red-300 bg-red-50/40' : ''}
+                                            options={[{ value: '', label: 'Pilih Bank Soal...' }, ...qBanks.map((bank) => ({ value: bank.id, label: bank.title }))]}
+                                            portal
+                                        />
                                     </td>
                                     <td data-label="Mata Pelajaran" className="p-1.5">
                                         <InlineSelect
@@ -446,33 +410,28 @@ export default function BulkScheduleGrid({
                                         </InlineSelect>
                                     </td>
                                     <td data-label="Kelas *" className="p-1.5">
-                                        <InlineSelect
+                                        <SearchableSelect
                                             value={row.class_id}
                                             disabled={disabled}
-                                            onChange={(value) => handleChange(row.id, 'class_id', value)}
-                                            onKeyDown={(event) => handleKeyDown(event, index, 'class_id')}
-                                            aria-label={`Kelas baris ${index + 1}`}
-                                            minWidth="0"
-                                            height="36px"
-                                            className={`w-full ${row.status === 'error' ? '[&>select]:border-red-300 [&>select]:bg-red-50/40' : ''}`}
-                                        >
-                                            <option value="">Pilih Kelas...</option>
-                                            {classes.map((item) => (
-                                                <option key={item.id} value={item.id}>{item.name}</option>
-                                            ))}
-                                        </InlineSelect>
+                                            onChange={(value) => handleChange(row.id, 'class_id', String(value))}
+                                            ariaLabel={`Kelas baris ${index + 1}`}
+                                            placeholder="Pilih Kelas..."
+                                            searchPlaceholder="Cari kelas..."
+                                            className="bulk-schedule__search"
+                                            triggerClassName={row.status === 'error' ? 'border-red-300 bg-red-50/40' : ''}
+                                            options={[{ value: '', label: 'Pilih Kelas...' }, ...classes.map((item) => ({ value: item.id, label: item.name }))]}
+                                            portal
+                                        />
                                     </td>
                                     <td data-label="Tanggal *" className="p-1.5">
-                                        <input
-                                            type="date"
-                                            aria-label={`Tanggal baris ${index + 1}`}
+                                        <DatePicker
+                                            title={`Tanggal baris ${index + 1}`}
                                             min={period?.start_date?.split('T')[0]}
                                             max={period?.end_date?.split('T')[0]}
                                             value={row.date}
                                             disabled={disabled}
-                                            onChange={(event) => handleChange(row.id, 'date', event.target.value)}
-                                            onKeyDown={(event) => handleKeyDown(event, index, 'date')}
-                                            className={controlClass}
+                                            onChange={(value) => handleChange(row.id, 'date', value)}
+                                            className="bulk-schedule__date"
                                         />
                                     </td>
                                     <td data-label="Sesi Ujian *" className="p-1.5">
@@ -503,19 +462,6 @@ export default function BulkScheduleGrid({
                                             disabled={disabled}
                                             onChange={(event) => handleChange(row.id, 'duration_minutes', parseInt(event.target.value, 10) || 0)}
                                             onKeyDown={(event) => handleKeyDown(event, index, 'duration_minutes')}
-                                            className={controlClass}
-                                        />
-                                    </td>
-                                    <td data-label="Ruangan" className="p-1.5">
-                                        <input
-                                            type="text"
-                                            list={roomDatalistId}
-                                            aria-label={`Ruangan baris ${index + 1}`}
-                                            placeholder="Opsional..."
-                                            value={row.room}
-                                            disabled={disabled}
-                                            onChange={(event) => handleChange(row.id, 'room', event.target.value)}
-                                            onKeyDown={(event) => handleKeyDown(event, index, 'room')}
                                             className={controlClass}
                                         />
                                     </td>
