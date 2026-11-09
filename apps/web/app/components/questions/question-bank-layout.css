@@ -4,7 +4,7 @@
 }
 
 .question-bank-tools__search-row {
-  --question-bank-control-height: 44px;
+  --question-bank-control-height: 36px;
   display: flex;
   align-items: center;
   gap: 10px;
