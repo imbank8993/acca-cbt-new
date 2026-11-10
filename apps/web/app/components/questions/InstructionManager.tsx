@@ -15,6 +15,7 @@ import { parseDocxToStimuliOrInstructions } from '@/lib/doc-parser';
 import { uploadToHosting } from '@/lib/uploader';
 import { AlertCircle,Check,Download,Edit3,Plus,Trash2,Upload,X } from 'lucide-react';
 import React,{ useCallback,useEffect,useRef,useState } from 'react';
+import { BankChildSelectionBar, useBankChildSelection } from './useBankChildSelection';
 
 interface InstructionManagerProps {
     bankId: string;
@@ -154,6 +155,12 @@ export default function InstructionManager({ bankId, onItemsChange }: Instructio
         void loadInstructions();
     };
 
+    const selection = useBankChildSelection({
+        bankId, items: instructions, label: 'petunjuk',
+        consequence: 'Soal yang terhubung akan kehilangan petunjuknya.',
+        remove: deleteInstruction, reload: loadInstructions,
+    });
+
     if (isLoading) {
         return <div className="p-8 text-center text-slate-400">Memuat petunjuk...</div>;
     }
@@ -182,6 +189,10 @@ export default function InstructionManager({ bankId, onItemsChange }: Instructio
                 </div>
             </div>
 
+            <BankChildSelectionBar label="petunjuk" visibleIds={instructions.map(item => item.id)}
+                selectedIds={selection.selectedIds} isDeleting={selection.isDeleting}
+                onToggleVisible={selection.toggleVisible} onClear={selection.clear} onDelete={selection.deleteSelected} />
+
             {/* ── List ── */}
             {instructions.length === 0 ? (
                 <div className="text-center p-12 bg-white rounded-lg border border-slate-200 border-dashed">
@@ -190,7 +201,10 @@ export default function InstructionManager({ bankId, onItemsChange }: Instructio
             ) : (
                 <div className="grid grid-cols-1 gap-4">
                     {instructions.map(s => (
-                        <div key={s.id} className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm flex gap-4">
+                        <div key={s.id} className={`p-5 rounded-lg border shadow-sm flex gap-4 ${selection.selectedIds.has(s.id) ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-white'}`}>
+                            <input type="checkbox" checked={selection.selectedIds.has(s.id)} disabled={selection.isDeleting}
+                                onChange={() => selection.toggle(s.id)} aria-label={`Pilih petunjuk ${s.title || s.id}`}
+                                className="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 accent-blue-600" />
                             <div className="flex-1 min-w-0">
                                 {s.title && <h3 className="text-md font-bold text-slate-800 mb-2">{s.title}</h3>}
                                 <div className="text-sm text-slate-600 line-clamp-3 bg-slate-50 p-3 rounded-lg border border-slate-100">

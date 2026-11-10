@@ -14,6 +14,7 @@ updateDimensionInterpretation,
 } from '@/lib/api/questions';
 import { BarChart2,Edit3,Plus,Settings2,Trash2,X } from 'lucide-react';
 import { useCallback,useEffect,useState } from 'react';
+import { BankChildSelectionBar, useBankChildSelection } from './useBankChildSelection';
 
 interface DimensionManagerProps {
     bankId: string;
@@ -142,6 +143,12 @@ export default function DimensionManager({ bankId, onItemsChange }: DimensionMan
         void loadData();
     };
 
+    const selection = useBankChildSelection({
+        bankId, items: dimensions, label: 'dimensi',
+        consequence: 'Soal yang terhubung akan kehilangan dimensinya.',
+        remove: deleteDimension, reload: loadData,
+    });
+
     if (isLoading) {
         return <div className="p-8 text-center text-slate-400">Memuat dimensi...</div>;
     }
@@ -164,6 +171,10 @@ export default function DimensionManager({ bankId, onItemsChange }: DimensionMan
                 </div>
             </div>
 
+            <BankChildSelectionBar label="dimensi" visibleIds={dimensions.map(item => item.id)}
+                selectedIds={selection.selectedIds} isDeleting={selection.isDeleting}
+                onToggleVisible={selection.toggleVisible} onClear={selection.clear} onDelete={selection.deleteSelected} />
+
             {/* ── List ── */}
             {dimensions.length === 0 ? (
                 <div className="text-center p-12 bg-white rounded-xl border border-slate-200 border-dashed">
@@ -174,9 +185,12 @@ export default function DimensionManager({ bankId, onItemsChange }: DimensionMan
                     {dimensions.map(d => {
                         const dimsInterps = interpretations.filter(i => i.dimension_id === d.id);
                         return (
-                            <div key={d.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                            <div key={d.id} className={`rounded-xl border shadow-sm overflow-hidden flex flex-col ${selection.selectedIds.has(d.id) ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-white'}`}>
                                 {/* Dimension Header */}
                                 <div className="p-5 flex flex-col md:flex-row gap-4 justify-between bg-slate-50/50">
+                                    <input type="checkbox" checked={selection.selectedIds.has(d.id)} disabled={selection.isDeleting}
+                                        onChange={() => selection.toggle(d.id)} aria-label={`Pilih dimensi ${d.name}`}
+                                        className="mt-2 h-4 w-4 shrink-0 rounded border-slate-300 accent-blue-600" />
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">
                                             <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600">

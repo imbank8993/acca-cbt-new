@@ -9,6 +9,7 @@ updateKisiKisi,
 } from '@/lib/api/questions';
 import { Check,Edit3,Plus,Search,Trash2,X } from 'lucide-react';
 import { useCallback,useEffect,useState } from 'react';
+import { BankChildSelectionBar, useBankChildSelection } from './useBankChildSelection';
 
 interface KisiKisiTabProps {
     bankId: string;
@@ -98,6 +99,11 @@ export default function KisiKisiTab({ bankId, onItemsChange }: KisiKisiTabProps)
         (k.materi || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (k.indikator_soal || '').toLowerCase().includes(searchQuery.toLowerCase())
     );
+    const selection = useBankChildSelection({
+        bankId, items: kisiKisi, label: 'kisi-kisi',
+        consequence: 'Soal yang merujuk pada kisi-kisi ini akan kehilangan relasinya.',
+        remove: deleteKisiKisi, reload: loadKisiKisi,
+    });
 
     if (isLoading) {
         return <div className="p-8 text-center text-slate-400">Memuat kisi-kisi...</div>;
@@ -131,6 +137,10 @@ export default function KisiKisiTab({ bankId, onItemsChange }: KisiKisiTabProps)
                 </div>
             </div>
 
+            <BankChildSelectionBar label="kisi-kisi" visibleIds={filteredData.map(item => item.id)}
+                selectedIds={selection.selectedIds} isDeleting={selection.isDeleting}
+                onToggleVisible={selection.toggleVisible} onClear={selection.clear} onDelete={selection.deleteSelected} />
+
             {/* Table */}
             {kisiKisi.length === 0 ? (
                 <div className="text-center p-12 bg-white rounded-lg border border-slate-200 border-dashed">
@@ -141,6 +151,7 @@ export default function KisiKisiTab({ bankId, onItemsChange }: KisiKisiTabProps)
                     <table className="min-w-full divide-y divide-slate-200 text-sm">
                         <thead className="bg-slate-50">
                             <tr>
+                                <th className="w-12 px-4 py-3" aria-label="Pilih kisi-kisi" />
                                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Materi</th>
                                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Indikator Soal</th>
                                 <th className="px-4 py-3 text-center font-semibold text-slate-700 w-28">Level Kognitif</th>
@@ -149,7 +160,12 @@ export default function KisiKisiTab({ bankId, onItemsChange }: KisiKisiTabProps)
                         </thead>
                         <tbody className="divide-y divide-slate-200 bg-white">
                             {filteredData.map(k => (
-                                <tr key={k.id} className="hover:bg-slate-50/50">
+                                <tr key={k.id} className={selection.selectedIds.has(k.id) ? 'bg-blue-50 hover:bg-blue-50' : 'hover:bg-slate-50/50'}>
+                                    <td className="px-4 py-3 align-top">
+                                        <input type="checkbox" checked={selection.selectedIds.has(k.id)} disabled={selection.isDeleting}
+                                            onChange={() => selection.toggle(k.id)} aria-label={`Pilih kisi-kisi ${k.materi || k.indikator_soal || ''}`}
+                                            className="h-4 w-4 rounded border-slate-300 accent-blue-600" />
+                                    </td>
                                     <td className="px-4 py-3 text-slate-600 align-top">{k.materi || '-'}</td>
                                     <td className="px-4 py-3 text-slate-600 align-top">{k.indikator_soal || '-'}</td>
                                     <td className="px-4 py-3 text-center align-top">
