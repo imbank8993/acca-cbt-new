@@ -5,6 +5,7 @@ import { getErrorMessage } from '@/lib/errors';
 import { motion } from 'framer-motion';
 import { AlertTriangle,CheckCircle2,Database,Download,Loader2,ShieldAlert,UploadCloud,XCircle } from 'lucide-react';
 import React,{ useRef,useState } from 'react';
+import UnusedImagesCleanupCard from './UnusedImagesCleanupCard';
 
 export default function BackupRestorePage() {
   const [isExporting, setIsExporting] = useState(false);
@@ -211,6 +212,8 @@ export default function BackupRestorePage() {
 
           </div>
         </motion.div>
+
+        <UnusedImagesCleanupCard />
 
       </div>
     </div>

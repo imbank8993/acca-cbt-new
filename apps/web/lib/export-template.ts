@@ -771,7 +771,7 @@ export async function buildAkademikDoc(
 
     return attachQuestionArchive(await Packer.toBlob(doc), questions.map(q => portableQuestion(q, {
         stimuli, instructions, kisiKisi: kisiKisiList,
-    })));
+    })), images);
 }
 
 export async function buildKepribadianDoc(
@@ -797,7 +797,7 @@ export async function buildKepribadianDoc(
         }],
     });
 
-    return attachQuestionArchive(await Packer.toBlob(doc), questions.map(q => portableQuestion(q, { dimensions: dimensionsList })));
+    return attachQuestionArchive(await Packer.toBlob(doc), questions.map(q => portableQuestion(q, { dimensions: dimensionsList })), images);
 }
 
 // ─── Public dispatcher (kept for backwards compatibility) ─────────────────────

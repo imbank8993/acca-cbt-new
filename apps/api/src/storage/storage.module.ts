@@ -6,6 +6,8 @@ import { Global, Module } from '@nestjs/common';
 import { MulterModule } from '@nestjs/platform-express';
 import { StorageController } from './storage.controller';
 import { StorageService } from './storage.service';
+import { StorageCleanupController } from './storage-cleanup.controller';
+import { UnusedImagesService } from './unused-images.service';
 
 /**
  * Modul penyimpanan berkas — Cloudflare R2.
@@ -23,8 +25,8 @@ import { StorageService } from './storage.service';
       storage: undefined,
     }),
   ],
-  controllers: [StorageController],
-  providers: [StorageService, StorageAccessService, StorageAuthGuard, { provide: APP_INTERCEPTOR, useClass: StorageUrlsInterceptor }],
+  controllers: [StorageController, StorageCleanupController],
+  providers: [StorageService, StorageAccessService, StorageAuthGuard, UnusedImagesService, { provide: APP_INTERCEPTOR, useClass: StorageUrlsInterceptor }],
   exports: [StorageService],
 })
 export class StorageModule {}

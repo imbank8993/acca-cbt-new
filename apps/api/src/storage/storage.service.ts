@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
   HeadBucketCommand,
   ListObjectsV2Command,
@@ -256,6 +257,58 @@ export class StorageService {
       this.logger.warn(`Gagal menghapus '${key}': ${message}`);
       return { success: false, error: message };
     }
+  }
+
+  /**
+   * Daftar objek di bawah sebuah prefix, berhalaman 1000 per permintaan.
+   * Berhenti di `maxObjects`; `truncated` memberi tahu bahwa daftarnya belum lengkap.
+   */
+  async listObjects(prefix: string, maxObjects = 200_000): Promise<{
+    objects: { key: string; size: number; lastModified: Date | null }[];
+    truncated: boolean;
+  }> {
+    if (!this.client) throw new Error('Penyimpanan belum dikonfigurasi.');
+    const objects: { key: string; size: number; lastModified: Date | null }[] = [];
+    let continuation: string | undefined;
+    do {
+      const listed = await this.client.send(new ListObjectsV2Command({
+        Bucket: this.bucket, Prefix: prefix, ContinuationToken: continuation, MaxKeys: 1000,
+      }));
+      for (const object of listed.Contents || []) {
+        if (object.Key) objects.push({ key: object.Key, size: object.Size ?? 0, lastModified: object.LastModified ?? null });
+      }
+      continuation = listed.IsTruncated ? listed.NextContinuationToken : undefined;
+      if (continuation && objects.length >= maxObjects) return { objects, truncated: true };
+    } while (continuation);
+    return { objects, truncated: false };
+  }
+
+  /** Hapus banyak objek sekaligus (1000 per permintaan); kegagalan per objek dilaporkan. */
+  async deleteObjects(keys: string[]): Promise<{ deleted: string[]; failed: { key: string; error: string }[] }> {
+    const deleted: string[] = [];
+    const failed: { key: string; error: string }[] = [];
+    if (!this.client) {
+      return { deleted, failed: keys.map(key => ({ key, error: 'Penyimpanan belum dikonfigurasi.' })) };
+    }
+    for (let start = 0; start < keys.length; start += 1000) {
+      const batch = keys.slice(start, start + 1000);
+      try {
+        const result = await this.client.send(new DeleteObjectsCommand({
+          Bucket: this.bucket,
+          Delete: { Objects: batch.map(Key => ({ Key })), Quiet: true },
+        }));
+        const errors = new Map((result.Errors || []).filter(e => e.Key).map(e => [e.Key as string, e.Message || e.Code || 'Gagal']));
+        for (const key of batch) {
+          if (errors.has(key)) failed.push({ key, error: errors.get(key)! });
+          else deleted.push(key);
+        }
+      } catch (err) {
+        const message = (err as Error).message || String(err);
+        this.logger.warn(`Gagal menghapus ${batch.length} objek: ${message}`);
+        batch.forEach(key => failed.push({ key, error: message }));
+      }
+    }
+    return { deleted, failed };
   }
 
   /** Bounded orphan sweep for encrypted evidence only; other uploads are untouched. */
