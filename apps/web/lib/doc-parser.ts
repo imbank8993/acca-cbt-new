@@ -352,6 +352,14 @@ interface RowData {
     cells: string[];
 }
 
+/** Benar bila elemen berada di dalam <table> lain (tabel bersarang). */
+function insideTable(element: Element): boolean {
+    for (let node = element.parentNode; node; node = node.parentNode) {
+        if ((node as Element).tagName?.toLowerCase?.() === 'table') return true;
+    }
+    return false;
+}
+
 function getTableHeaders(rows: RowData[]): string[] {
     if (rows.length === 0) return [];
     return rows[0].cells.map(c => c.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim());
@@ -378,6 +386,9 @@ async function extractTablesFromDocx(file: File): Promise<{ tables: RowData[][];
 
     for (let t = 0; t < tblElements.length; t++) {
         const tbl = tblElements[t];
+        // Tabel di dalam sel (mis. tabel data pada soal) sudah ikut sebagai HTML
+        // sel induknya; jangan dibaca lagi sebagai tabel template tersendiri.
+        if (insideTable(tbl)) continue;
         const rows: RowData[] = [];
         
         const trList: Element[] = [];
@@ -970,7 +981,7 @@ export async function parseDocxToStimuliOrInstructions(file: File, kind?: 'stimu
         const wrappedHtml = typeof window === 'undefined' ? `<div id="root">${html}</div>` : html;
         const doc = parser.parseFromString(wrappedHtml, typeof window === 'undefined' ? 'text/xml' : 'text/html');
         const tablesList = doc.getElementsByTagName ? doc.getElementsByTagName('table') : doc.querySelectorAll('table');
-        const tables = Array.from(tablesList) as Element[];
+        const tables = (Array.from(tablesList) as Element[]).filter(table => !insideTable(table));
 
         if (tables.length === 0) {
             return [];

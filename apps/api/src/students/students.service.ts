@@ -293,9 +293,9 @@ export class StudentsService {
      * pembuatnya — dan layar ujian memang tidak membutuhkannya.
      *
      * Identitas ikut dikembalikan karena kepala layar ujian menampilkan
-     * "Nama • NISN". Sebelumnya halaman menanyakannya sendiri ke basis data dari
-     * BROWSER; itu jalur terakhir di aplikasi ini yang menyentuh database tanpa
-     * melewati NestJS.
+     * "Nama | NISN | Kelas" (kelas reguler siswa). Sebelumnya halaman
+     * menanyakannya sendiri ke basis data dari BROWSER; itu jalur terakhir di
+     * aplikasi ini yang menyentuh database tanpa melewati NestJS.
      */
     async getExamForAttempt(user: AuthUser, examId: string) {
         const { data } = await this.db
@@ -319,11 +319,14 @@ export class StudentsService {
             });
         }
 
-        const { data: profile } = await this.db
-            .from('cbt_profiles')
-            .select('full_name, identity_number')
-            .eq('id', user.id)
-            .maybeSingle();
+        const [{ data: profile }, className] = await Promise.all([
+            this.db
+                .from('cbt_profiles')
+                .select('full_name, identity_number')
+                .eq('id', user.id)
+                .maybeSingle(),
+            this.regularClassName(user.id, (data as { organization_id?: string | null }).organization_id ?? null),
+        ]);
 
         // Pemeriksaan ini hanya membaca status; membuka layar persiapan tidak
         // boleh membuat attempt atau mengubah batas waktu siswa.
@@ -353,7 +356,37 @@ export class StudentsService {
         const started = startedAttempt as { status?: string; metadata?: Record<string, unknown> | null; device_fingerprint?: string | null } | null;
         const unopenedMakeup = started?.status === 'in_progress' && started.metadata?.makeup_exam === true && !started.device_fingerprint;
         return { exam: { ...data, metadata },
-            profile: profile ?? null, hasStartedAttempt: Boolean(started) && !unopenedMakeup };
+            profile: profile ? { ...profile, class_name: className } : null,
+            hasStartedAttempt: Boolean(started) && !unopenedMakeup };
+    }
+
+    /**
+     * Nama kelas reguler siswa untuk kepala layar ujian (bukan ruang PAS dan
+     * bukan kelas tambahan). Bila siswa tercatat di lebih dari satu kelas
+     * reguler, kelas di sekolah penyelenggara ujian diutamakan. Hanya untuk
+     * tampilan: kegagalan membaca kelas tidak boleh menghalangi ujian.
+     */
+    private async regularClassName(userId: string, organizationId: string | null): Promise<string | null> {
+        try {
+            const { data: memberships, error } = await this.db
+                .from('cbt_class_members')
+                .select('class_id')
+                .eq('user_id', userId);
+            const ids = [...new Set(((memberships as { class_id?: string | null }[] | null) || [])
+                .map(row => row.class_id).filter((id): id is string => Boolean(id)))];
+            if (error || ids.length === 0) return null;
+            const { data: classes, error: classError } = await this.db
+                .from('cbt_classes')
+                .select('id, name, organization_id')
+                .in('id', ids);
+            if (classError) return null;
+            const rows = ((classes as { name?: string | null; organization_id?: string | null }[] | null) || [])
+                .filter(row => (row.name || '').trim());
+            const chosen = rows.find(row => organizationId && row.organization_id === organizationId) || rows[0];
+            return chosen?.name?.trim() || null;
+        } catch {
+            return null;
+        }
     }
 
     // ── Hasil ────────────────────────────────────────────────────────────────

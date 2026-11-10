@@ -18,7 +18,7 @@ import { bankFileTitle,documentHost,exportBaseName,fileDateStamp,isCorrectOption
 import { optionLabel } from './option-label';
 import { attachQuestionArchive } from './question-archive';
 import { portableQuestion } from './question-transfer';
-import { imageUrlsIn,loadWordImages,wordRuns,type WordImages } from './word-images';
+import { closeCellBlocks,imageUrlsIn,loadWordImages,wordBlocks,type WordImages } from './word-images';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const PERSONALITY_TYPES = ['sjt', 'likert', 'forced_choice', 'checklist', 'ranking', 'paired_comparison'] as const;
@@ -142,6 +142,8 @@ const TYPE_MAP_QUESTION_KIND: Record<string, 'akademik' | 'kepribadian'> = {
 };
 
 const LOGO_URL = '/logo-sidebar.png';
+/** Lebar isi halaman A4 (11906 twip) dikurangi margin kiri-kanan 800 twip. */
+const CONTENT_WIDTH_TWIPS = 11906 - 800 * 2;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -196,10 +198,12 @@ function headerCell(text: string, widthPct: number, color: string) {
 
 function dataCell(text: unknown, widthPct: number, fill: string, align: 'LEFT' | 'CENTER' = 'LEFT', images: WordImages = new Map()) {
     return new TableCell({
-        children: [new Paragraph({
-            children: wordRuns(text, images, sanitizeText),
+        // Tabel HTML di konten soal ditulis sebagai tabel Word asli (bukan teks
+        // per baris) agar dokumen ekspor dapat langsung diimpor kembali.
+        children: closeCellBlocks(wordBlocks(text, images, sanitizeText, {
             alignment: align === 'CENTER' ? AlignmentType.CENTER : AlignmentType.LEFT,
-        })],
+            availableWidth: Math.floor(CONTENT_WIDTH_TWIPS * widthPct / 100) - 250,
+        })),
         width: { size: widthPct, type: WidthType.PERCENTAGE },
         shading: { fill, type: 'clear', color: 'auto' },
         borders: border(),

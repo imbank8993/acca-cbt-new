@@ -2271,6 +2271,7 @@ export default function ExamPage() {
             onToggleDoubtful={toggleDoubtful}
             studentName={formatStudentName(profile?.full_name || user?.fullName || user?.email, 'Siswa')}
             studentNisn={profile?.identity_number || ''}
+            studentClass={profile?.class_name || ''}
             examTitle={exam?.title || ''}
             currentQIndex={currentQIndex}
             onNavigate={index => {

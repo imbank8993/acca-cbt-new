@@ -198,6 +198,8 @@ export async function getAttemptDetailsAction(attemptId: string) {
 export interface StudentProfile {
     full_name: string | null;
     identity_number: string | null;
+    /** Kelas reguler siswa (untuk kepala layar ujian). */
+    class_name?: string | null;
 }
 
 export interface StudentExam {

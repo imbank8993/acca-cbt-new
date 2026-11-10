@@ -14,6 +14,11 @@ import { ExamTextScaleControl } from './ExamTextScaleControl';
 import { normalizeExamTextScale,supportsExamTextScale } from '@/lib/exam-text-scale';
 import { countShortAnswerBlanks } from './short-answer-blanks';
 
+/** Baris identitas di kepala layar ujian: "NISN 0012345678 | XI IPA 1". */
+function studentIdentityLine(nisn?: string, className?: string): string {
+    return [nisn?.trim() ? `NISN ${nisn.trim()}` : '', className?.trim() || ''].filter(Boolean).join(' | ');
+}
+
 const getAnswerStatus = (q: Question, ans: AnswerValue) => {
     if (!ans) return 'unanswered';
     const type = q.type;
@@ -622,7 +627,7 @@ export function ExamViewer({
                                     {formatStudentName(studentName, 'Peserta Ujian')}
                                 </p>
                                 <p className="text-[11px] text-slate-400 leading-tight truncate max-w-[150px] md:max-w-xs">
-                                    {studentNisn ? `NISN ${studentNisn} • ` : ''}{studentClass ? `${studentClass} • ` : ''}{examTitle}
+                                    {studentIdentityLine(studentNisn, studentClass) || examTitle}
                                 </p>
                             </div>
                         </div>
