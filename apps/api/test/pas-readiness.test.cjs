@@ -88,7 +88,7 @@ test('PAS readiness cannot become green when a source read fails, including room
  }
 });
 
-test('PAS period returns computed readiness; frontend uses it consistently for rows, room details, count and filters', async () => {
+test('PAS period returns computed readiness; frontend uses it for schedule rows, count and filters', async () => {
  const f = fixture(); const service = new PasService(f.db, {
   assertStaffByRecord: async () => {},
   collaborationPermissions: async () => ({ owner: false, admin: false, grant: null, canShare: false, canDelete: false }),
@@ -102,7 +102,8 @@ test('PAS period returns computed readiness; frontend uses it consistently for r
   assert.match(page, /statusFilter === 'ready' && !isPASScheduleReady\(sc\)/);
   assert.match(page, /<PASScheduleStatus schedule=\{sc\}/);
   const modal = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/pas/RoomManagementPanel.tsx'), 'utf8');
-  assert.match(modal, /<PASScheduleStatus schedule=\{sc\}/);
+  assert.doesNotMatch(modal, /<PASScheduleStatus schedule=\{sc\}/);
+  assert.match(modal, /Peserta ruangan/);
  }
 });
 
