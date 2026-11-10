@@ -37,6 +37,20 @@ html body img[data-zoomable-image="direct"]:focus-visible {
 
 .cbt-image-zoom .yarl__toolbar {
     align-items: center;
+    gap: 4px;
+}
+
+.cbt-image-zoom .yarl__toolbar .yarl__button {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+}
+
+.cbt-image-zoom .yarl__toolbar .yarl__icon {
+    width: 24px;
+    height: 24px;
 }
 
 .cbt-image-zoom__level {

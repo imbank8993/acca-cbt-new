@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom';
 import Lightbox, { IconButton, isImageSlide, type RenderSlideProps, type ZoomRef } from 'yet-another-react-lightbox';
 import Zoom from 'yet-another-react-lightbox/plugins/zoom';
-import { RotateCcw, ZoomIn } from 'lucide-react';
+import { RotateCcw, X, ZoomIn, ZoomOut } from 'lucide-react';
 import 'yet-another-react-lightbox/styles.css';
 import './zoomable-images.css';
 
@@ -96,6 +96,9 @@ export function ImageZoomViewer({ image, onClose }: { image: ZoomImage | null; o
         render={{
             buttonPrev: () => null,
             buttonNext: () => null,
+            iconZoomIn: () => <ZoomIn className="yarl__icon" strokeWidth={2} />,
+            iconZoomOut: () => <ZoomOut className="yarl__icon" strokeWidth={2} />,
+            iconClose: () => <X className="yarl__icon" strokeWidth={2} />,
             slide: renderZoomSlide,
             controls: () => <div className="cbt-image-zoom__hint">
                 Scroll mouse atau tombol + / − untuk zoom · seret untuk menggeser · klik di luar gambar untuk menutup
