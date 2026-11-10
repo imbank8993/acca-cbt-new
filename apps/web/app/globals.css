@@ -1737,9 +1737,18 @@ html body .rich-content .katex-inline {
   display: block;
 }
 
+/* Sama dengan editor soal (.ProseMirror p) agar pratinjau dan tampilan siswa
+   persis seperti yang diketik guru. */
 .latex-renderer p {
-  margin-bottom: 0.25em;
+  margin-bottom: 0.5rem;
   display: block;
+}
+
+/* Baris kosong (Enter dua kali) disimpan editor sebagai <p></p>. Di editor ia
+   setinggi satu baris, tetapi di browser paragraf kosong tingginya nol sehingga
+   jaraknya hilang di pratinjau. Karakter tak terlihat memberinya tinggi satu baris. */
+.latex-renderer p:empty::before {
+  content: "\200b";
 }
 
 .latex-renderer p:last-child {
