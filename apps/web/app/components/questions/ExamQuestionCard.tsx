@@ -3,6 +3,7 @@ import type { AnswerValue,Question } from '@/app/types';
 import { AnimatePresence,motion } from 'framer-motion';
 import { Check } from 'lucide-react';
 import { QuestionRenderer } from './QuestionRenderer';
+import { ZoomableImages } from './ZoomableImages';
 
 interface ExamQuestionCardProps {
   question: Question;
@@ -18,6 +19,8 @@ interface ExamQuestionCardProps {
   isUpdated?: boolean;
   examId?: string;
   userId?: string;
+  /** Student-chosen question text size (1 = 100%), applied with CSS zoom. */
+  textScale?: number;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -37,15 +40,17 @@ export function ExamQuestionCard({
   question, answer, onAnswerChange, questionNumber,
   showToggle = true, isDoubtful = false,
   className = '', displayMode, isUpdated = false,
-  examId, userId
+  examId, userId, textScale = 1
 }: ExamQuestionCardProps) {
   if (!question) return null;
 
   const qTypeLabel = TYPE_LABELS[question.type] || question.type.replace(/_/g, ' ');
   const score = question.score_default || 1;
+  // CSS zoom reflows like browser zoom: text wraps inside the card instead of overflowing.
+  const scaled = textScale !== 1 ? { zoom: textScale } : undefined;
 
   return (
-    <div className={`${displayMode === 'one-col' ? 'max-w-[210mm] w-full mx-auto' : 'w-full'} ${className}`}>
+    <ZoomableImages className={`${displayMode === 'one-col' ? 'max-w-[210mm] w-full mx-auto' : 'w-full'} ${className}`}>
       {/* Jenis soal + poin di atas (SATU saja) */}
       {showToggle && (
         <div className="flex items-center gap-2 mb-4">
@@ -84,9 +89,11 @@ export function ExamQuestionCard({
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Soal</p>
             </div>
             <div className="flex-1 overflow-y-auto p-5">
-              <QuestionRenderer question={question} answer={answer} onAnswerChange={() => {}}
-                showQuestion={true}
-                showOptions={false} questionNumber={questionNumber} examId={examId} userId={userId} />
+              <div data-exam-text-scale-target style={scaled}>
+                <QuestionRenderer question={question} answer={answer} onAnswerChange={() => {}}
+                  showQuestion={true}
+                  showOptions={false} questionNumber={questionNumber} examId={examId} userId={userId} />
+              </div>
             </div>
           </div>
           <div className="flex-1 bg-white dark:bg-[#111728] rounded-lg border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col overflow-hidden">
@@ -97,22 +104,26 @@ export function ExamQuestionCard({
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-5">
-              <QuestionRenderer question={question} answer={answer} onAnswerChange={onAnswerChange}
-                showQuestion={false}
-                showOptions={true} examId={examId} userId={userId} />
+              <div data-exam-text-scale-target style={scaled}>
+                <QuestionRenderer question={question} answer={answer} onAnswerChange={onAnswerChange}
+                  showQuestion={false}
+                  showOptions={true} examId={examId} userId={userId} />
+              </div>
             </div>
           </div>
         </div>
       ) : (
         <div className="bg-white dark:bg-[#111728] rounded-xl md:rounded-lg border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
           <div className="p-4 md:p-5">
-            <QuestionRenderer question={question} answer={answer} onAnswerChange={onAnswerChange}
-              showQuestion={true}
-              showOptions={true}
-              questionNumber={questionNumber} examId={examId} userId={userId} />
+            <div data-exam-text-scale-target style={scaled}>
+              <QuestionRenderer question={question} answer={answer} onAnswerChange={onAnswerChange}
+                showQuestion={true}
+                showOptions={true}
+                questionNumber={questionNumber} examId={examId} userId={userId} />
+            </div>
           </div>
         </div>
       )}
-    </div>
+    </ZoomableImages>
   );
 }

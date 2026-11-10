@@ -1,0 +1,72 @@
+/* Images students can open in the zoom viewer (exam, preview, results). */
+html body img[data-zoomable-image="direct"] {
+    cursor: zoom-in;
+}
+
+html body img[data-zoomable-image="direct"]:focus-visible {
+    outline: 2px solid #3083ff;
+    outline-offset: 4px;
+}
+
+/* Magnifier shown over images inside answer options, where a click selects the option. */
+.cbt-image-zoom-trigger {
+    position: fixed;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.8);
+    color: #fff;
+    cursor: zoom-in;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25);
+}
+
+.cbt-image-zoom-trigger:hover,
+.cbt-image-zoom-trigger:focus-visible {
+    background: #3083ff;
+    outline: none;
+}
+
+.cbt-image-zoom {
+    --yarl__color_backdrop: rgba(15, 23, 42, 0.94);
+}
+
+.cbt-image-zoom .yarl__toolbar {
+    align-items: center;
+}
+
+.cbt-image-zoom__level {
+    min-width: 3.5rem;
+    margin-right: 4px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.7);
+    color: #fff;
+    font: 600 13px/1 system-ui, sans-serif;
+    text-align: center;
+}
+
+/* Diagrams are usually transparent PNG/SVG drawn in dark ink. */
+.cbt-image-zoom__img {
+    background: #fff;
+    border-radius: 4px;
+}
+
+.cbt-image-zoom__hint {
+    position: absolute;
+    left: 50%;
+    bottom: 14px;
+    max-width: calc(100% - 32px);
+    transform: translateX(-50%);
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.5);
+    color: rgba(255, 255, 255, 0.8);
+    font: 12px/1.4 system-ui, sans-serif;
+    text-align: center;
+    pointer-events: none;
+}

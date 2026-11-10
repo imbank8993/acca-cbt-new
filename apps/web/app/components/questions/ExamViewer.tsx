@@ -10,6 +10,8 @@ import AssignmentUploader from './AssignmentUploader';
 import { ExamQuestionCard } from './ExamQuestionCard';
 import { ModeCornerRibbon } from './ModeCornerRibbon';
 import { ExamStatusNotice, type ExamNotice } from './ExamStatusNotice';
+import { ExamTextScaleControl } from './ExamTextScaleControl';
+import { normalizeExamTextScale,readStoredExamTextScale,storeExamTextScale,supportsExamTextScale } from '@/lib/exam-text-scale';
 import { countShortAnswerBlanks } from './short-answer-blanks';
 
 const getAnswerStatus = (q: Question, ans: AnswerValue) => {
@@ -217,6 +219,18 @@ export function ExamViewer({
         return () => mq.removeEventListener('change', update);
     }, []);
     const effectiveDisplayMode = isMdUp ? displayMode : 'one-col';
+    // Ukuran teks soal pilihan siswa; diingat di perangkat ini.
+    const [textScale, setTextScale] = useState(1);
+    const [canScaleText, setCanScaleText] = useState(false);
+    useEffect(() => {
+        setCanScaleText(supportsExamTextScale());
+        setTextScale(readStoredExamTextScale());
+    }, []);
+    const changeTextScale = useCallback((next: number) => {
+        const scale = normalizeExamTextScale(next);
+        setTextScale(scale);
+        storeExamTextScale(scale);
+    }, []);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [confirmText, setConfirmText] = useState('');
     const [showNavModal, setShowNavModal] = useState(false);
@@ -458,6 +472,7 @@ export function ExamViewer({
                         onToggleDoubtful={() => onToggleDoubtful(currentQ.id)}
                         isDoubtful={doubtfulAnswers.has(currentQ.id)}
                         displayMode={effectiveDisplayMode}
+                        textScale={canScaleText ? textScale : 1}
                         isUpdated={updatedQuestionIds.has(currentQ.id)}
                         examId={examId}
                         userId={userId}
@@ -646,6 +661,8 @@ export function ExamViewer({
                             </div>
                         )}
                         
+                        {canScaleText && <ExamTextScaleControl scale={textScale} onChange={changeTextScale} />}
+
                         <div className="hidden md:flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 rounded-lg p-1.5 shrink-0">
                             <button onClick={() => setDisplayMode('one-col')}
                                 className={`flex items-center justify-center w-9 h-9 rounded-lg transition-all ${displayMode === 'one-col' ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}>
@@ -673,18 +690,21 @@ export function ExamViewer({
                                 <p className="truncate text-sm font-semibold leading-tight text-slate-800 dark:text-slate-100">{examTitle || 'Ujian'}</p>
                             </div>
                         </div>
-                        {mode === 'exam' && (
-                            <div className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 font-mono text-sm font-bold ${
-                                timeLeft < 300
-                                    ? 'border-red-200 bg-red-50 text-red-600'
-                                    : timeLeft < 600
-                                    ? 'border-amber-200 bg-amber-50 text-amber-600'
-                                    : 'border-slate-200 bg-slate-50 text-slate-700'
-                            }`}>
-                                <Clock size={14} />
-                                <span>{formatTime(timeLeft)}</span>
-                            </div>
-                        )}
+                        <div className="flex shrink-0 items-center gap-1.5">
+                            {canScaleText && <ExamTextScaleControl compact scale={textScale} onChange={changeTextScale} />}
+                            {mode === 'exam' && (
+                                <div className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 font-mono text-sm font-bold ${
+                                    timeLeft < 300
+                                        ? 'border-red-200 bg-red-50 text-red-600'
+                                        : timeLeft < 600
+                                        ? 'border-amber-200 bg-amber-50 text-amber-600'
+                                        : 'border-slate-200 bg-slate-50 text-slate-700'
+                                }`}>
+                                    <Clock size={14} />
+                                    <span>{formatTime(timeLeft)}</span>
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <div className="flex items-center justify-between gap-2">
                         <div className="flex min-w-0 items-center gap-2">
