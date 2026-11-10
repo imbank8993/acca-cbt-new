@@ -9,10 +9,12 @@ import { StorageService } from './storage.service';
  * berkas bisa dipakai banyak tempat (bank hasil salin/impor ulang, salinan soal
  * ujian, materi). Layanan ini mencari gambar yang benar-benar yatim:
  *
- *  1. Hanya berkas gambar dari folder gambar soal yang dipertimbangkan:
+ *  1. Hanya folder gambar ACCA CBT yang dibuka dan dipertimbangkan:
  *     `users/<id>/questions/…`, `users/<id>/banks/…` (sampul bank), dan
- *     `banks/<id>/equations/…` (SVG persamaan). Avatar, logo, lampiran jawaban,
- *     bukti ujian, audio, dokumen, dan folder lama tanpa pemilik tidak disentuh.
+ *     `banks/<id>/equations/…` (SVG persamaan). Bucket R2 dipakai bersama
+ *     aplikasi lain (acca-new) di subfolder berbeda; folder selain ketiga jenis
+ *     ini tidak didaftar, apalagi dihapus. Avatar, logo, lampiran jawaban,
+ *     bukti ujian, audio, dan dokumen juga tidak disentuh.
  *  2. Nama berkasnya dicari di SELURUH kolom teks/JSON di semua tabel database.
  *     Satu kemunculan di mana pun sudah cukup untuk mempertahankannya.
  *  3. Berkas yang lebih muda dari `minAgeDays` dibiarkan: bisa jadi baru diunggah
@@ -113,7 +115,8 @@ export class UnusedImagesService {
         if (!this.storage.isConfigured()) throw new ServiceUnavailableException('Penyimpanan belum dikonfigurasi.');
         // Daftar berkas diambil LEBIH DULU, baru database dipindai: berkas yang
         // dipakai selama proses berlangsung pasti sudah terlihat dipakai.
-        const listings = await Promise.all(['users/', 'banks/'].map(prefix => this.storage.listObjects(prefix)));
+        const folders = await this.imageFolders();
+        const listings = await mapLimit(folders, 8, folder => this.storage.listObjects(folder));
         const objects = listings.flatMap(listing => listing.objects);
         const { names, tables } = await this.referencedFileNames();
         const cutoff = now.getTime() - minAgeDays * 86_400_000;
@@ -140,6 +143,15 @@ export class UnusedImagesService {
             listingTruncated: listings.some(listing => listing.truncated),
             scannedTables: tables,
         };
+    }
+
+    /** Folder gambar soal saja: `users/<id>/questions/`, `users/<id>/banks/`, `banks/<id>/equations/`. */
+    async imageFolders(): Promise<string[]> {
+        const [users, banks] = await Promise.all([this.storage.listPrefixes('users/'), this.storage.listPrefixes('banks/')]);
+        return [
+            ...users.flatMap(user => [`${user}questions/`, `${user}banks/`]),
+            ...banks.map(bank => `${bank}equations/`),
+        ];
     }
 
     private async exclusive<T>(work: () => Promise<T>): Promise<T> {
@@ -201,6 +213,19 @@ export class UnusedImagesService {
             };
         });
     }
+}
+
+async function mapLimit<T, R>(items: T[], limit: number, work: (item: T) => Promise<R>): Promise<R[]> {
+    const results = new Array<R>(items.length);
+    let cursor = 0;
+    const worker = async () => {
+        while (cursor < items.length) {
+            const index = cursor++;
+            results[index] = await work(items[index]);
+        }
+    };
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+    return results;
 }
 
 export function normalizeAge(value: unknown): number {

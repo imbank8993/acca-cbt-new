@@ -283,6 +283,24 @@ export class StorageService {
     return { objects, truncated: false };
   }
 
+  /**
+   * Subfolder langsung di bawah `prefix` (mis. `users/` → `users/<id>/`), tanpa
+   * membaca isi berkasnya. Dipakai agar pemindaian hanya membuka folder tertentu.
+   */
+  async listPrefixes(prefix: string, maxPrefixes = 100_000): Promise<string[]> {
+    if (!this.client) throw new Error('Penyimpanan belum dikonfigurasi.');
+    const prefixes: string[] = [];
+    let continuation: string | undefined;
+    do {
+      const listed = await this.client.send(new ListObjectsV2Command({
+        Bucket: this.bucket, Prefix: prefix, Delimiter: '/', ContinuationToken: continuation, MaxKeys: 1000,
+      }));
+      for (const common of listed.CommonPrefixes || []) if (common.Prefix) prefixes.push(common.Prefix);
+      continuation = listed.IsTruncated ? listed.NextContinuationToken : undefined;
+    } while (continuation && prefixes.length < maxPrefixes);
+    return prefixes;
+  }
+
   /** Hapus banyak objek sekaligus (1000 per permintaan); kegagalan per objek dilaporkan. */
   async deleteObjects(keys: string[]): Promise<{ deleted: string[]; failed: { key: string; error: string }[] }> {
     const deleted: string[] = [];

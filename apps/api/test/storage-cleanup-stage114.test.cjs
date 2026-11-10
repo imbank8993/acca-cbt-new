@@ -34,9 +34,16 @@ function harness({ objects, references, failTable = null }) {
         },
     };
     const deleted = [];
+    const listed = [];
     const storage = {
         isConfigured: () => true,
+        async listPrefixes(prefix) {
+            const children = objects.filter(o => o.key.startsWith(prefix))
+                .map(o => prefix + o.key.slice(prefix.length).split('/')[0] + '/');
+            return [...new Set(children)];
+        },
         async listObjects(prefix) {
+            listed.push(prefix);
             return { objects: objects.filter(o => o.key.startsWith(prefix)), truncated: false };
         },
         async deleteObjects(keys) {
@@ -44,7 +51,7 @@ function harness({ objects, references, failTable = null }) {
             return { deleted: keys, failed: [] };
         },
     };
-    return { service: new UnusedImagesService(db, storage), queries, deleted };
+    return { service: new UnusedImagesService(db, storage), queries, deleted, listed };
 }
 
 const OBJECTS = [
@@ -58,6 +65,8 @@ const OBJECTS = [
     { key: 'users/u1/questions/1700000000000_eeee0001.pdf', size: 999, lastModified: OLD },
     { key: 'assignments/e1/s1/1700000000000_ffff0001.png', size: 999, lastModified: OLD },
     { key: 'users/u3/questions/Gambar%20Lama.png', size: 50, lastModified: OLD },             // dipakai, nama ter-encode
+    { key: 'ptsp/berkas/1700000000000_9999aaaa.png', size: 999, lastModified: OLD },          // milik aplikasi lain
+    { key: 'users/u1/ptsp/1700000000000_9999bbbb.png', size: 999, lastModified: OLD },        // subfolder lain
 ];
 const REFERENCES = {
     cbt_bank_questions: ['1700000000000_aaaa0001.png', 'gambar%20lama.png'],
@@ -95,6 +104,18 @@ test('CLEAN-03: pratinjau memisahkan gambar terpakai, baru, dan yatim; berkas la
     assert.equal(preview.unusedBytes, 1600);
     assert.equal(preview.scannedTables, 2);
     assert.deepEqual(queries[0].params[0].includes('jsonb'), true, 'kolom JSON ikut dipindai');
+});
+
+test('CLEAN-03b: hanya folder gambar soal yang didaftar; folder aplikasi lain tidak dibuka', async () => {
+    const { service, listed } = harness({ objects: OBJECTS, references: REFERENCES });
+    await service.preview();
+    assert.deepEqual([...listed].sort(), [
+        'banks/b1/equations/',
+        'users/u1/banks/', 'users/u1/questions/',
+        'users/u2/banks/', 'users/u2/questions/',
+        'users/u3/banks/', 'users/u3/questions/',
+    ]);
+    assert.ok(listed.every(prefix => /^(users\/[^/]+\/(questions|banks)|banks\/[^/]+\/equations)\/$/.test(prefix)));
 });
 
 test('CLEAN-04: penghapusan memindai ulang dan hanya menghapus kunci yang masih yatim', async () => {

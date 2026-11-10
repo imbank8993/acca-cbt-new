@@ -87,7 +87,7 @@ export default function UnusedImagesCleanupCard() {
             </div>
 
             <ul className="text-xs text-slate-600 leading-relaxed mb-5 list-disc pl-5 space-y-1">
-                <li>Yang diperiksa hanya gambar soal, sampul bank soal, dan gambar persamaan. Avatar, logo, lampiran jawaban siswa, audio, dan dokumen tidak disentuh.</li>
+                <li>Yang dibuka hanya folder gambar ACCA CBT: gambar soal, sampul bank soal, dan gambar persamaan. Folder aplikasi lain di penyimpanan yang sama (mis. acca-new), avatar, logo, lampiran jawaban siswa, audio, dan dokumen tidak disentuh.</li>
                 <li>Gambar dianggap terpakai bila namanya muncul di bagian mana pun di database: soal, opsi, stimulus, petunjuk, salinan soal ujian, materi, dan lainnya.</li>
                 <li>Gambar yang diunggah kurang dari {MIN_AGE_DAYS} hari lalu selalu dipertahankan.</li>
                 <li>Buat cadangan terlebih dahulu bila ragu. File ekspor Word yang dibuat sebelum pembersihan tetap dapat diimpor; gambarnya diambil dari isi dokumen.</li>
