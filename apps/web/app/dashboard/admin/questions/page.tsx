@@ -19,6 +19,7 @@ import { useMemoryState } from '@/lib/useMemoryState';
 import { useBankFolderMenu } from '@/lib/useBankFolderMenu';
 import {
 ArrowRight,
+ArrowLeft,
 CloudUpload,
 CloudOff,
 Eye,
@@ -38,8 +39,6 @@ import React,{ useCallback,useEffect,useRef,useState } from 'react';
 import { CreateBankModal } from '@/components/questions/CreateBankModal';
 import { ValidationBadge } from '@/app/components/validations/ValidationBadge';
 import { QuestionBankCover } from '@/app/components/questions/QuestionBankCover';
-import { FolderBankContents } from '@/app/components/questions/FolderBankContents';
-import { MobileBankFolder } from '@/app/components/questions/MobileBankFolder';
 import { registerPageFab, unregisterPageFab } from '@/app/components/mobile/page-fab';
 
 
@@ -58,6 +57,7 @@ export default function ProktorQuestionBankPage() {
     const [activeTab] = useState<'all' | 'draft' | 'published'>('all');
     const [editingBank, setEditingBank] = useState<QuestionBank | null>(null);
     const [targetFolderId, setTargetFolderId] = useState<string | undefined>(undefined);
+    const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
     const [accessFilter, setAccessFilter] = useState('all');
     // Register Mobile Center FAB on BottomNav
     useEffect(() => {
@@ -67,14 +67,14 @@ export default function ProktorQuestionBankPage() {
             icon: 'plus',
             run: () => {
                 setEditingBank(null);
-                setTargetFolderId(undefined);
+                setTargetFolderId(activeFolderId || undefined);
                 setIsAddModalOpen(true);
             },
         });
         return () => {
             unregisterPageFab(token);
         };
-    }, []);
+    }, [activeFolderId]);
 
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
@@ -108,7 +108,7 @@ export default function ProktorQuestionBankPage() {
     ];
 
     const handleSelectAll = () => {
-        const allFilteredIds = filteredBanks.filter(bank => bank.canManage === true).map(b => b.id);
+        const allFilteredIds = (activeFolderId ? visibleBanks : filteredBanks).filter(bank => bank.canManage === true).map(b => b.id);
         setSelectedBankIds(new Set(allFilteredIds));
     };
 
@@ -142,7 +142,6 @@ export default function ProktorQuestionBankPage() {
     const [newFolderName, setNewFolderName] = useState('');
     const [newFolderPublic, setNewFolderPublic] = useState(false);
     const [] = useState<string | null>(null);
-    const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
     const { folderMenuId, setFolderMenuId, folderMenuRef } = useBankFolderMenu();
     const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
     const [bankToMove, setBankToMove] = useState<QuestionBank | null>(null);
@@ -377,13 +376,18 @@ export default function ProktorQuestionBankPage() {
         finally { setIsSubmitting(false); }
     };
 
-    const toggleFolderExpand = (folderId: string) => {
-        setExpandedFolders(prev => {
-            const next = new Set(prev);
-            if (next.has(folderId)) next.delete(folderId);
-            else next.add(folderId);
-            return next;
-        });
+    const openFolder = (folderId: string) => {
+        setActiveFolderId(folderId);
+        setCurrentPage(1);
+        setSelectedBankIds(new Set());
+        setFolderMenuId(null);
+    };
+
+    const closeFolder = () => {
+        setActiveFolderId(null);
+        setCurrentPage(1);
+        setSelectedBankIds(new Set());
+        setFolderMenuId(null);
     };
 
     const subjects = Array.from(new Set(banks.map(bank => bank.subject).filter((subject): subject is string => Boolean(subject)))).sort();
@@ -418,14 +422,20 @@ export default function ProktorQuestionBankPage() {
         }
         return { folderMap, unfoldered };
     })();
+    const activeFolder = folders.find(folder => folder.id === activeFolderId) || null;
+    const visibleBanks = activeFolder
+        ? banksByFolder.folderMap.get(activeFolder.id) || []
+        : banksByFolder.unfoldered;
+    const hasBankFilters = Boolean(searchQuery.trim() || activeTagFilter || activeSubjectFilter || activeCreatorFilter || activeClassFilter || accessFilter !== 'all');
 
     useEffect(() => {
         const timer = window.setTimeout(() => setCurrentPage(1), 0);
         return () => window.clearTimeout(timer);
     }, [activeTab, searchQuery, activeTagFilter, activeSubjectFilter, activeCreatorFilter, activeClassFilter]);
 
-    const totalPages = Math.max(1, Math.ceil(filteredBanks.length / PAGE_SIZE));
+    const totalPages = Math.max(1, Math.ceil(visibleBanks.length / PAGE_SIZE));
     const safePage = Math.min(currentPage, totalPages);
+    const pagedBanks = visibleBanks.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
     const draftCount = banks.filter(bank => !bank.is_published).length;
     const publishedCount = banks.filter(bank => bank.is_published).length;
     const allCount = banks.length;
@@ -670,7 +680,7 @@ export default function ProktorQuestionBankPage() {
                             className="hidden sm:inline-flex"
                             onClick={() => {
                                 setEditingBank(null);
-                                setTargetFolderId(undefined);
+                                setTargetFolderId(activeFolder?.id);
                                 setIsAddModalOpen(true);
                             }}
                         >
@@ -679,6 +689,28 @@ export default function ProktorQuestionBankPage() {
                     </FilterActions>
                 </FilterToolbar>
             </div>
+
+            {activeFolder && (
+                <nav aria-label="Lokasi bank soal" className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+                    <button type="button" onClick={closeFolder}
+                        className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 font-semibold text-[#3083FF] hover:bg-[#3083FF]/10">
+                        <ArrowLeft size={16} /> Semua Bank Soal
+                    </button>
+                    <ChevronRight size={15} className="text-slate-400" />
+                    <span className="inline-flex items-center gap-2 font-semibold text-slate-700">
+                        <Folder size={16} className="text-[#3083FF]" /> {activeFolder.name}
+                    </span>
+                </nav>
+            )}
+
+            {activeFolder && (
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#3083FF]/30 bg-[#3083FF]/5 px-4 py-3">
+                    <span className="text-sm font-semibold text-slate-700">{activeFolder.name} <span className="font-normal text-slate-500">· {visibleBanks.length} bank soal</span></span>
+                    <Button size="sm" variant="outline" leftIcon={<Plus size={15} />} onClick={() => handleOpenAddToFolder(activeFolder)}>
+                        Tambah Bank yang Ada
+                    </Button>
+                </div>
+            )}
 
             {/* Bulk Actions Panel */}
             {selectedBankIds.size > 0 && (
@@ -705,26 +737,28 @@ export default function ProktorQuestionBankPage() {
             <div className="block md:hidden space-y-3">
                 {isLoading ? (
                     <div className="flex justify-center py-12"><Spinner variant="buble" size={32} /></div>
-                ) : filteredBanks.length === 0 && folders.length === 0 ? (
+                ) : !activeFolder && visibleBanks.length === 0 && folders.length === 0 ? (
                     <div className="py-12 text-center text-slate-400">
                         <BookOpen size={32} className="mx-auto mb-2 opacity-50" />
                         <p>Tidak ada bank soal</p>
                     </div>
                 ) : (
                     <>
-                        {folders.map(folder => (
-                            <MobileBankFolder
-                                key={folder.id}
-                                folder={folder}
-                                banks={banksByFolder.folderMap.get(folder.id) || []}
-                                expanded={expandedFolders.has(folder.id)}
-                                onToggle={() => toggleFolderExpand(folder.id)}
-                                renderBank={renderMobileBankCard}
-                            />
+                        {!activeFolder && folders.map(folder => (
+                            <button key={folder.id} type="button" onClick={() => openFolder(folder.id)}
+                                className="flex w-full items-center gap-2 rounded-lg border border-[#3083FF]/30 bg-[#3083FF]/5 px-3 py-3 text-left hover:border-[#3083FF]">
+                                <Folder size={18} className="shrink-0 text-[#3083FF]" />
+                                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-700">{folder.name}</span>
+                                <span className="text-xs text-slate-500">{(banksByFolder.folderMap.get(folder.id) || []).length}</span>
+                                <ChevronRight size={16} className="shrink-0 text-slate-500" />
+                            </button>
                         ))}
-                        {banksByFolder.unfoldered.map(renderMobileBankCard)}
+                        {!activeFolder && pagedBanks.length > 0 && <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Bank Soal Tanpa Folder</p>}
+                        {activeFolder && pagedBanks.length === 0 && <p className="rounded-lg border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">{hasBankFilters ? 'Tidak ada bank soal yang cocok di folder ini.' : 'Folder ini belum berisi bank soal.'}</p>}
+                        {pagedBanks.map(renderMobileBankCard)}
                     </>
                 )}
+                <ListPagination page={safePage} totalItems={visibleBanks.length} pageSize={PAGE_SIZE} onPageChange={setCurrentPage} />
             </div>
 
             {/* Desktop List View - with folder support */}
@@ -733,7 +767,7 @@ export default function ProktorQuestionBankPage() {
                     <div className="flex justify-center py-16">
                         <Spinner variant="buble" size={32} />
                     </div>
-                ) : filteredBanks.length === 0 && folders.length === 0 ? (
+                ) : !activeFolder && visibleBanks.length === 0 && folders.length === 0 ? (
                     <div className="py-16 text-center text-slate-400">
                         <BookOpen size={32} className="mx-auto mb-2 opacity-50" />
                         <p>Tidak ada bank soal</p>
@@ -741,27 +775,27 @@ export default function ProktorQuestionBankPage() {
                 ) : (
                     <>
                         {/* Folder yang terlihat sudah disaring server: milik sendiri, folder publik, atau semua folder bagi Admin. */}
-                        {folders.map(folder => {
+                        {!activeFolder && folders.map(folder => {
                             const folderBanks = banksByFolder.folderMap.get(folder.id) || [];
                             const movableBanks = folderBanks.filter(bank => bank.canManage === true);
-                            const isExpanded = expandedFolders.has(folder.id);
                             return (
                                 <div key={folder.id} className="bank-folder-group">
                                     {/* Folder header */}
-                                    <div data-expanded={isExpanded} className="bank-folder-row flex items-center gap-2 px-4 py-3 bg-[#3083FF]/5 border border-[#3083FF]/30 rounded-lg mb-2">
+                                    <div className="bank-folder-row flex items-center gap-2 px-4 py-3 bg-[#3083FF]/5 border border-[#3083FF]/30 rounded-lg mb-2">
+                                        <input
+                                            type="checkbox"
+                                            aria-label={`Pilih semua bank soal di folder ${folder.name}`}
+                                            disabled={movableBanks.length === 0}
+                                            checked={movableBanks.length > 0 && movableBanks.every(b => selectedBankIds.has(b.id))}
+                                            onChange={() => toggleSelectAllInFolder(folderBanks)}
+                                            className="bank-checkbox bg-transparent w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 cursor-pointer shrink-0"
+                                        />
                                         <button
-                                            onClick={() => toggleFolderExpand(folder.id)}
+                                            type="button"
+                                            onClick={() => openFolder(folder.id)}
                                             className="bank-folder-toggle flex items-center gap-2 flex-1 min-w-0 text-left hover:text-[#3083FF] transition-all"
                                         >
-                                            <input
-                                                type="checkbox"
-                                                disabled={movableBanks.length === 0}
-                                                checked={movableBanks.length > 0 && movableBanks.every(b => selectedBankIds.has(b.id))}
-                                                onChange={() => toggleSelectAllInFolder(folderBanks)}
-                                                onClick={(e) => e.stopPropagation()}
-                                                className="bank-checkbox bg-transparent w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 cursor-pointer shrink-0"
-                                            />
-                                            {isExpanded ? <ChevronRight size={16} className="text-slate-400 rotate-90" /> : <ChevronRight size={16} className="text-slate-400" />}
+                                            <ChevronRight size={16} className="text-slate-400" />
                                             <Folder size={16} className="text-[#3083FF]" />
                                             <span className="bank-folder-identity">
                                                 <span className="bank-folder-title">
@@ -820,7 +854,7 @@ export default function ProktorQuestionBankPage() {
                                                                 onClick={() => {
                                                                     setBulkMode(true);
                                                                     setSelectedBankIds(new Set());
-                                                                    setExpandedFolders(prev => new Set([...prev, folder.id]));
+                                                                    openFolder(folder.id);
                                                                     setFolderMenuId(null);
                                                                 }}
                                                                 className="w-full text-left px-3 py-2 text-xs text-slate-600 hover:bg-[#3083FF]/5 flex items-center gap-2"
@@ -853,43 +887,28 @@ export default function ProktorQuestionBankPage() {
                                             )}
                                         </div>
                                     </div>
-                                    {/* Folder banks */}
-                                    {isExpanded && folderBanks.length > 0 && (
-                                        <FolderBankContents folderName={folder.name} banks={folderBanks} renderBank={renderBankCard} />
-                                    )}
-                                    {isExpanded && folderBanks.length === 0 && (
-                                        <div className="pl-6 py-4">
-                                            <div className="text-center text-slate-400 text-sm mb-3">
-                                                <Folder size={20} className="mx-auto mb-1 opacity-50" />
-                                                Folder kosong
-                                            </div>
-                                            <button
-                                                onClick={() => {
-                                                    setEditingBank(null);
-                                                    setTargetFolderId(folder.id);
-                                                    setIsAddModalOpen(true);
-                                                }}
-                                                className="w-full py-2 border border-dashed border-[#3083FF]/30 rounded-lg text-xs text-slate-500 hover:border-[#3083FF] hover:text-[#3083FF] transition-all flex items-center justify-center gap-1"
-                                            >
-                                                <Plus size={12} /> Tambah Bank Soal
-                                            </button>
-                                        </div>
-                                    )}
                                 </div>
                             );
                         })}
 
-                        {/* Unfoldered banks */}
-                        {banksByFolder.unfoldered.length > 0 && (
+                        {/* Banks in the current Explorer location */}
+                        {activeFolder && pagedBanks.length === 0 && (
+                            <div className="rounded-lg border border-dashed border-slate-200 bg-white px-4 py-12 text-center text-sm text-slate-500">
+                                <Folder size={24} className="mx-auto mb-2 text-[#3083FF]/60" />
+                                {hasBankFilters ? 'Tidak ada bank soal yang cocok di folder ini.' : 'Folder ini belum berisi bank soal.'}
+                            </div>
+                        )}
+                        {pagedBanks.length > 0 && (
                             <div className="space-y-2">
-                                {banksByFolder.unfoldered.map(bank => renderBankCard(bank))}
+                                {!activeFolder && <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Bank Soal Tanpa Folder</p>}
+                                {pagedBanks.map(bank => renderBankCard(bank))}
                             </div>
                         )}
                     </>
                 )}
 
                 {/* Pagination */}
-                <ListPagination page={safePage} totalItems={filteredBanks.length} pageSize={PAGE_SIZE} onPageChange={setCurrentPage} />
+                <ListPagination page={safePage} totalItems={visibleBanks.length} pageSize={PAGE_SIZE} onPageChange={setCurrentPage} />
             </div>
 
             {/* Folder Modal */}
