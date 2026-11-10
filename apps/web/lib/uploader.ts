@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@/lib/errors';
+import { optimizeQuestionImage } from '@/lib/question-image-optimize';
 import { ensureAbsoluteUrl, resolveStorageUrl } from '@/lib/safe-url';
 
 /**
@@ -34,6 +35,11 @@ export async function uploadToHosting(
     oldFileUrl: string = ''
 ): Promise<{ success: boolean; url?: string; error?: string; provider?: string }> {
     try {
+        // Gambar soal (editor, stimulus, petunjuk, import Word) diperkecil dan
+        // diubah ke WebP. Folder lain (audio, lampiran, logo) tidak disentuh.
+        if (folder === 'questions' && file.type.startsWith('image/')) {
+            file = await optimizeQuestionImage(file);
+        }
         const formData = new FormData();
         formData.append('file', file);
         formData.append('folder', folder);

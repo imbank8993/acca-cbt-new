@@ -96,7 +96,9 @@ function ImageEditorModalContent({
       canvas.height = Math.max(1, Math.round(sHeight));
       ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
 
-      const croppedBase64 = canvas.toDataURL('image/jpeg', 0.95);
+      // PNG mempertahankan transparansi (JPEG membuat latar transparan menjadi hitam).
+      // Saat diunggah, gambar diperkecil dan diubah ke WebP oleh uploadToHosting.
+      const croppedBase64 = canvas.toDataURL('image/png');
       setCurrentImageSrc(croppedBase64);
       setShowCropModal(false);
     };
