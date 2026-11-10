@@ -11,7 +11,7 @@ import { ExamQuestionCard } from './ExamQuestionCard';
 import { ModeCornerRibbon } from './ModeCornerRibbon';
 import { ExamStatusNotice, type ExamNotice } from './ExamStatusNotice';
 import { ExamTextScaleControl } from './ExamTextScaleControl';
-import { normalizeExamTextScale,readStoredExamTextScale,storeExamTextScale,supportsExamTextScale } from '@/lib/exam-text-scale';
+import { normalizeExamTextScale,supportsExamTextScale } from '@/lib/exam-text-scale';
 import { countShortAnswerBlanks } from './short-answer-blanks';
 
 const getAnswerStatus = (q: Question, ans: AnswerValue) => {
@@ -219,17 +219,15 @@ export function ExamViewer({
         return () => mq.removeEventListener('change', update);
     }, []);
     const effectiveDisplayMode = isMdUp ? displayMode : 'one-col';
-    // Ukuran teks soal pilihan siswa; diingat di perangkat ini.
+    // Setiap pembukaan ujian dimulai dari ukuran teks 100%.
     const [textScale, setTextScale] = useState(1);
     const [canScaleText, setCanScaleText] = useState(false);
     useEffect(() => {
         setCanScaleText(supportsExamTextScale());
-        setTextScale(readStoredExamTextScale());
     }, []);
     const changeTextScale = useCallback((next: number) => {
         const scale = normalizeExamTextScale(next);
         setTextScale(scale);
-        storeExamTextScale(scale);
     }, []);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [confirmText, setConfirmText] = useState('');

@@ -7,35 +7,23 @@ require('ts-node').register({ project: path.resolve(__dirname, '../tsconfig.json
 const web = (file) => fs.readFileSync(path.resolve(__dirname, '../../web', file), 'utf8');
 const scale = require('../../web/lib/exam-text-scale.ts');
 
-test('question text size snaps to the allowed steps and stays within 90%-150%', () => {
-    assert.deepEqual([...scale.EXAM_TEXT_SCALES], [0.9, 1, 1.15, 1.3, 1.5]);
+test('question text size uses 10% steps from 90% to 150%', () => {
+    assert.deepEqual([...scale.EXAM_TEXT_SCALES], [0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5]);
     assert.equal(scale.normalizeExamTextScale('1.3'), 1.3);
-    assert.equal(scale.normalizeExamTextScale(1.2), 1.15);
+    assert.equal(scale.normalizeExamTextScale(1.26), 1.3);
     assert.equal(scale.normalizeExamTextScale(9), 1.5);
     for (const junk of [null, undefined, '', 'abc', NaN]) assert.equal(scale.normalizeExamTextScale(junk), 1);
-    assert.equal(scale.stepExamTextScale(1, 1), 1.15);
+    assert.equal(scale.stepExamTextScale(1, -1), 0.9);
+    assert.equal(scale.stepExamTextScale(1, 1), 1.1);
+    assert.equal(scale.stepExamTextScale(1.4, 1), 1.5);
     assert.equal(scale.stepExamTextScale(1.5, 1), 1.5);
     assert.equal(scale.stepExamTextScale(0.9, -1), 0.9);
 });
 
-test('the chosen size is remembered on the device and survives blocked storage', () => {
-    const store = new Map();
-    global.window = { localStorage: {
-        getItem: (k) => (store.has(k) ? store.get(k) : null),
-        setItem: (k, v) => store.set(k, v),
-        removeItem: (k) => store.delete(k),
-    } };
-    try {
-        scale.storeExamTextScale(1.3);
-        assert.equal(scale.readStoredExamTextScale(), 1.3);
-        scale.storeExamTextScale(1);
-        assert.equal(store.size, 0);
-        global.window = { get localStorage() { throw new Error('blocked'); } };
-        assert.equal(scale.readStoredExamTextScale(), 1);
-        assert.doesNotThrow(() => scale.storeExamTextScale(1.5));
-    } finally {
-        delete global.window;
-    }
+test('every exam view starts at 100% without restoring a prior choice', () => {
+    const viewer = web('app/components/questions/ExamViewer.tsx');
+    assert.match(viewer, /\[textScale, setTextScale\] = useState\(1\)/);
+    assert.doesNotMatch(viewer, /readStoredExamTextScale|storeExamTextScale/);
 });
 
 test('exam card applies the size to question content only and makes images zoomable', () => {
