@@ -603,6 +603,16 @@ export function publishExamAction(examId: string, publish: boolean) {
     });
 }
 
+/** Batalkan ujian: hentikan dan arsipkan seluruh pengerjaan, lalu tarik ujian ke draf. */
+export function cancelExamAction(examId: string, reason: string, confirmationTitle: string) {
+    return apiSend<{ examId: string; cancellationId: string; attemptCount: number; inProgressCount: number; answerCount: number }>(
+        `/api/proctor/exams/${encodeURIComponent(examId)}/cancel`,
+        { reason, confirmationTitle },
+        'POST',
+        { timeoutMs: 120_000 },
+    );
+}
+
 export function assignExamAction(
     examId: string,
     classIds: string[],

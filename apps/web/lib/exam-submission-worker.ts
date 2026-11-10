@@ -2,11 +2,11 @@ import type { ExamAnswerSnapshot, ExamSubmissionRegistration } from './exam-dura
 import { ExamSnapshotConflictError } from './exam-durable-storage';
 
 export interface SubmissionStatus {
-    success: boolean; error?: string; retryable?: boolean;
+    success: boolean; error?: string; retryable?: boolean; cancelled?: boolean;
     examId?: string; status?: string; startedAt?: string; personalEndTime?: string;
     remainingSeconds?: number; submissionOnly?: boolean; canRecover?: boolean;
 }
-export interface SubmissionResult { success: boolean; error?: string; retryable?: boolean; savedAnswersOnly?: boolean; submissionVerified?: boolean; alreadySubmitted?: boolean }
+export interface SubmissionResult { success: boolean; error?: string; retryable?: boolean; cancelled?: boolean; savedAnswersOnly?: boolean; submissionVerified?: boolean; alreadySubmitted?: boolean }
 export interface SubmissionWorkerDependencies {
     online(): boolean;
     now(): number;
@@ -63,6 +63,14 @@ export function createExamSubmissionWorker(deps: SubmissionWorkerDependencies) {
                 let snapshot = await deps.read(entry.attemptId);
                 if (!snapshot) continue;
                 const status = await deps.status(entry.attemptId);
+                // Ujian dibatalkan pengawas: pengerjaan sudah diarsipkan di server dan
+                // siswa akan mengerjakan ulang, jadi salinan ini tidak pernah dikirim.
+                if (!status.success && status.cancelled && deps.discard) {
+                    await deps.discard(entry);
+                    failures.delete(entry.attemptId);
+                    deps.notify?.(entry, status);
+                    continue;
+                }
                 if (!status.success) { defer(entry, status); continue; }
                 // Ujian susulan memulai generasi baru (started_at baru) dan sudah
                 // menghapus jawaban lama di server; salinan lama tidak berguna lagi.
@@ -93,6 +101,12 @@ export function createExamSubmissionWorker(deps: SubmissionWorkerDependencies) {
                 const stillUser = await deps.currentUser();
                 if (stopped || stillUser?.id !== entry.userId || !deps.online() || entry.examId === deps.activeExamId()) continue;
                 const result = await deps.send(entry, snapshot);
+                if (!result.success && result.cancelled && deps.discard) {
+                    await deps.discard(entry);
+                    failures.delete(entry.attemptId);
+                    deps.notify?.(entry, result);
+                    continue;
+                }
                 if (!result.success || result.savedAnswersOnly || result.submissionVerified !== true) {
                     defer(entry, result.success ? { success: false, retryable: !result.savedAnswersOnly,
                         error: result.savedAnswersOnly

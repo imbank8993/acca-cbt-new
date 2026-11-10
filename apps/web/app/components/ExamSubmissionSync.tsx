@@ -89,6 +89,10 @@ export function ExamSubmissionSync() {
                         result.alreadySubmitted ? 'Salinan di perangkat ini sama dengan jawaban di server dan sudah dibersihkan.' : 'Pengiriman otomatis selesai.');
                 } else {
                     if (/^\/dashboard\/siswa\/exam\//.test(pathRef.current)) return;
+                    if (result.cancelled) {
+                        toastRef.current.warning('Ujian dibatalkan', 'Pengawas membatalkan ujian ini. Salinan jawaban di perangkat ini sudah dibersihkan; tunggu jadwal ujian ulang.');
+                        return;
+                    }
                     toastRef.current.warning('Pengumpulan perlu diperiksa', result.error);
                 }
             },

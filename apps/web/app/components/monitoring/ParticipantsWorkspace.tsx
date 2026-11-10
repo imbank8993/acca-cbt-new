@@ -9,6 +9,7 @@ import { ExamKeyCorrectionButton } from '@/app/components/ExamKeyCorrectionButto
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { AttemptHistoryModal } from '@/app/components/monitoring/AttemptHistoryModal';
 import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
+import { CancelExamModal, type CancellableExam } from '@/app/components/monitoring/CancelExamModal';
 import { IrtParametersPanel } from '@/app/components/monitoring/IrtParametersPanel';
 import { MonitoringAnalysisView } from '@/app/components/monitoring/MonitoringAnalysisView';
 import { ItemAnalysisPanel } from '@/app/components/monitoring/ItemAnalysisPanel';
@@ -124,6 +125,8 @@ export function ParticipantsWorkspace({
     const [analysisLoading, setAnalysisLoading] = useState(false);
     const [selectedKey, setSelectedKey] = useState<string | null>(null);
     const [resetAttempt, setResetAttempt] = useState<ExamAttemptRecord | null>(null);
+    // Daftar dibekukan saat modal dibuka agar polling monitoring tidak mengganti isinya.
+    const [cancelTargets, setCancelTargets] = useState<CancellableExam[]>([]);
     const [busy, setBusy] = useState(false);
     const analysisRequest = useRef(0);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -144,6 +147,18 @@ export function ParticipantsWorkspace({
     const anyReset = examOptions.some(option => canReset(option.exam_id));
     // Guru mapel hanya memantau: tanpa reset maupun pengecualian layar.
     const screenExams = userRole === 'guru' ? [] : examOptions.filter(option => examRecords[option.exam_id]?.canManage === true && examRecords[option.exam_id]?.metadata?.screenshot_enabled === true);
+    // Batalkan ujian (mis. jadwal salah): hanya pengelola ujian, hanya ujian yang sudah dikerjakan.
+    const cancellableExams: CancellableExam[] = userRole === 'pengawas' ? [] : examOptions
+        .filter(option => examRecords[option.exam_id]?.canManage === true)
+        .map(option => {
+            const rows = attempts.filter(row => row.exam_id === option.exam_id && attemptState(row) !== 'waiting');
+            return {
+                id: option.exam_id, label: option.label, title: examRecords[option.exam_id]?.title || '',
+                working: rows.filter(row => attemptState(row) === 'working').length, participants: rows.length,
+                isPas: examRecords[option.exam_id]?.metadata?.is_pas_exam === true,
+            };
+        })
+        .filter(exam => exam.participants > 0);
     const viewAnswers = attemptBasePath ? (id: string) => router.push(`${attemptBasePath}/${encodeURIComponent(id)}`) : undefined;
 
     useEffect(() => {
@@ -252,6 +267,7 @@ export function ParticipantsWorkspace({
     const actions = [
         ...(anyReset ? [['reset', 'Reset massal'] as const] : []),
         ...(screenExams.length ? [['screen', 'Pengecualian layar'] as const] : []),
+        ...(cancellableExams.length ? [['cancel', 'Batalkan ujian'] as const] : []),
     ];
     const peopleRows = [...scoped].filter(row => effectiveStatus === 'all' || attemptState(row) === effectiveStatus)
         .sort((a, b) => String(a.profiles?.full_name || '').localeCompare(String(b.profiles?.full_name || ''), 'id'));
@@ -271,10 +287,15 @@ export function ParticipantsWorkspace({
                     Tindakan
                 </Button>
                 {menuOpen && <div role="menu" aria-label="Tindakan" className="absolute right-0 z-20 mt-1.5 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
-                    {actions.map(([id, label]) => <button key={id} type="button" role="menuitem" onClick={() => { setAction(id); setMenuOpen(false); }}
-                        className="flex w-full flex-col items-start rounded-lg px-3 py-2 text-left hover:bg-slate-50">
-                        <span className="text-sm font-medium text-slate-800">{label}</span>
-                        <span className="text-[11px] text-slate-500">{id === 'reset' ? 'Buka ulang pengerjaan beberapa peserta' : 'Izinkan peserta tanpa berbagi layar'}</span>
+                    {actions.map(([id, label]) => <button key={id} type="button" role="menuitem" onClick={() => {
+                        if (id === 'cancel') setCancelTargets(cancellableExams); else setAction(id);
+                        setMenuOpen(false);
+                    }}
+                        className={`flex w-full flex-col items-start rounded-lg px-3 py-2 text-left ${id === 'cancel' ? 'mt-1 border-t border-slate-100 hover:bg-red-50' : 'hover:bg-slate-50'}`}>
+                        <span className={`text-sm font-medium ${id === 'cancel' ? 'text-red-700' : 'text-slate-800'}`}>{label}</span>
+                        <span className="text-[11px] text-slate-500">{id === 'reset' ? 'Buka ulang pengerjaan beberapa peserta'
+                            : id === 'screen' ? 'Izinkan peserta tanpa berbagi layar'
+                            : 'Salah jadwal: hentikan semua, siswa mengulang dari awal'}</span>
                     </button>)}
                 </div>}
             </div>}
@@ -393,6 +414,13 @@ export function ParticipantsWorkspace({
                     onViewDetails={id => viewAnswers?.(id)} onRecover={anyReset ? recover : undefined} />
             </div>
         </div>}
+
+        <CancelExamModal open={cancelTargets.length > 0} exams={cancelTargets} onClose={() => { setCancelTargets([]); void onReload(); }}
+            onDone={message => {
+                setCancelTargets([]);
+                void onReload();
+                void alertDialog({ title: 'Ujian Dibatalkan', text: message, variant: 'success' });
+            }} />
 
         <ResetExamModal
             open={Boolean(resetAttempt) && resetAttempt?.canReset === true}

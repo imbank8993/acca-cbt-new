@@ -8,7 +8,9 @@ import {
     Post,
     Req,
     UseGuards,
+    UseInterceptors,
 } from '@nestjs/common';
+import { CancelledAttemptInterceptor } from '../common/interceptors/cancelled-attempt.interceptor';
 import { ApiBearerAuth, ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { IsBoolean, IsDateString, IsIn, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, Length, Max, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -147,6 +149,7 @@ class MakeupAttemptDto extends ResetAttemptDto {
 @ApiBearerAuth()
 @Controller('proctoring')
 @UseGuards(JwtAuthGuard, RateLimitGuard)
+@UseInterceptors(CancelledAttemptInterceptor)
 export class ProctoringController {
     constructor(private readonly proctoring: ProctoringService) {}
 

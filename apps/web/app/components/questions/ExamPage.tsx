@@ -22,6 +22,7 @@ removeExamAttemptCaches,
 readExamRecoverySession,
 readExamSnapshot,
 readSecurityEvents,
+discardExamLocalCopy,
 removeExamRecoverySession,
 removeExamSnapshot,
 archiveExamSnapshot,
@@ -302,13 +303,37 @@ export default function ExamPage() {
         return () => { disposed = true; clearInterval(timer); window.removeEventListener('online', reconnect); };
     }, [examId, isCompleted, accessDenied, loading]);
 
+    // Ujian dibatalkan pengawas (server menjawab 410): pengerjaan ini sudah
+    // diarsipkan dan dihapus. Keluar dari ujian dan bersihkan salinan lokal agar
+    // tidak pernah dikirim ulang; siswa mengerjakan ulang setelah ujian terbit lagi.
+    const examCancelledRef = useRef(false);
+    const handleExamCancelled = useCallback((message?: string) => {
+        if (examCancelledRef.current) return;
+        examCancelledRef.current = true;
+        const current = attemptRef.current;
+        setIsCompleted(true);
+        setAccessDenied(true);
+        setAccessError(message || 'Ujian ini dibatalkan oleh pengawas/proktor. Tunggu informasi jadwal ujian ulang.');
+        void (async () => {
+            if (current?.id) {
+                await discardExamLocalCopy({ attemptId: current.id, examId,
+                    startedAt: current.started_at || '', personalEndTime: current.personal_end_time || '' }).catch(() => undefined);
+                const events = await readSecurityEvents(current.id).catch(() => [] as QueuedSecurityEvent[]);
+                for (const event of events) await removeSecurityEvent(current.id, event.id).catch(() => undefined);
+            }
+            await removeExamRecoverySession(examId).catch(() => undefined);
+            await removeExamOfflineShell(examId).catch(() => undefined);
+        })();
+    }, [examId]);
+
     /** Tandai/lepas tanda "gagal tersimpan" untuk satu soal. */
-    const noteSyncResult = useCallback((res: { success: boolean; error?: string; retryable?: boolean; unauthorized?: boolean } | null | undefined) => {
+    const noteSyncResult = useCallback((res: { success: boolean; error?: string; retryable?: boolean; unauthorized?: boolean; cancelled?: boolean } | null | undefined) => {
         if (!res) return;
+        if (!res.success && res.cancelled) { handleExamCancelled(res.error); return; }
         if (res.success) setSyncRejection(null);
         else if (res.unauthorized) setSyncRejection(SESSION_ENDED_MESSAGE);
         else if (res.retryable === false) setSyncRejection(res.error || 'Server menolak jawaban.');
-    }, []);
+    }, [handleExamCancelled]);
     // Disalin ke ref supaya heartbeat dapat melaporkannya ke pengawas.
     const syncRejectionRef = useRef<string | null>(null);
     useEffect(() => { syncRejectionRef.current = syncRejection; }, [syncRejection]);
@@ -1145,6 +1170,13 @@ export default function ExamPage() {
                 router.push('/dashboard/siswa/results');
                 // keep submitInFlightRef = true so nothing re-submits after success
             } else {
+                if ('cancelled' in result && result.cancelled) {
+                    setSubmitting(false);
+                    submitInFlightRef.current = false;
+                    setWaitingForSyncAndSubmit(false);
+                    handleExamCancelled(result.error);
+                    return;
+                }
                 if (result.retryable === false) {
                     setSubmitting(false);
                     submitInFlightRef.current = false;
@@ -1166,7 +1198,7 @@ export default function ExamPage() {
             submitInFlightRef.current = false;
             scheduleAutoRetry();
         }
-    }, [user, examId, exam, router, toast, attempt, scheduleAutoRetry, screenSharingRef, submissionOnly]);
+    }, [user, examId, exam, router, toast, attempt, scheduleAutoRetry, screenSharingRef, submissionOnly, handleExamCancelled]);
 
     // Simpan referensi terbaru agar retry terjadwal selalu memanggil versi
     // dengan closure `answers` termutakhir (bukan snapshot saat gagal).
@@ -2092,7 +2124,7 @@ export default function ExamPage() {
                         )}
                     </div>
                     <h1 className="text-xl font-bold text-slate-800 mb-2">
-                        {isAlreadyFinished ? 'Ujian Telah Selesai' : accessError.includes('Salinan jawaban berbeda') ? 'Pengumpulan Perlu Diperiksa' : 'Ujian Belum Dapat Dibuka'}
+                        {isAlreadyFinished ? 'Ujian Telah Selesai' : accessError.includes('Salinan jawaban berbeda') ? 'Pengumpulan Perlu Diperiksa' : accessError.includes('dibatalkan oleh pengawas') ? 'Ujian Dibatalkan' : 'Ujian Belum Dapat Dibuka'}
                     </h1>
                     <p className="text-slate-500 mb-6 text-sm">
                         {isAlreadyFinished 

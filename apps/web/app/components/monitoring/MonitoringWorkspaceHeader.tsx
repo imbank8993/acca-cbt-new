@@ -6,6 +6,7 @@ import type { ExamAttemptRecord, OrganizationExam } from '@/lib/api/proctor';
 import { activeMonitoringRows } from '@/lib/active-monitoring';
 import { hasMonitoringAdministration } from '@/lib/monitoring-tabs';
 import MonitoringExamPicker from './MonitoringExamPicker';
+import { CancelExamButton } from './CancelExamModal';
 import './monitoring.css';
 
 interface MonitoringWorkspaceHeaderProps {
@@ -84,6 +85,10 @@ export function MonitoringWorkspaceHeader({
                     />
                 </div>
                 {headerAction && <div className="monitoring-workspace__action">{headerAction}</div>}
+                {/* Folder ASAS/AM: tombol batal ada di menu Tindakan ParticipantsWorkspace. */}
+                {value && !hideDetails && <div className="monitoring-workspace__action">
+                    <CancelExamButton exam={exams.find(exam => exam.id === value)} attempts={selectedAttempts} onDone={onRefresh} />
+                </div>}
             </header>
             {value && hideDetails && children}
             {value && !hideDetails && <>

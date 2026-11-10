@@ -234,3 +234,19 @@ bash tools/vps/konversi-gambar-webp.sh pulihkan /var/backups/acca-cbt/konversi-w
 Yang diperbarui: bank soal, opsi, stimulus, petunjuk, dan salinan soal ujian. WebP baru disimpan di samping berkas aslinya (`<nama>.png.webp`); berkas lama **tidak dihapus**, sehingga `pulihkan` selalu aman dan materi lain yang masih memakai berkas yang sama tidak terganggu. Gambar yang tidak menjadi lebih kecil, PNG beranimasi, dan berkas yang hilang dibiarkan. Skrip menolak berjalan bila ada ujian yang sedang dikerjakan (kecuali `--paksa`), memegang kunci deployment, dan aman dijalankan ulang.
 
 Bila kontainer API tidak memuat pustaka `sharp`, skrip memakai kontainer sementara `node:20-bookworm-slim` (unduh sekali, perlu akses internet ke npm) dengan `DATABASE_URL` dan kredensial R2 dari `.env`; kontainer itu dihapus setelah selesai. Jalankan di luar jam ujian; siswa yang sudah menyimpan ujian untuk offline perlu membuka ujian sekali secara online agar gambar WebP ikut tersimpan.
+
+## Membatalkan ujian yang sudah dikerjakan (10 November 2026)
+
+Bila ujian terbuka pada waktu yang salah dan siswa sudah mulai mengerjakan, buka **Monitoring** lalu pilih **Batalkan ujian** (ujian biasa: tombol merah di kanan atas; folder ASAS/AM/PAS: menu **Tindakan**). Isi alasan dan ketik `BATALKAN`. Dalam satu transaksi:
+
+- seluruh pengerjaan ujian itu (yang sedang berjalan maupun yang sudah dikumpulkan) beserta jawaban, log pengawasan, tangkapan layar, dan sertifikat disalin ke arsip `cbt_exam_cancellations`/`cbt_exam_cancelled_attempts`, lalu dihapus;
+- ujian ditarik ke draf dan kalibrasi IRT lamanya dibuang;
+- siswa yang sedang mengerjakan dikeluarkan dalam ±15 detik dengan pesan "Ujian Dibatalkan", dan salinan jawaban di perangkatnya dibersihkan.
+
+Setelah jadwal diperbaiki, terbitkan lagi (PAS: aktifkan kembali kelasnya dari folder PAS); semua siswa mengerjakan dari awal. Proktor/Admin dapat membatalkan semua ujian; Guru hanya ujian non-PAS buatannya sendiri.
+
+Fitur ini memerlukan migrasi berikut (tanpa migrasi, tombol menampilkan pesan dan tidak mengubah apa pun):
+
+```bash
+psql "$DATABASE_URL_HOST" -f database/migrations/20261110_01_exam_cancellations.sql
+```

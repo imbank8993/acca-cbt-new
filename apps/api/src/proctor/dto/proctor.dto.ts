@@ -260,6 +260,19 @@ export class ClassIdsDto {
     classIds!: string[];
 }
 
+export class CancelExamDto {
+    @ApiProperty({ minLength: 5, maxLength: 500, description: 'Alasan pembatalan; disimpan di arsip pembatalan.' })
+    @IsString()
+    @IsNotEmpty({ message: 'Tuliskan alasan pembatalan ujian.' })
+    @MaxLength(500, { message: 'Alasan maksimal 500 karakter.' })
+    reason!: string;
+
+    @ApiProperty({ description: 'Judul ujian yang diketik ulang sebagai konfirmasi.' })
+    @IsString()
+    @IsNotEmpty({ message: 'Ketik ulang judul ujian untuk mengonfirmasi pembatalan.' })
+    confirmationTitle!: string;
+}
+
 export class FinishAttemptDto {
     @ApiProperty({ maxLength: 240, description: 'Alasan staf menyelesaikan pengerjaan; dicatat pada pengerjaan.' })
     @IsString()

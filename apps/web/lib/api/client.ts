@@ -16,6 +16,8 @@ export interface ApiFailure {
     retryable?: boolean;
     /** Sesi login tidak berlaku (HTTP 401): jaringan normal, tetapi perlu login ulang. */
     unauthorized?: boolean;
+    /** Ujian dibatalkan pengawas (HTTP 410): pengerjaan ini sudah dihapus dan diarsipkan. */
+    cancelled?: boolean;
 }
 
 export type ApiResult<T> = ({ success: true } & T) | ApiFailure;
@@ -83,6 +85,7 @@ async function request<T>(
                 error: (record.error as string) || `Permintaan gagal (HTTP ${response.status}).`,
                 retryable: response.status >= 500 || response.status === 408 || response.status === 429,
                 ...(response.status === 401 ? { unauthorized: true } : {}),
+                ...(response.status === 410 ? { cancelled: true } : {}),
             };
         }
 

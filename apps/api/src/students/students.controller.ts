@@ -12,7 +12,9 @@ import {
     Put,
     Req,
     UseGuards,
+    UseInterceptors,
 } from '@nestjs/common';
+import { CancelledAttemptInterceptor } from '../common/interceptors/cancelled-attempt.interceptor';
 import type { Request } from 'express';
 import { examClientContext } from '../common/exam-client-context';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -45,6 +47,7 @@ import { StudentsService } from './students.service';
 @ApiBearerAuth()
 @Controller('students')
 @UseGuards(JwtAuthGuard, RateLimitGuard)
+@UseInterceptors(CancelledAttemptInterceptor)
 export class StudentsController {
     constructor(
         private readonly students: StudentsService,

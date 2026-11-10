@@ -417,6 +417,7 @@ export async function submitExamAction(
                 const intent = await beginSubmitAction(attemptId, payload);
                 if (!intent.success) return intent.retryable !== false ? pendingConfirmation()
                     : { success: false as const, retryable: false, acceptedSecurityEventIds,
+                        ...(intent.cancelled ? { cancelled: true as const } : {}),
                         ...(intent.unauthorized ? { error: SESSION_ENDED_MESSAGE, unauthorized: true as const } : { error: intent.error }) };
                 acceptedSecurityEventIds = [...new Set([...acceptedSecurityEventIds,
                     ...(Array.isArray(intent.acceptedSecurityEventIds) ? intent.acceptedSecurityEventIds : [])])];
@@ -452,6 +453,7 @@ export async function submitExamAction(
                   }
                 : res.retryable !== false ? pendingConfirmation()
                     : { success: false as const, retryable: false, acceptedSecurityEventIds,
+                        ...(res.cancelled ? { cancelled: true as const } : {}),
                         ...(res.unauthorized ? { error: SESSION_ENDED_MESSAGE, unauthorized: true as const } : { error: res.error }) };
         };
         const first = await sendOnce();

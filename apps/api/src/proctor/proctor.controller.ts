@@ -27,6 +27,7 @@ import { CurrentSchoolId } from '../common/decorators/current-school-id.decorato
 import { ClassesService } from './classes.service';
 import {
     AssignExamDto,
+    CancelExamDto,
     ClassIdsDto,
     CreateClassDto,
     CreateExamDto,
@@ -42,6 +43,7 @@ import {
     UpdateExamDto,
 } from './dto/proctor.dto';
 import { ExamAdminService } from './exam-admin.service';
+import { ExamCancellationService } from './exam-cancellation.service';
 import { ExamMonitoringService } from './exam-monitoring.service';
 import { ProctorService } from './proctor.service';
 
@@ -67,6 +69,7 @@ export class ProctorController {
         private readonly loginHistory: LoginHistoryService,
         private readonly authz: AuthorizationService,
         private readonly settings: SettingsService,
+        private readonly cancellation: ExamCancellationService,
     ) {}
 
     // ── Organisasi & identitas ───────────────────────────────────────────────
@@ -311,6 +314,17 @@ export class ProctorController {
         @Body() dto: PublishExamDto,
     ) {
         return this.exams.setPublished(user, examId, dto.publish);
+    }
+
+    @Post('exams/:examId/cancel')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Batalkan ujian: akhiri dan arsipkan seluruh pengerjaan, lalu tarik ujian ke draf' })
+    cancelExam(
+        @CurrentUser() user: AuthUser,
+        @Param('examId', ParseUUIDPipe) examId: string,
+        @Body() dto: CancelExamDto,
+    ) {
+        return this.cancellation.cancel(user, examId, dto.reason, dto.confirmationTitle);
     }
 
     @Put('exams/:examId/assignments')

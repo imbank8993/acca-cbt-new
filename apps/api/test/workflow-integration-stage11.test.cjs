@@ -10,6 +10,7 @@ const { UnauthorizedException, ValidationPipe } = require('@nestjs/common');
 const { fixtureDb } = require('./fixture-db.cjs');
 const { JwtAuthGuard } = require('../src/auth/jwt-auth.guard.ts');
 const { StudentsController } = require('../src/students/students.controller.ts');
+const { CancelledAttemptInterceptor } = require('../src/common/interceptors/cancelled-attempt.interceptor.ts');
 const { StudentsService } = require('../src/students/students.service.ts');
 const { ExamAttemptsService } = require('../src/students/exam-attempts.service.ts');
 const { ExamReviewService } = require('../src/analytics/exam-review.service.ts');
@@ -138,6 +139,9 @@ test('QA-02: HTTP contract validates DTOs and takes identity from the guard', as
             { provide: ExamAttemptsService, useValue: attemptsMock },
         ],
     })
+        // Kontrak HTTP saja; penerjemahan 410 ujian dibatalkan diuji di stage113.
+        .overrideInterceptor(CancelledAttemptInterceptor)
+        .useValue({ intercept: (_context, next) => next.handle() })
         .overrideGuard(JwtAuthGuard)
         .useValue({
             canActivate(context) {

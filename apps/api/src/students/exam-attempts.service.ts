@@ -28,6 +28,7 @@ import {
     shuffleOptionsForStudent,
 } from '../common/question-order';
 import { advisoryTransactionLock, sharedAdvisoryTransactionLock } from '../common/transaction-lock';
+import { examStartLockKey } from '../common/exam-cancellation';
 import { findScreenShareException } from '../common/screen-share-exceptions';
 import { getSchoolTimeZoneLabel, utcToLocalClock } from '../common/school-time';
 import { GradingService } from '../grading/grading.service';
@@ -338,6 +339,9 @@ export class ExamAttemptsService {
         // Dengan begitu retry start bersifat idempoten dan selalu kembali ke
         // attempt yang sudah menang.
         const decision = await this.createAttemptSafely(user, examId, row, now, device, clientContext);
+        if (decision.kind === 'unpublished') {
+            return this.refuse('Ujian belum dipublikasikan oleh proktor.');
+        }
         if (decision.kind === 'completed') {
             return this.refuse('Anda sudah menyelesaikan ujian ini.', {
                 expiredAttemptId: decision.attemptId,
@@ -366,6 +370,13 @@ export class ExamAttemptsService {
     ) {
         return this.db.transaction(async db => {
             await advisoryTransactionLock(db, `${examId}:${user.id}`);
+            // Pembatalan ujian memegang kunci ini secara eksklusif, jadi attempt baru
+            // tidak dapat terselip di antara pengarsipan dan penarikan ujian ke draf.
+            await sharedAdvisoryTransactionLock(db, examStartLockKey(examId));
+            const { data: publication } = await db.from('cbt_exams').select('is_published').eq('id', examId).maybeSingle();
+            if ((publication as { is_published?: boolean } | null)?.is_published === false) {
+                return { kind: 'unpublished' as const };
+            }
 
             const { data: active, error: activeError } = await db
                 .from('cbt_exam_attempts')
