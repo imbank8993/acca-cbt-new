@@ -219,3 +219,18 @@ psql "$DATABASE_URL_HOST" -f database/migrations/20261109_01_pas_screen_share_ex
 ```
 
 `DATABASE_URL_HOST` = `DATABASE_URL` dari `.env` dengan `host.docker.internal` diganti `127.0.0.1` dan tanpa `?schema=public`. Migrasi aman dijalankan ulang. API mengenali tabel baru dalam satu menit tanpa restart.
+
+## Konversi gambar soal lama ke WebP (10 November 2026)
+
+Gambar soal yang diunggah setelah rilis ini otomatis diperkecil (maks. 1600 px) dan disimpan sebagai WebP. Gambar JPG/PNG/BMP yang sudah ada dikonversi dengan:
+
+```bash
+cd /www/wwwroot/acca-cbt-new
+bash tools/vps/konversi-gambar-webp.sh cek        # hanya membaca: jumlah, ukuran, perkiraan penghematan
+bash tools/vps/konversi-gambar-webp.sh jalankan   # konversi + ganti alamat (minta konfirmasi)
+bash tools/vps/konversi-gambar-webp.sh pulihkan /var/backups/acca-cbt/konversi-webp-<waktu>.ndjson
+```
+
+Yang diperbarui: bank soal, opsi, stimulus, petunjuk, dan salinan soal ujian. WebP baru disimpan di samping berkas aslinya (`<nama>.png.webp`); berkas lama **tidak dihapus**, sehingga `pulihkan` selalu aman dan materi lain yang masih memakai berkas yang sama tidak terganggu. Gambar yang tidak menjadi lebih kecil, PNG beranimasi, dan berkas yang hilang dibiarkan. Skrip menolak berjalan bila ada ujian yang sedang dikerjakan (kecuali `--paksa`), memegang kunci deployment, dan aman dijalankan ulang.
+
+Bila kontainer API tidak memuat pustaka `sharp`, skrip memakai kontainer sementara `node:20-bookworm-slim` (unduh sekali, perlu akses internet ke npm) dengan `DATABASE_URL` dan kredensial R2 dari `.env`; kontainer itu dihapus setelah selesai. Jalankan di luar jam ujian; siswa yang sudah menyimpan ujian untuk offline perlu membuka ujian sekali secara online agar gambar WebP ikut tersimpan.
