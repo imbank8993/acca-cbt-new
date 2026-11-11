@@ -2080,9 +2080,12 @@ export default function ExamPage() {
         : failedSyncCount > 0 && syncRejection
             ? { tone: 'red' as const, text: `${failedSyncCount} jawaban ditolak server`,
                 details: `${syncRejection} Jawaban tetap tersimpan di perangkat ini. Jangan tutup halaman dan segera hubungi pengawas.` }
-        : failedSyncCount > 0
-            ? { tone: 'amber' as const, text: `${failedSyncCount} jawaban menunggu sinkronisasi`, details: 'Pengiriman dicoba kembali otomatis. Jangan tutup halaman sampai jawaban tersimpan di server.' }
-            : recoverySummary
+        // Jawaban yang sekadar MENUNGGU sinkronisasi tidak ditampilkan: pengiriman
+        // dicoba ulang otomatis di latar belakang dan pemberitahuannya hanya
+        // mengganggu siswa. Yang tetap tampil hanya keadaan yang perlu tindakan:
+        // jawaban ditolak, sesi berakhir, jaringan/server putus, atau penyimpanan
+        // perangkat bermasalah. Proktor tetap melihat jumlahnya di monitoring.
+        : recoverySummary
                 ? { tone: 'blue' as const, text: 'Pemulihan pengumpulan aktif', details: `Lokal: ${recoverySummary.localCount} jawaban · Server: ${recoverySummary.serverCount} jawaban. Batas pemulihan: ${new Date(recoverySummary.recoveryUntil).toLocaleString('id-ID')}.` }
                 : storageWarning ? { tone: 'amber' as const, text: 'Penyimpanan perangkat perlu diperiksa', details: storageWarning }
                     : updatedQuestionIds.size > 0 ? { tone: 'blue' as const, text: `${updatedQuestionIds.size} soal diperbarui oleh guru`, details: 'Periksa kembali soal yang ditandai diperbarui sebelum mengumpulkan.' } : null;
