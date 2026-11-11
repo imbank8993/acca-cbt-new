@@ -164,7 +164,7 @@ export default function DimensionManager({ bankId, onItemsChange }: DimensionMan
                 <div className="flex flex-wrap gap-2 shrink-0">
                     <button
                         onClick={() => handleOpenEditor()}
-                        className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 flex items-center gap-2 shadow-sm shadow-indigo-200 transition-colors"
+                        className="px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 flex items-center gap-2"
                     >
                         <Plus size={16} /> Tambah Dimensi
                     </button>

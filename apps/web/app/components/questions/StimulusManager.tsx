@@ -177,7 +177,7 @@ export default function StimulusManager({ bankId, onItemsChange }: StimulusManag
                     </button>
                     <button
                         onClick={() => handleOpenEditor()}
-                        className="px-4 py-2 bg-indigo-500 text-white text-sm font-medium rounded-lg hover:bg-indigo-600 flex items-center gap-2"
+                        className="px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 flex items-center gap-2"
                     >
                         <Plus size={16} /> Buat Stimulus
                     </button>
