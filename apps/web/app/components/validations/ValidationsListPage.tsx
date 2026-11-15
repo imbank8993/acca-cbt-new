@@ -22,6 +22,7 @@ import {
     UserPlus,
     UserMinus,
     FolderPlus,
+    Eye,
 } from 'lucide-react';
 import { confirmDialog } from '@/lib/confirm-dialog';
 import { DatePicker } from '@/app/components/ui/DatePicker';
@@ -203,10 +204,12 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
         loadData();
     }, [loadData]);
 
-    const myAssignedCount = validations.filter(v => v.validators?.some(val => val.validator_id === currentUserId)).length;
+    /** Hanya validator yang ditugaskan yang dapat menelaah; peran Admin/Proktor saja hanya dapat melihat. */
+    const isAssignedToMe = (v: ValidationSession) => !!currentUserId && !!v.validators?.some(val => val.validator_id === currentUserId);
+    const myAssignedCount = validations.filter(isAssignedToMe).length;
 
     const filtered = validations.filter(v => {
-        if (taskFilter === 'mine' && !v.validators?.some(val => val.validator_id === currentUserId)) return false;
+        if (taskFilter === 'mine' && !isAssignedToMe(v)) return false;
         const matchesSearch =
             v.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
             v.bank?.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -217,9 +220,21 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
         if (!matchesSearch) return false;
         if (statusFilter === 'all') return true;
         return v.status === statusFilter;
-    });
+        // Sesi yang ditugaskan kepada pengguna tampil lebih dulu; urutan lain tetap (sort stabil).
+    }).sort((a, b) => Number(isAssignedToMe(b)) - Number(isAssignedToMe(a)));
 
-    const getStatusBadge = (status: ValidationStatus) => {
+    /** Aturan 'Keputusan Admin': semua validator sudah mengirim, tetapi keputusan akhir belum disimpan. */
+    const awaitsDecision = (v: ValidationSession) => v.approval_rule === 'admin_decides' && RUNNING_STATUSES.includes(v.status)
+        && !!v.validators?.length && v.validators.every(val => val.status === 'submitted');
+
+    const getStatusBadge = (status: ValidationStatus, awaitingDecision = false) => {
+        if (awaitingDecision) {
+            return (
+                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 inline-flex items-center gap-1.5" title="Semua validator sudah selesai. Simpan keputusan akhir di Rincian.">
+                    <CheckCircle2 size={12} /> Menunggu Keputusan
+                </span>
+            );
+        }
         switch (status) {
             case 'pending':
                 return (
@@ -277,6 +292,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                         {items.map(item => {
                             const submittedCount = item.validators?.filter(v => v.status === 'submitted').length || 0;
                             const totalValidators = item.validators?.length || 0;
+                            const assignedToMe = isAssignedToMe(item);
                             const creatorName = item.bank?.creator_name || (item.bank as { creator?: { full_name?: string } } | null)?.creator?.full_name || 'Guru Mapel';
 
                             return (
@@ -286,6 +302,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                                         <p className="font-bold text-slate-800 dark:text-slate-100 line-clamp-1" title={item.title}>
                                             {item.title}
                                         </p>
+                                        {assignedToMe && <p className="mt-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Tugas Anda</p>}
                                         {item.folder && <p className="mt-1 text-[10px] text-blue-600 dark:text-blue-300">{item.folder.name}</p>}
                                         <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
                                             <Layers size={11} />
@@ -315,7 +332,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
 
                                     {/* Status Validasi */}
                                     <td className="py-3.5 px-4 whitespace-nowrap">
-                                        {getStatusBadge(item.status)}
+                                        {getStatusBadge(item.status, awaitsDecision(item))}
                                         {(item.round ?? 1) > 1 && <p className="mt-1 text-[10px] text-slate-400">Putaran {item.round}</p>}
                                     </td>
 
@@ -351,9 +368,12 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                                             </button>
                                             <Link
                                                 href={`/dashboard/guru/validations/${item.id}/review`}
-                                                className="px-3 py-1.5 bg-primary text-white hover:bg-primary/90 font-bold rounded-xl flex items-center gap-1.5 text-xs shadow-sm shadow-primary/20 transition-all shrink-0"
+                                                title={assignedToMe ? 'Buka lembar validasi' : 'Anda tidak ditugaskan pada sesi ini; hanya dapat melihat'}
+                                                className={assignedToMe
+                                                    ? 'px-3 py-1.5 bg-primary text-white hover:bg-primary/90 font-bold rounded-xl flex items-center gap-1.5 text-xs shadow-sm shadow-primary/20 transition-all shrink-0'
+                                                    : 'px-3 py-1.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold rounded-xl flex items-center gap-1.5 text-xs transition-all shrink-0'}
                                             >
-                                                <Play size={12} className="fill-white" /> Validasi
+                                                {assignedToMe ? <><Play size={12} className="fill-white" /> Validasi</> : <><Eye size={12} /> Lihat</>}
                                             </Link>
                                         </div>
                                     </td>
@@ -508,7 +528,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                         <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl text-xs">
                             <div>
                                 <span className="text-slate-400">Status Validasi:</span>
-                                <div className="mt-1">{getStatusBadge(selectedDetailVal.status)}</div>
+                                <div className="mt-1">{getStatusBadge(selectedDetailVal.status, awaitsDecision(selectedDetailVal))}</div>
                             </div>
                             <div>
                                 <span className="text-slate-400">Aturan Kelulusan:</span>
@@ -639,7 +659,9 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                             href={`/dashboard/guru/validations/${selectedDetailVal.id}/review`}
                             className="w-full sm:w-auto px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm shadow-primary/20 shrink-0"
                         >
-                            <Play size={14} className="fill-white" /> Buka Lembar Validasi & Simulasi
+                            {isAssignedToMe(selectedDetailVal)
+                                ? <><Play size={14} className="fill-white" /> Buka Lembar Validasi & Simulasi</>
+                                : <><Eye size={14} /> Lihat Lembar Validasi (hanya lihat)</>}
                         </Link>
                     </ModalFooter>
                 </Modal>
