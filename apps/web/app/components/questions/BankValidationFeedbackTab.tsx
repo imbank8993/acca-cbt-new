@@ -196,7 +196,7 @@ export default function BankValidationFeedbackTab({
                                     ? 'bg-amber-100 text-amber-600'
                                     : latestValidation.status === 'rejected'
                                     ? 'bg-rose-100 text-rose-600'
-                                    : latestValidation.status === 'resubmitted'
+                                    : latestValidation.status === 'resubmitted' || latestValidation.status === 'reviewed'
                                     ? 'bg-violet-100 text-violet-600'
                                     : 'bg-blue-100 text-blue-600'
                             }`}

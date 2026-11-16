@@ -15,7 +15,10 @@ function setup(failedTables = []) {
             { id: 'folder', organization_id: 'school', created_by: 'proctor', name: 'ASAS 2026' },
             { id: 'foreign', organization_id: 'other', created_by: 'admin', name: 'Sekolah Lain' },
         ],
-        cbt_question_banks: [{ id: 'bank', organization_id: 'school', created_by: 'owner', title: 'Matematika', is_published: true }],
+        cbt_question_banks: [
+            { id: 'bank', organization_id: 'school', created_by: 'owner', title: 'Matematika', is_published: true },
+            { id: 'bank-baru', organization_id: 'school', created_by: 'owner', title: 'Fisika', is_published: true },
+        ],
         cbt_question_bank_validations: [session],
         cbt_question_bank_validators: [{ id: 'assignment', validation_id: 'session', validator_id: 'teacher', status: 'submitted', validation: session }],
         cbt_question_validation_notes: [{ id: 'note', validation_id: 'session', comment: 'Catatan lama', is_resolved: true }],
@@ -71,9 +74,9 @@ test('moving existing validations into/out of folders preserves review history a
 test('create accepts a selected folder and rejects foreign/missing folders before inserting a session', async () => {
     const { db, service } = setup();
     for (const folderId of ['foreign', 'missing']) {
-        await assert.rejects(service.create(user('proctor'), { bankId: 'bank', validatorIds: ['teacher'], folderId }), /tujuan tidak ditemukan/);
+        await assert.rejects(service.create(user('proctor'), { bankId: 'bank-baru', validatorIds: ['teacher'], folderId }), /tujuan tidak ditemukan/);
     }
-    const result = await service.create(user('proctor'), { bankId: 'bank', validatorIds: ['teacher'], folderId: 'folder' });
+    const result = await service.create(user('proctor'), { bankId: 'bank-baru', validatorIds: ['teacher'], folderId: 'folder' });
     assert.equal(db.tables.cbt_question_bank_validations.find(row => row.id === result.id).folder_id, 'folder');
     assert.equal(db.tables.cbt_question_bank_validations.length, 2);
 });

@@ -62,13 +62,13 @@ export class CreateValidationDto {
     deadline?: string;
 
     @ApiPropertyOptional({
-        enum: ['unanimous', 'any', 'admin_decides'],
+        enum: ['unanimous', 'any', 'admin_decides', 'notes_only'],
         default: 'unanimous',
-        description: 'Aturan persetujuan: unanimous (semua setuju), any (satu setuju), admin_decides',
+        description: 'Aturan persetujuan: unanimous (semua setuju), any (satu setuju), admin_decides, notes_only (catatan saja, tanpa persetujuan)',
     })
     @IsOptional()
-    @IsIn(['unanimous', 'any', 'admin_decides'])
-    approvalRule?: 'unanimous' | 'any' | 'admin_decides';
+    @IsIn(['unanimous', 'any', 'admin_decides', 'notes_only'])
+    approvalRule?: 'unanimous' | 'any' | 'admin_decides' | 'notes_only';
 
     @ApiPropertyOptional({ description: 'Izinkan revisi soal saat ujian aktif berjalan' })
     @IsOptional()
@@ -126,10 +126,11 @@ export class SaveValidationNoteDto {
 export class SubmitValidationDto {
     @ApiProperty({
         enum: ['approved', 'revision_needed', 'rejected'],
-        description: 'Rekomendasi umum validator untuk bank soal ini',
+        description: 'Rekomendasi umum validator untuk bank soal ini. Wajib, kecuali pada sesi catatan saja (notes_only).',
     })
+    @IsOptional()
     @IsIn(['approved', 'revision_needed', 'rejected'])
-    generalRecommendation: 'approved' | 'revision_needed' | 'rejected';
+    generalRecommendation?: 'approved' | 'revision_needed' | 'rejected';
 
     @ApiPropertyOptional({ description: 'Kesimpulan akhir / catatan umum validator untuk seluruh bank soal' })
     @IsOptional()

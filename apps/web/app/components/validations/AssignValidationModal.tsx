@@ -7,13 +7,16 @@ import {
     Loader2,
     Search,
     BookOpen,
+    AlertTriangle,
+    ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Modal, ModalBody, ModalFooter } from '@/app/components/ui/modal';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
 import { DatePicker } from '@/app/components/ui/DatePicker';
 import { listTeachersAndInvigilators, type PASStaffMember } from '@/lib/api/pas';
-import { listValidations, createValidation, listValidationFolders, type ValidationFolder, type ApprovalRule } from '@/lib/api/validations';
+import { listValidations, createValidation, listValidationFolders, type ValidationFolder, type ApprovalRule, type ValidationSession } from '@/lib/api/validations';
+import { VALIDATION_STATUS_LABELS } from '@/lib/validation-status';
 import type { QuestionBank } from '@/lib/api/questions';
 
 const VALIDATOR_ROLES = ['Guru', 'Proktor', 'Admin'];
@@ -69,9 +72,14 @@ export function AssignValidationModal({
         };
     }, [isOpen, isBankDropdownOpen]);
     const [existingTitles, setExistingTitles] = useState<string[]>([]);
+    // Satu bank soal hanya boleh punya satu sesi validasi (ditegakkan juga di API).
+    const [sessionByBank, setSessionByBank] = useState<Record<string, ValidationSession>>({});
 
     const [staffList, setStaffList] = useState<PASStaffMember[]>([]);
     const [teacherSearch, setTeacherSearch] = useState('');
+    // Daftar guru disembunyikan sampai kolomnya diklik, supaya modal tidak
+    // langsung dipenuhi puluhan nama.
+    const [validatorsOpen, setValidatorsOpen] = useState(false);
     const [staffLoading, setStaffLoading] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -106,6 +114,11 @@ export function AssignValidationModal({
                 new Set(valRes.map(v => v.title).filter((t): t is string => Boolean(t && t.trim())))
             );
             setExistingTitles(titles);
+            const byBank: Record<string, ValidationSession> = {};
+            for (const session of valRes) {
+                if (session.bank_id && !byBank[session.bank_id]) byBank[session.bank_id] = session;
+            }
+            setSessionByBank(byBank);
         }).catch(error => {
             if (!cancelled) setErrorMessage(error instanceof Error ? error.message : 'Folder validasi belum dapat dimuat.');
         }).finally(() => { if (!cancelled) setStaffLoading(false); });
@@ -131,6 +144,10 @@ export function AssignValidationModal({
         return isEligibleValidator(staff) && staff.name.toLowerCase().includes(query);
     });
 
+    const selectedValidatorNames = selectedValidatorIds
+        .map(id => staffList.find(staff => staff.id === id)?.name)
+        .filter((name): name is string => Boolean(name));
+
     const filteredBanks = banks.filter(b => {
         const q = bankSearchQuery.toLowerCase();
         return (
@@ -141,6 +158,7 @@ export function AssignValidationModal({
     });
 
     const selectedBankObj = banks.find(b => b.id === targetBankId);
+    const existingSession = targetBankId ? sessionByBank[targetBankId] : undefined;
 
     const handleSelectBank = (bank: QuestionBank) => {
         setTargetBankId(bank.id);
@@ -158,6 +176,10 @@ export function AssignValidationModal({
 
         if (!targetBankId) {
             setErrorMessage('Pilih bank soal yang akan divalidasi.');
+            return;
+        }
+        if (existingSession) {
+            setErrorMessage('Bank soal ini sudah memiliki sesi validasi. Satu bank soal hanya boleh memiliki satu sesi validasi.');
             return;
         }
         if (!title.trim()) {
@@ -206,6 +228,7 @@ export function AssignValidationModal({
         { value: 'unanimous', label: 'Semua Validator Harus Setuju (Mutlak)' },
         { value: 'any', label: 'Cukup Salah Satu Setuju' },
         { value: 'admin_decides', label: 'Keputusan Akhir oleh Admin/Proktor' },
+        { value: 'notes_only', label: 'Tidak Ada Persetujuan (Catatan Saja)' },
     ];
 
     return (
@@ -225,14 +248,24 @@ export function AssignValidationModal({
                 )}
 
                 {/* Bank Soal Selection (Searchable) */}
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Folder Validasi
-                    <select aria-label="Folder untuk validasi baru" value={folderId} onChange={event => setFolderId(event.target.value)} disabled={isSubmitting || staffLoading}
-                        className="mt-1.5 w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-2.5 text-sm font-normal">
-                        <option value="">Tanpa Folder</option>
-                        {availableFolders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
-                    </select>
-                </label>
+                <div>
+                    <label htmlFor="assign-validation-folder" className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                        Folder Validasi
+                    </label>
+                    <InlineSelect
+                        id="assign-validation-folder"
+                        aria-label="Folder untuk validasi baru"
+                        value={folderId}
+                        onChange={setFolderId}
+                        disabled={isSubmitting || staffLoading}
+                        options={[
+                            { value: '', label: 'Tanpa Folder' },
+                            ...availableFolders.map(folder => ({ value: folder.id, label: folder.name })),
+                        ]}
+                        minWidth="100%"
+                        height="38px"
+                    />
+                </div>
                 <div ref={bankPickerRef}>
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                         Bank Soal yang Divalidasi <span className="text-red-500">*</span>
@@ -308,14 +341,33 @@ export function AssignValidationModal({
                                                         {b.subject || 'Mapel Umum'} • {b.class_level || 'Semua Kelas'}
                                                     </p>
                                                 </div>
-                                                <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-500">
-                                                    Pilih
-                                                </span>
+                                                {sessionByBank[b.id] ? (
+                                                    <span className="shrink-0 text-[10px] bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 px-2 py-0.5 rounded text-amber-700 dark:text-amber-300 font-semibold">
+                                                        Sudah ada sesi
+                                                    </span>
+                                                ) : (
+                                                    <span className="shrink-0 text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-500">
+                                                        Pilih
+                                                    </span>
+                                                )}
                                             </div>
                                         ))
                                     )}
                                 </div>
                             )}
+                        </div>
+                    )}
+                    {existingSession && (
+                        <div role="alert" className="mt-2 flex items-start gap-2.5 rounded-xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200">
+                            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                            <div className="min-w-0">
+                                <p className="font-bold">Bank soal ini sudah memiliki sesi validasi</p>
+                                <p className="mt-0.5 break-words">
+                                    {existingSession.title ? <>&ldquo;{existingSession.title}&rdquo; · </> : null}
+                                    {VALIDATION_STATUS_LABELS[existingSession.status] || existingSession.status}
+                                </p>
+                                <p className="mt-1">Satu bank soal hanya boleh memiliki satu sesi validasi. Lanjutkan sesi tersebut, atau hapus dulu bila ingin membuat sesi baru.</p>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -352,6 +404,27 @@ export function AssignValidationModal({
                         </span>
                     </div>
 
+                    <button
+                        type="button"
+                        onClick={() => setValidatorsOpen(open => !open)}
+                        aria-expanded={validatorsOpen}
+                        aria-controls="assign-validator-list"
+                        className="w-full min-h-[38px] px-3.5 py-2 flex items-center justify-between gap-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-left text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                    >
+                        <span className={`min-w-0 truncate ${selectedValidatorNames.length ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400'}`}>
+                            {selectedValidatorNames.length
+                                ? selectedValidatorNames.join(', ')
+                                : 'Klik untuk memilih guru validator'}
+                        </span>
+                        <ChevronDown
+                            size={16}
+                            aria-hidden="true"
+                            className={`shrink-0 text-slate-400 transition-transform ${validatorsOpen ? 'rotate-180' : ''}`}
+                        />
+                    </button>
+
+                    {validatorsOpen && (
+                    <div id="assign-validator-list" className="mt-2">
                     {/* Search Guru */}
                     <div className="relative mb-2">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
@@ -410,6 +483,8 @@ export function AssignValidationModal({
                             })
                         )}
                     </div>
+                    </div>
+                    )}
                 </div>
 
                 {/* Deadline & Kebijakan Persetujuan (InlineSelect) */}
@@ -437,6 +512,11 @@ export function AssignValidationModal({
                             minWidth="100%"
                             height="38px"
                         />
+                        {approvalRule === 'notes_only' && (
+                            <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                                Validator hanya memberi catatan tanpa rekomendasi Layak/Revisi/Tolak. Sesi selesai ditelaah setelah semua validator mengirim.
+                            </p>
+                        )}
                     </div>
                 </div>
 
@@ -461,7 +541,7 @@ export function AssignValidationModal({
                 </Button>
                 <Button
                     onClick={handleSubmit}
-                    disabled={isSubmitting || staffLoading || !folderReady || !targetBankId || selectedValidatorIds.length === 0}
+                    disabled={isSubmitting || staffLoading || !folderReady || !targetBankId || Boolean(existingSession) || selectedValidatorIds.length === 0}
                     className="bg-primary hover:bg-primary/90 text-white font-bold flex items-center gap-1.5 text-xs shadow-sm"
                     size="sm"
                 >

@@ -11,7 +11,11 @@ const { ForbiddenException } = require('@nestjs/common');
 const user = id => ({ id, organizationId: 'school', roles: [id === 'admin' ? 'ADMIN' : 'GURU'], isPlatformAdmin: false });
 function setup(rule = 'any', options = {}) {
     const db = fixtureDb({
-        cbt_question_banks: [{ id: 'bank', organization_id: 'school', created_by: 'owner', is_published: false }],
+        cbt_question_banks: [
+            { id: 'bank', organization_id: 'school', created_by: 'owner', is_published: false },
+            // Bank tanpa sesi validasi: satu bank hanya boleh punya satu sesi.
+            { id: 'fresh', organization_id: 'school', created_by: 'owner', is_published: false },
+        ],
         cbt_question_bank_validations: [{ id: 'session', bank_id: 'bank', organization_id: 'school', approval_rule: rule, status: 'pending' }],
         cbt_question_bank_validators: ['a', 'b'].map(id => ({ id, validation_id: 'session', validator_id: id, status: 'assigned' })),
         cbt_bank_questions: [{ id: 'q1', bank_id: 'bank' }, { id: 'q2', bank_id: 'bank' }, { id: 'foreign', bank_id: 'other' }, { id: 'deleted', bank_id: 'bank', metadata: { _deleted: true } }],
@@ -196,7 +200,7 @@ const withRoles = (authz, override) => {
         return result === undefined ? original(id, org, roles) : result;
     };
 };
-const createDto = extra => ({ bankId: 'bank', validatorIds: ['a', 'b'], ...extra });
+const createDto = extra => ({ bankId: 'fresh', validatorIds: ['a', 'b'], ...extra });
 
 test('Create rejects non-staff validators, the bank owner and past deadlines without writes', async () => {
     const { db, authz, service } = setup();
@@ -559,4 +563,71 @@ test('Bulk item status marks many questions Layak at once, updating existing mar
     await assert.rejects(service.setItemsStatus(user('owner'), 'session', ['q1'], 'valid'), ForbiddenException);
     await service.submitReview(user('a'), 'session', recommendation('approved'));
     await assert.rejects(service.setItemsStatus(user('a'), 'session', ['q1'], 'valid'), /Buka kembali/);
+});
+
+test('One bank has at most one validation session; the check runs under a per-bank lock', async () => {
+    const { db, service } = setup();
+    const locks = [];
+    const raw = db.raw;
+    db.raw = async (sql, ...args) => {
+        if (/pg_advisory_xact_lock/.test(sql)) locks.push(args[0]);
+        return raw(sql, ...args);
+    };
+    await assert.rejects(
+        service.create(user('admin'), createDto({ bankId: 'bank', deadline: '2999-01-01T00:00:00Z' })),
+        error => error.getStatus?.() === 409 && /sudah memiliki sesi validasi/.test(error.message),
+    );
+    assert.ok(locks.includes('validation-bank:bank'));
+    assert.equal(db.tables.cbt_question_bank_validations.length, 1);
+    assert.equal(db.tables.cbt_question_bank_validators.length, 2);
+
+    const created = await service.create(user('admin'), createDto({ deadline: '2999-01-01T00:00:00Z' }));
+    assert.equal(db.tables.cbt_question_bank_validations.filter(row => row.bank_id === 'fresh').length, 1);
+    await assert.rejects(service.create(user('admin'), createDto({ deadline: '2999-01-01T00:00:00Z' })), /sudah memiliki sesi validasi/);
+
+    // Setelah sesi lama dihapus, bank boleh divalidasi lagi dengan sesi baru.
+    await service.removeSession(user('admin'), created.id);
+    await service.create(user('admin'), createDto({ deadline: '2999-01-01T00:00:00Z' }));
+    assert.equal(db.tables.cbt_question_bank_validations.filter(row => row.bank_id === 'fresh').length, 1);
+});
+
+test('Assign modal warns and blocks a bank that already has a validation session', () => {
+    const fs = require('node:fs');
+    const source = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/validations/AssignValidationModal.tsx'), 'utf8');
+    assert.match(source, /Bank soal ini sudah memiliki sesi validasi/);
+    assert.match(source, /Sudah ada sesi/);
+    assert.match(source, /Boolean\(existingSession\)/);
+    // Folder memakai InlineSelect, daftar guru tersembunyi sampai kolomnya diklik.
+    assert.doesNotMatch(source, /<select/);
+    assert.match(source, /id="assign-validation-folder"/);
+    assert.match(source, /aria-expanded=\{validatorsOpen\}/);
+    assert.match(source, /\{validatorsOpen && \(/);
+});
+
+test('Notes-only sessions need no recommendation and end as reviewed once every validator submits', async () => {
+    const { db, service } = setup('notes_only');
+    const sessionRow = () => db.tables.cbt_question_bank_validations.find(row => row.id === 'session');
+    await service.submitReview(user('a'), 'session', { generalComment: 'Perhatikan ejaan nomor 3.' });
+    assert.equal(sessionRow().status, 'in_progress');
+    // Rekomendasi yang terlanjur dikirim diabaikan: sesi ini tanpa persetujuan.
+    await service.submitReview(user('b'), 'session', recommendation('rejected'));
+    assert.equal(sessionRow().status, 'reviewed');
+    const validators = db.tables.cbt_question_bank_validators.filter(row => row.validation_id === 'session');
+    assert.deepEqual(validators.map(row => row.general_recommendation ?? null), [null, null]);
+    await assert.rejects(service.decide(user('admin'), 'session', 'approved'), /keputusan otomatis/);
+});
+
+test('Approval sessions still require a recommendation', async () => {
+    const { db, service } = setup('unanimous');
+    await assert.rejects(service.submitReview(user('a'), 'session', { generalComment: 'Tanpa rekomendasi' }), /Pilih rekomendasi umum/);
+    assert.equal(db.tables.cbt_question_bank_validators.find(row => row.validator_id === 'a').status, 'assigned');
+});
+
+test('Assign modal offers the notes-only rule and the DTO accepts it', () => {
+    const fs = require('node:fs');
+    const source = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/validations/AssignValidationModal.tsx'), 'utf8');
+    assert.match(source, /value: 'notes_only', label: 'Tidak Ada Persetujuan \(Catatan Saja\)'/);
+    const migration = fs.readFileSync(path.resolve(__dirname, '../../../database/migrations/20261117_01_validation_notes_only.sql'), 'utf8');
+    assert.match(migration, /'notes_only'/);
+    assert.match(migration, /'reviewed'/);
 });

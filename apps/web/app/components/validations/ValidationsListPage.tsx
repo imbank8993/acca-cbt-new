@@ -276,6 +276,12 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                         <XCircle size={12} /> Ditolak
                     </span>
                 );
+            case 'reviewed':
+                return (
+                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300 flex items-center gap-1.5" title="Sesi tanpa persetujuan: validator hanya memberi catatan.">
+                        <CheckCircle2 size={12} /> Selesai Ditelaah
+                    </span>
+                );
         }
     };
 
@@ -541,6 +547,8 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                                         ? 'Konsensus Mutlak'
                                         : selectedDetailVal.approval_rule === 'any'
                                         ? 'Salah Satu Setuju'
+                                        : selectedDetailVal.approval_rule === 'notes_only'
+                                        ? 'Tanpa Persetujuan (Catatan Saja)'
                                         : 'Keputusan Admin'}
                                 </p>
                             </div>

@@ -53,7 +53,7 @@ const TASK_GROUPS: Array<{ id: TaskGroup; title: string; hint: string }> = [
 /** Tugas aktif = belum dikirim dan masih dalam batas waktu. */
 function taskGroup(task: ValidationTask): TaskGroup {
     if (task.status !== 'submitted') return isDeadlinePassed(task.validation.deadline) ? 'done' : 'action';
-    return ['approved', 'rejected'].includes(task.validation.status) ? 'done' : 'waiting';
+    return ['approved', 'rejected', 'reviewed'].includes(task.validation.status) ? 'done' : 'waiting';
 }
 
 /** Kalimat langkah berikutnya untuk tugas yang sudah dikirim. */
@@ -61,9 +61,12 @@ function submittedNextStep(task: ValidationTask): string {
     switch (task.validation.status) {
         case 'approved': return 'Bank soal disetujui.';
         case 'rejected': return 'Bank soal ditolak.';
+        case 'reviewed': return 'Semua validator sudah mengirim catatan (tanpa persetujuan).';
         case 'revision_needed': return 'Menunggu pembuat soal memperbaiki; tugas akan kembali sebagai telaah ulang.';
         case 'resubmitted': return 'Perbaikan sudah masuk; menunggu putaran telaah ulang dibuka.';
-        default: return 'Menunggu validator lain dan keputusan Proktor.';
+        default: return task.validation.approval_rule === 'notes_only'
+            ? 'Menunggu validator lain mengirim catatan.'
+            : 'Menunggu validator lain dan keputusan Proktor.';
     }
 }
 
@@ -173,7 +176,7 @@ export default function GuruValidationTasksPage() {
             };
         }
         if (status === 'in_progress') {
-            return { label: badge('text-blue-600 dark:text-blue-400', <Clock size={12} />, 'Sedang Dikerjakan'), next: 'Lanjutkan menilai, lalu kirim rekomendasi.' };
+            return { label: badge('text-blue-600 dark:text-blue-400', <Clock size={12} />, 'Sedang Dikerjakan'), next: task.validation.approval_rule === 'notes_only' ? 'Lanjutkan menelaah, lalu kirim catatan.' : 'Lanjutkan menilai, lalu kirim rekomendasi.' };
         }
         return { label: badge('text-amber-600 dark:text-amber-400', <AlertCircle size={12} />, 'Belum Dikerjakan'), next: 'Mulai menilai butir soal.' };
     };

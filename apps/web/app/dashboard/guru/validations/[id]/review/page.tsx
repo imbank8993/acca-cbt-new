@@ -644,7 +644,9 @@ export default function ValidatorReviewPage() {
 
     const handleFinalSubmit = async () => {
         if (!canEdit) return;
-        if (!generalRec) {
+        // Sesi catatan saja (tanpa persetujuan) tidak memakai rekomendasi.
+        const isNotesOnly = validation?.approval_rule === 'notes_only';
+        if (!isNotesOnly && !generalRec) {
             setSubmitError('Pilih rekomendasi kelayakan bank soal terlebih dahulu.');
             return;
         }
@@ -657,7 +659,7 @@ export default function ValidatorReviewPage() {
         setSubmitError(null);
         try {
             const res = await submitValidationReview(validationId, {
-                generalRecommendation: generalRec,
+                generalRecommendation: isNotesOnly || !generalRec ? undefined : generalRec,
                 generalComment: composedComment,
             });
 
@@ -705,7 +707,8 @@ export default function ValidatorReviewPage() {
         ...(selectedOptionId ? [{ value: 'option' as const, label: optionIndex >= 0 ? `Opsi ${String.fromCharCode(65 + optionIndex)}` : 'Opsi terpilih' }] : []),
         { value: 'general', label: 'Umum' },
     ];
-    const contradiction = generalRec === 'approved' && flaggedCount > 0
+    const notesOnly = validation.approval_rule === 'notes_only';
+    const contradiction = notesOnly ? null : generalRec === 'approved' && flaggedCount > 0
         ? `Anda memilih Disetujui, padahal ${flaggedCount} butir Anda nilai Revisi/Tolak.`
         : (generalRec === 'revision_needed' || generalRec === 'rejected') && flaggedCount === 0
             ? 'Belum ada butir yang Anda nilai Revisi/Tolak. Beri catatan pada butir yang perlu diperbaiki agar pembuat soal tahu bagian yang dimaksud.'
@@ -722,7 +725,11 @@ export default function ValidatorReviewPage() {
     const toFix = statusCounts.revision + statusCounts.rejected;
     const fixLabel = toFix ? `${toFix} butir yang` : 'butir yang';
     /** Apa yang terjadi setelah hasil dikirim, dalam bahasa validator. */
-    const nextStepText = submittedRec === 'approved'
+    const nextStepText = notesOnly
+        ? (validation.status === 'reviewed'
+            ? 'Sesi ini tanpa persetujuan dan semua validator sudah mengirim catatan. Pembuat soal dapat menindaklanjuti catatan Anda.'
+            : 'Sesi ini tanpa persetujuan: catatan Anda diteruskan kepada pembuat soal. Menunggu validator lain mengirim catatannya.')
+        : submittedRec === 'approved'
         ? 'Anda menyatakan bank soal ini layak. Tidak ada lagi yang perlu Anda kerjakan, kecuali Proktor membuka putaran telaah ulang.'
         : validation.status === 'pending' || validation.status === 'in_progress'
             ? `Menunggu validator lain dan keputusan Proktor. Bila perbaikan diminta, pembuat soal memperbaiki ${fixLabel} Anda tandai, lalu tugas ini kembali ke daftar Anda sebagai "Perlu Ditelaah Ulang".`
@@ -731,9 +738,9 @@ export default function ValidatorReviewPage() {
     // Tahapan alur validasi untuk validator ini (lihat ValidationStepper).
     const stepperSteps = [
         `Nilai butir · ${reviewedCount}/${questions.length}`,
-        'Kirim rekomendasi',
-        submittedRec === 'approved' ? 'Selesai' : 'Pembuat soal memperbaiki',
-        ...(submittedRec === 'approved' && round === 1 ? [] : [round > 1 && !alreadySubmitted && pendingVerification.length
+        notesOnly ? 'Kirim catatan' : 'Kirim rekomendasi',
+        notesOnly || submittedRec === 'approved' ? 'Selesai' : 'Pembuat soal memperbaiki',
+        ...((notesOnly || submittedRec === 'approved') && round === 1 ? [] : [round > 1 && !alreadySubmitted && pendingVerification.length
             ? `Telaah ulang · ${pendingVerification.length} perbaikan belum dinilai` : 'Telaah ulang']),
     ];
     const stepperCurrent = alreadySubmitted ? 2 : round > 1 ? 3 : unreviewedCount > 0 ? 0 : 1;
@@ -916,9 +923,9 @@ export default function ValidatorReviewPage() {
                                         <span className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
                                             {viewedValidator.status === 'submitted' ? 'Terkirim' : viewedValidator.status === 'in_progress' ? 'Sedang dikerjakan' : 'Belum dikerjakan'}
                                         </span>
-                                        <span className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
+                                        {!notesOnly && <span className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
                                             Rekomendasi: {RECOMMENDATIONS.find(rec => rec.id === viewedValidator.general_recommendation)?.label || '—'}
-                                        </span>
+                                        </span>}
                                         <span className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
                                             Dinilai {reviewedCount}/{questions.length}
                                         </span>
@@ -951,8 +958,8 @@ export default function ValidatorReviewPage() {
                             </div>
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                 <div className="rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2">
-                                    <p className="text-[10px] font-semibold text-slate-500">Rekomendasi</p>
-                                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{RECOMMENDATIONS.find(rec => rec.id === submittedRec)?.label || '—'}</p>
+                                    <p className="text-[10px] font-semibold text-slate-500">{notesOnly ? 'Jenis sesi' : 'Rekomendasi'}</p>
+                                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{notesOnly ? 'Catatan saja' : RECOMMENDATIONS.find(rec => rec.id === submittedRec)?.label || '—'}</p>
                                 </div>
                                 {summaryTiles.slice(0, 3).map(tile => (
                                     <div key={tile.label} className={`rounded-xl border px-3 py-2 ${tile.tone}`}>
@@ -1335,7 +1342,7 @@ export default function ValidatorReviewPage() {
                     onClose={() => { if (!isSubmittingFinal) setIsSubmitModalOpen(false); }}
                     size="md"
                     title={round > 1 ? 'Kirim Hasil Telaah Ulang' : 'Selesaikan Validasi Bank Soal'}
-                    subtitle="Rekomendasi dikirim kepada proktor dan guru pembuat soal."
+                    subtitle={notesOnly ? 'Catatan dikirim kepada proktor dan guru pembuat soal, tanpa persetujuan.' : 'Rekomendasi dikirim kepada proktor dan guru pembuat soal.'}
                     icon={<ShieldCheck size={20} />}
                 >
                     <ModalBody className="space-y-4">
@@ -1347,6 +1354,11 @@ export default function ValidatorReviewPage() {
                                 </div>
                             ))}
                         </div>
+                        {notesOnly ? (
+                            <p className="rounded-xl border border-violet-200 dark:border-violet-900/50 bg-violet-50 dark:bg-violet-950/30 p-3 text-xs text-violet-800 dark:text-violet-300">
+                                Sesi ini <strong>tanpa persetujuan</strong>: Anda cukup mengirim catatan dan kesimpulan, tanpa memilih Disetujui, Perlu Revisi, atau Ditolak.
+                            </p>
+                        ) : (
                         <div className="space-y-2">
                             <p className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                                 Rekomendasi Kelayakan Bank Soal:
@@ -1378,6 +1390,7 @@ export default function ValidatorReviewPage() {
                                 </p>
                             )}
                         </div>
+                        )}
 
                         {(unreviewedCount > 0 || contradiction || pendingVerification.length > 0) && (
                             <ul className="space-y-1.5 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 p-3 text-xs text-amber-800 dark:text-amber-300 list-disc pl-6">
@@ -1434,7 +1447,7 @@ export default function ValidatorReviewPage() {
                         </Button>
                         <Button
                             onClick={handleFinalSubmit}
-                            disabled={isSubmittingFinal || !generalRec}
+                            disabled={isSubmittingFinal || (!notesOnly && !generalRec)}
                             className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5"
                         >
                             {isSubmittingFinal ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}

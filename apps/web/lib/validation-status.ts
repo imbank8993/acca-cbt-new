@@ -1,5 +1,5 @@
 import type { BankValidationSummary } from '@/lib/api/questions';
-import type { NoteCategory, ValidationStatus } from '@/lib/api/validations';
+import type { ApprovalRule, NoteCategory, ValidationStatus } from '@/lib/api/validations';
 
 /** Nama kategori catatan validasi yang mudah dibaca. */
 export const NOTE_CATEGORY_LABELS: Record<NoteCategory, string> = {
@@ -14,6 +14,15 @@ export const VALIDATION_STATUS_LABELS: Record<ValidationStatus, string> = {
     resubmitted: 'Menunggu telaah ulang',
     approved: 'Tervalidasi',
     rejected: 'Ditolak',
+    reviewed: 'Selesai ditelaah',
+};
+
+/** Label aturan persetujuan sesi validasi. */
+export const APPROVAL_RULE_LABELS: Record<ApprovalRule, string> = {
+    unanimous: 'Semua validator harus setuju',
+    any: 'Cukup salah satu setuju',
+    admin_decides: 'Keputusan akhir oleh Admin/Proktor',
+    notes_only: 'Tanpa persetujuan (catatan saja)',
 };
 
 export type ValidationTone = 'slate' | 'blue' | 'amber' | 'teal' | 'violet' | 'emerald' | 'rose';
@@ -49,6 +58,10 @@ export function validationBadgeInfo(summary?: BankValidationSummary | null): Val
             return summary.openNotes > 0
                 ? { label: 'Ditolak', tone: 'rose', title: `Hasil validasi menyatakan ditolak${round}. ${note}` }
                 : { label: 'Ditolak · sudah diperbaiki', tone: 'teal', title: `Semua catatan sudah ditandai diperbaiki; ajukan telaah ulang dari tab Catatan Validasi. ${note}` };
+        case 'reviewed':
+            return summary.openNotes > 0
+                ? { label: `Selesai ditelaah · ${summary.openNotes} catatan`, tone: 'violet', title: `Validator sudah mengirim catatan tanpa persetujuan; ${summary.openNotes} catatan belum ditandai diperbaiki. ${note}` }
+                : { label: 'Selesai ditelaah', tone: 'violet', title: `Validator sudah mengirim catatan tanpa persetujuan. ${note}` };
         default:
             return null;
     }

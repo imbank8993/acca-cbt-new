@@ -69,7 +69,7 @@ export interface DimensionInterpretationItem {
 /** Ringkasan sesi validasi terbaru sebuah bank soal (hanya informasi). */
 export interface BankValidationSummary {
     id: string;
-    status: 'pending' | 'in_progress' | 'revision_needed' | 'resubmitted' | 'approved' | 'rejected';
+    status: 'pending' | 'in_progress' | 'revision_needed' | 'resubmitted' | 'approved' | 'rejected' | 'reviewed';
     round: number;
     /** Catatan Revisi/Tolak yang belum ditandai diperbaiki. */
     openNotes: number;

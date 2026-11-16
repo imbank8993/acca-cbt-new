@@ -96,6 +96,8 @@ export function ValidationReportModal({
                 return 'Sedang Divalidasi';
             case 'resubmitted':
                 return 'Menunggu Telaah Ulang';
+            case 'reviewed':
+                return 'Selesai Ditelaah (Tanpa Persetujuan)';
             default:
                 return 'Menunggu';
         }

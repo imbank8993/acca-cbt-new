@@ -2,9 +2,10 @@ import type { ProfilSekolah } from '@/lib/pas/print-kop';
 import { apiCreate, apiGet, apiSend } from './client';
 import type { QuestionBank, QuestionRecord } from './questions';
 
-export type ValidationStatus = 'pending' | 'in_progress' | 'revision_needed' | 'resubmitted' | 'approved' | 'rejected';
+export type ValidationStatus = 'pending' | 'in_progress' | 'revision_needed' | 'resubmitted' | 'approved' | 'rejected' | 'reviewed';
 export type ValidatorStatus = 'assigned' | 'in_progress' | 'submitted';
-export type ApprovalRule = 'unanimous' | 'any' | 'admin_decides';
+/** `notes_only`: tanpa persetujuan — validator hanya memberi catatan. */
+export type ApprovalRule = 'unanimous' | 'any' | 'admin_decides' | 'notes_only';
 export type NoteCategory = 'typo' | 'materi' | 'kunci_jawaban' | 'konstruksi' | 'bahasa' | 'lainnya';
 export type NoteStatusItem = 'valid' | 'revision' | 'rejected';
 export type NoteVerification = 'accepted' | 'not_fixed';
@@ -157,7 +158,8 @@ export interface UpdateValidationInput {
 }
 
 export interface SubmitValidationReviewInput {
-    generalRecommendation: 'approved' | 'revision_needed' | 'rejected';
+    /** Dikosongkan pada sesi catatan saja (`notes_only`). */
+    generalRecommendation?: 'approved' | 'revision_needed' | 'rejected';
     generalComment?: string;
 }
 

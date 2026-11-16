@@ -24,12 +24,12 @@ import {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-type SessionStatus = 'pending' | 'in_progress' | 'revision_needed' | 'resubmitted' | 'approved' | 'rejected';
+type SessionStatus = 'pending' | 'in_progress' | 'revision_needed' | 'resubmitted' | 'approved' | 'rejected' | 'reviewed';
 interface SessionRow {
     id: string;
     bank_id: string;
     organization_id: string;
-    approval_rule: 'unanimous' | 'any' | 'admin_decides';
+    approval_rule: 'unanimous' | 'any' | 'admin_decides' | 'notes_only';
     status: SessionStatus;
     deadline?: string | null;
     round?: number | null;
@@ -41,6 +41,8 @@ interface ValidatorRecommendation { status: string; general_recommendation?: str
 const SESSION_COLUMNS = 'id, bank_id, organization_id, approval_rule, status, deadline, round, created_by';
 /** Sesi yang masih berjalan: keanggotaan validator boleh diubah. */
 const RUNNING_STATUSES: SessionStatus[] = ['pending', 'in_progress', 'resubmitted'];
+/** Sesi yang sudah berakhir: tidak lagi menjadi tugas aktif validator. */
+const CLOSED_STATUSES: SessionStatus[] = ['approved', 'rejected', 'reviewed'];
 
 /** Tanggal lama 00:00 UTC (= 08:00 WITA) berlaku sampai akhir hari itu. */
 export function isValidationDeadlinePassed(value: string | null | undefined, now = Date.now()): boolean {
@@ -64,6 +66,11 @@ export function computeValidationStatus(
     const allSubmitted = validators.length > 0 && submitted.length === validators.length;
     const hasApproved = submitted.some(v => v.general_recommendation === 'approved');
     const hasRevision = submitted.some(v => v.general_recommendation === 'revision_needed');
+    if (session.approval_rule === 'notes_only') {
+        // Catatan saja: tidak ada persetujuan. Sesi selesai ditelaah begitu
+        // seluruh validator mengirim catatannya.
+        return allSubmitted ? 'reviewed' : waiting;
+    }
     if (session.approval_rule === 'any') {
         if (hasApproved) return 'approved';
         if (allSubmitted) return hasRevision ? 'revision_needed' : 'rejected';
@@ -365,6 +372,26 @@ export class ValidationsService {
         const title = dto.title?.trim() || `Validasi: ${(bank as { title: string }).title}`;
 
         const validation = await this.db.transaction(async (tx) => {
+            // Satu bank soal hanya boleh punya SATU sesi validasi. Putaran ulang
+            // (revisi, buka kembali) berjalan di sesi yang sama; sesi baru baru
+            // boleh dibuat setelah sesi lama dihapus. Lock per bank mencegah dua
+            // permintaan bersamaan sama-sama lolos pemeriksaan di bawah.
+            await advisoryTransactionLock(tx, `validation-bank:${dto.bankId}`);
+            const { data: existing, error: existingErr } = await tx
+                .from('cbt_question_bank_validations')
+                .select('id, title')
+                .eq('bank_id', dto.bankId)
+                .limit(1);
+            if (existingErr) {
+                throw new BadRequestException('Gagal memeriksa sesi validasi bank soal ini. Silakan coba lagi.');
+            }
+            const current = (existing as Array<{ id: string; title: string | null }> | null)?.[0];
+            if (current) {
+                throw new ConflictException(
+                    `Bank soal ini sudah memiliki sesi validasi${current.title ? ` "${current.title}"` : ''}. ` +
+                    'Satu bank soal hanya boleh memiliki satu sesi validasi — lanjutkan sesi tersebut atau hapus dulu sebelum membuat yang baru.',
+                );
+            }
             await this.assertFolderUsable(tx, dto.folderId, organizationId);
             const { data: valRow, error: valErr } = await tx
                 .from('cbt_question_bank_validations')
@@ -551,7 +578,7 @@ export class ValidationsService {
             const session = row.validation;
             if (!session || session.organization_id !== organizationId) return false;
             if (restricted && session.bank?.created_by !== user.id && session.bank?.is_published !== true) return false;
-            return !['approved', 'rejected'].includes(session.status) && !isValidationDeadlinePassed(session.deadline);
+            return !CLOSED_STATUSES.includes(session.status) && !isValidationDeadlinePassed(session.deadline);
         }).length;
 
         const bankIds = ((banks.data as Array<{ id: string }>) || []).map(bank => bank.id);
@@ -788,14 +815,19 @@ export class ValidationsService {
                     throw new BadRequestException(`Nilai dulu ${unchecked.length} perbaikan dari putaran sebelumnya (Diterima/Belum sesuai) sebelum mengirim hasil.`);
                 }
             }
+            // Sesi catatan saja tidak memakai rekomendasi; sesi lain mewajibkannya.
+            const recommendation = session.approval_rule === 'notes_only' ? null : dto.generalRecommendation;
+            if (session.approval_rule !== 'notes_only' && !recommendation) {
+                throw new BadRequestException('Pilih rekomendasi umum (Layak, Perlu revisi, atau Ditolak) sebelum mengirim hasil.');
+            }
             const { data: previous, error: previousError } = await tx.from('cbt_question_bank_validators').select('status, general_recommendation, general_comment').eq('id', (vAssignment as any).id).single();
             if (previousError || !previous) throw new BadRequestException('Rekomendasi sebelumnya tidak dapat dibaca.');
-            const changed = previous.status !== 'submitted' || previous.general_recommendation !== dto.generalRecommendation || (previous.general_comment || '') !== (dto.generalComment?.trim() || '');
+            const changed = previous.status !== 'submitted' || (previous.general_recommendation ?? null) !== recommendation || (previous.general_comment || '') !== (dto.generalComment?.trim() || '');
             const now = new Date().toISOString();
             const { error: submitError } = await tx
                 .from('cbt_question_bank_validators')
                 .update({
-                    status: 'submitted', general_recommendation: dto.generalRecommendation,
+                    status: 'submitted', general_recommendation: recommendation,
                     general_comment: dto.generalComment?.trim() || '', submitted_at: now, updated_at: now,
                 }).eq('id', (vAssignment as any).id);
             if (submitError) throw new BadRequestException('Gagal menyimpan rekomendasi validator.');
