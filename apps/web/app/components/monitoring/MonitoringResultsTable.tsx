@@ -76,7 +76,7 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
     const selectedFacts = selectedAttempt ? getAttemptResultFacts(selectedAttempt) : null;
 
     return <div className="monitoring-results-table overflow-x-auto">
-        <table className="w-full sm:min-w-[780px] text-left text-xs sm:text-sm">
+        <table className="mobile-data-cards w-full sm:min-w-[780px] text-left text-xs sm:text-sm">
             <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
                     <th scope="col" className="p-3 sm:px-4 sm:py-3">Peserta</th>
@@ -116,8 +116,7 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
                             <td className="p-3 sm:px-4 sm:py-3">
                                 <button type="button" className="monitoring-participant-name font-medium sm:font-semibold text-slate-800" onClick={event => { event.stopPropagation(); setSelectedId(att.id); }}>{formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}</button>
                                 <span className="mt-1 sm:mt-0.5 block text-xs text-slate-500">{att.profiles?.identity_number ? `${att.profiles.identity_number} · ` : ''}{att.kelas_name || 'Tanpa kelas'}</span>
-                                {showRoomInfo && <div className="hidden sm:block"><ParticipantRoomInfo attempt={att} /></div>}
-                                <span className="mt-2 block text-[11px] text-slate-500 sm:hidden">{statusText} · {answered ?? '—'} / {total ?? '—'} terjawab</span>
+                                {showRoomInfo && <div><ParticipantRoomInfo attempt={att} /></div>}
                             </td>
                             <td className="hidden px-4 py-3 sm:table-cell">
                                 <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${statusBadgeClass}`}>
@@ -129,9 +128,6 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
                             </td>
                             <td className={`p-3 w-[115px] sm:w-auto sm:px-4 sm:py-3 sm:text-right font-semibold tabular-nums ${getScoreColorClass(score)}`}>
                                 <div>{score === null ? isUnstarted ? '—' : classicalModel?.pendingLabel ?? 'Menunggu nilai' : score.toFixed(2)}</div>
-                                <div className="mt-0.5 text-[11px] font-medium text-slate-500 sm:hidden">
-                                    {answered ?? '—'} / {total ?? '—'} terjawab
-                                </div>
                             </td>
                             <td className="hidden whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-slate-800 sm:table-cell">
                                 {irtScores.length === 0 ? <span className="text-slate-400">—</span> : (

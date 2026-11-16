@@ -202,7 +202,7 @@ export default function GuruValidationTasksPage() {
     const renderTaskTable = (items: ValidationTask[]) => (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="mobile-data-cards w-full text-left border-collapse">
                     <thead>
                         <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                             <th className="py-3 px-4">Bank Soal</th>
@@ -224,7 +224,7 @@ export default function GuruValidationTasksPage() {
                             return (
                                 <tr key={task.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                                     {/* Bank Soal */}
-                                    <td className="py-3.5 px-4 max-w-xs">
+                                    <td data-mobile-label="Bank soal" className="py-3.5 px-4 max-w-xs">
                                         <p className="font-bold text-slate-800 dark:text-slate-100 line-clamp-1" title={val.title}>
                                             {val.title}
                                         </p>
@@ -235,7 +235,7 @@ export default function GuruValidationTasksPage() {
                                     </td>
 
                                     {/* Arahan Proktor */}
-                                    <td className="py-3.5 px-4 max-w-xs">
+                                    <td data-mobile-label="Arahan Proktor" className="py-3.5 px-4 max-w-xs">
                                         {val.instructions ? (
                                             <p className="text-[11px] text-slate-600 dark:text-slate-300 italic line-clamp-2" title={val.instructions}>
                                                 &quot;{val.instructions}&quot;
@@ -246,13 +246,13 @@ export default function GuruValidationTasksPage() {
                                     </td>
 
                                     {/* Status + langkah berikutnya */}
-                                    <td className="py-3.5 px-4 max-w-[260px]">
+                                    <td data-mobile-label="Status" className="py-3.5 px-4 max-w-[260px]">
                                         {statusInfo.label}
                                         <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{statusInfo.next}</p>
                                     </td>
 
                                     {/* Batas Waktu */}
-                                    <td className="py-3.5 px-4 whitespace-nowrap text-slate-600 dark:text-slate-400 font-medium text-[11px]">
+                                    <td data-mobile-label="Batas waktu" className="py-3.5 px-4 whitespace-nowrap text-slate-600 dark:text-slate-400 font-medium text-[11px]">
                                         {val.deadline ? (
                                             <span className={`flex items-center gap-1 ${overdue ? 'text-rose-600 dark:text-rose-400 font-semibold' : ''}`}>
                                                 <Calendar size={12} className={overdue ? '' : 'text-slate-400'} />
@@ -264,7 +264,7 @@ export default function GuruValidationTasksPage() {
                                     </td>
 
                                     {/* Aksi */}
-                                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                    <td data-mobile-label="Aksi" className="py-3.5 px-4 text-right whitespace-nowrap">
                                         <Link
                                             href={`/dashboard/guru/validations/${val.id}/review`}
                                             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
@@ -292,7 +292,7 @@ export default function GuruValidationTasksPage() {
     return (
         <div className="flex flex-col gap-4 sm:gap-6">
             {/* Filter Toolbar (Standardized ACCA Design) */}
-            <FilterToolbar className="validation-toolbar">
+            <FilterToolbar className="validation-toolbar ftb-toolbar--noSticky">
                 <FilterSearch
                     value={searchQuery}
                     onChange={setSearchQuery}

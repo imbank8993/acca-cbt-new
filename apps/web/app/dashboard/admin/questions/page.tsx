@@ -28,6 +28,7 @@ Check,
 ChevronRight,
 Edit3,
 Folder,
+FolderPlus,
 Globe,
 Lock,
 MoreHorizontal,
@@ -668,10 +669,10 @@ export default function ProktorQuestionBankPage() {
                         {!activeFolder && <Button
                             variant="outline"
                             className="ftb-btn-icon-mobile rounded-full"
-                            leftIcon={<Folder size={18} className="text-[#3083FF] dark:text-[#60a5fa]" />}
+                            leftIcon={<FolderPlus size={18} className="text-[#3083FF] dark:text-[#60a5fa]" />}
                             onClick={handleOpenCreateFolder}
-                            title="Folder"
-                            aria-label="Folder"
+                            title="Tambah folder"
+                            aria-label="Tambah folder"
                         >
                             Folder
                         </Button>}

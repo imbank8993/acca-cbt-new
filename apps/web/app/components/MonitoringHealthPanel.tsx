@@ -105,7 +105,7 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, exte
                 text={`Perlu perhatian${needingAttention.length > 0 ? ` (${needingAttention.length})` : ''}`}
                 checked={onlyAttention} onChange={value => { setOnlyAttention(value); setPage(1); }} />
         </FilterToolbar>}
-        <div className={`${externalFilters ? '' : 'mt-3 '}overflow-x-auto rounded-lg border border-slate-200`}><table className="w-full sm:min-w-[720px] text-left text-xs">
+        <div className={`${externalFilters ? '' : 'mt-3 '}overflow-x-auto rounded-lg border border-slate-200`}><table className="mobile-data-cards w-full sm:min-w-[720px] text-left text-xs">
             <thead><tr className="border-b bg-slate-50 text-slate-500"><th className="p-3 font-semibold">Peserta</th><th className="p-3 font-semibold" aria-sort={onlyIncomplete ? "descending" : "ascending"} title={onlyIncomplete ? "Soal belum dijawab, dari paling banyak" : "Jumlah soal dijawab, dari paling sedikit"}>Jawaban {onlyIncomplete ? "↓" : "↑"}</th><th className="hidden p-3 font-semibold sm:table-cell">Status</th><th className="hidden p-3 font-semibold sm:table-cell">Peringatan</th><th className="hidden p-3 font-semibold sm:table-cell">Aksi</th></tr></thead>
             <tbody>{visibleRows.map(attempt => {
                 const health = attempt.sync_health;
@@ -121,11 +121,7 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, exte
                     <td className="p-3">
                         <button type="button" className="monitoring-participant-name font-medium text-slate-800" onClick={event => { event.stopPropagation(); setSelectedAttemptId(attempt.id); }}>{formatStudentName(attempt.profiles?.full_name, 'Tanpa nama')}</button>
                         <div className="mt-1 text-slate-500">{attempt.profiles?.identity_number || '—'} · {attempt.kelas_name || '—'}</div>
-                        <div className="hidden sm:block"><ParticipantRoomInfo attempt={attempt} /></div>
-                        <div className="monitoring-health__mobile-status sm:hidden">
-                            <span>{statusLabel}{active && remaining !== null && ` · Sisa ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`}</span>
-                            {(violationCount > 0 || (active && reasons.length > 0)) && <span className="text-amber-700">{violationCount > 0 ? `${violationCount} peringatan` : 'Perlu pemeriksaan'}</span>}
-                        </div>
+                        <div><ParticipantRoomInfo attempt={attempt} /></div>
                     </td>
                     <td className="p-3 w-[110px] sm:w-auto"><strong>{attempt.saved_answer_count ?? '—'} / {attempt.total_questions ?? '—'} terjawab</strong></td>
                     <td className="hidden p-3 sm:table-cell">

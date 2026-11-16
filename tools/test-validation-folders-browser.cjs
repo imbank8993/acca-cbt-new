@@ -21,6 +21,7 @@ for (const [name, file] of Object.entries({
     '@/app/components/ui/button': 'apps/web/app/components/ui/button.tsx',
     '@/app/components/ui/inlineselect': 'apps/web/app/components/ui/inlineselect.tsx',
     '@/app/components/ui/filtertoolbar': 'apps/web/app/components/ui/filtertoolbar.tsx',
+    '@/lib/validation-status': 'apps/web/lib/validation-status.ts',
 })) modules[name] = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: {
     module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022, esModuleInterop: true,
 } }).outputText;
@@ -39,18 +40,18 @@ for (const [name, file] of Object.entries({
             files.sort((a, b) => fs.statSync(b).size - fs.statSync(a).size);
             if (files[0]) css = fs.readFileSync(files[0], 'utf8');
         }
-        css += ['apps/web/app/components/validations/validation-folders.css', 'apps/web/app/components/validations/validations-mobile.css', 'apps/web/app/components/ui/modal.css', 'apps/web/app/components/ui/button.css', 'apps/web/app/components/ui/filter-toolbar.css']
+        css += ['apps/web/app/globals.css', 'apps/web/app/components/validations/validation-folders.css', 'apps/web/app/components/validations/validations-mobile.css', 'apps/web/app/components/ui/modal.css', 'apps/web/app/components/ui/button.css', 'apps/web/app/components/ui/filter-toolbar.css']
             .map(file => fs.readFileSync(file, 'utf8')).join('\n');
         await page.setContent('<div id="root" style="max-width:1280px;margin:auto;padding:24px"></div>');
         await page.addStyleTag({ content: css });
         await page.evaluate(modules => {
             let React;
             const state = window.state = { folders: [], created: [], teacher: false,
-                banks: [{ id: 'bank', title: 'Bank Matematika', subject: 'Matematika', created_by: 'owner' }],
+                banks: [{ id: 'bank', title: 'Bank Matematika', subject: 'Matematika', created_by: 'owner' }, { id: 'bank-2', title: 'Bank Bahasa', subject: 'Bahasa', created_by: 'owner' }],
                 sessions: [{ id: 'existing', title: 'Validasi Matematika', bank_id: 'bank', status: 'pending', folder_id: null, created_at: '2026-11-02', approval_rule: 'unanimous', validators: [{ id: 'assignment', validator_id: 'teacher', status: 'assigned', profile: { full_name: 'Guru Validator' } }, { id: 'admin-assignment', validator_id: 'admin', status: 'assigned', profile: { full_name: 'Admin Validator' } }] }],
             };
             const api = {
-                listValidations: async () => state.sessions.map(item => ({ ...item, bank: state.banks[0], folder: state.folders.find(folder => folder.id === item.folder_id) || null })),
+                listValidations: async () => state.sessions.map(item => ({ ...item, bank: state.banks.find(bank => bank.id === item.bank_id), folder: state.folders.find(folder => folder.id === item.folder_id) || null })),
                 listValidationFolders: async () => state.folders.map(folder => ({ ...folder, canManage: true, canDelete: !state.sessions.some(item => item.folder_id === folder.id) })),
                 listMyValidationTasks: async () => (await api.listValidations()).filter(item => item.validators.some(v => v.validator_id === 'teacher')).map(item => ({ id: item.id, status: 'assigned', validation: item })),
                 createValidationFolder: async name => {
@@ -75,6 +76,7 @@ for (const [name, file] of Object.entries({
                 '@/app/components/mobile/page-fab': { registerPageFab() {}, unregisterPageFab() {} },
                 '@/hooks/useClientMounted': { useClientMounted: () => true },
                 '@/lib/confirm-dialog': { confirmDialog: async () => true },
+                '@/app/components/validations/ValidationConclusionText': { ValidationConclusionText: props => React.createElement('p', { className: props.className }, props.text) },
                 '@/app/components/ui/DatePicker': { DatePicker: props => React.createElement('input', { type: 'date', value: props.value || '', onChange: event => props.onChange(event.target.value) }) },
                 '@/app/components/ui/Spinner': { Spinner: () => null }, './Spinner': { Spinner: () => null },
                 './ValidationReportModal': { ValidationReportModal: () => null },
@@ -125,8 +127,9 @@ for (const [name, file] of Object.entries({
         await page.getByRole('button', { name: 'Tambah validasi ke ASAS 2026', exact: true }).click();
         assert.equal(await page.getByLabel('Folder untuk validasi baru').inputValue(), 'folder-1');
         await page.getByPlaceholder('Cari dan pilih bank soal...').click();
-        await page.getByText('Bank Matematika', { exact: true }).click();
-        await page.getByText('Guru Validator', { exact: true }).last().click();
+        await page.getByText('Bank Bahasa', { exact: true }).click();
+        await page.getByRole('button', { name: 'Klik untuk memilih guru validator' }).click();
+        await page.locator('#assign-validator-list').getByText('Guru Validator', { exact: true }).click();
         await page.getByRole('button', { name: 'Simpan', exact: true }).click();
         await page.waitForFunction(() => window.state.created.length === 1);
         assert.equal(await page.evaluate(() => window.state.created[0].folderId), 'folder-1');
@@ -177,8 +180,19 @@ for (const [name, file] of Object.entries({
         await page.screenshot({ path: path.join(output, 'validation-folders-mobile.png'), fullPage: true });
         await page.evaluate(() => window.mount('Teacher', true));
         await page.getByRole('button', { name: 'Buat Folder' }).waitFor();
-        assert.equal(await page.getByRole('button', { name: 'Tambah Validasi', exact: true }).count(), 0);
+        assert.equal(await page.getByRole('button', { name: 'Tambah Validasi', exact: true }).count(), 1);
         assert.equal(await page.getByRole('tab').count(), 0);
+        await page.evaluate(() => window.mount('Manager'));
+        await page.getByRole('button', { name: 'Tambah Validasi', exact: true }).waitFor();
+        assert.equal(await page.locator('.validation-toolbar').evaluate(node => getComputedStyle(node).position), 'static');
+        assert.equal(await page.locator('table.mobile-data-cards').first().evaluate(node => getComputedStyle(node).display), 'block');
+        assert.equal(await page.locator('table.mobile-data-cards td[data-mobile-label="Bank soal"]').count() > 0, true);
+        assert.equal(await page.locator('.validation-folder-create svg').last().isVisible(), true);
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+        await page.screenshot({ path: path.join(output, 'validation-manager-mobile.png'), fullPage: true });
+        await page.setViewportSize({ width: 320, height: 640 });
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+        await page.screenshot({ path: path.join(output, 'validation-manager-mobile-320.png'), fullPage: true });
         assert.deepEqual(errors, []);
         console.log('PASS unified list without tabs, folder expand/collapse, unfiled sessions, personal-task filter, assignment, folder management, teacher/manager routes, light/dark and mobile');
         console.log('Previews:', output);

@@ -92,7 +92,7 @@ export function IrtParametersPanel({ calibration, scoringType, title = 'Paramete
             {calibration.warnings.map(warning => <p key={warning} className="flex items-start gap-1.5 text-[11px] text-amber-800"><AlertTriangle size={12} className="mt-0.5 shrink-0" />{warning}</p>)}
         </div>
         <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-xs">
+            <table className="mobile-data-cards w-full min-w-[640px] text-left text-xs">
                 <thead className="bg-slate-50 text-[11px] text-slate-500">
                     <tr>
                         <th scope="col" className="w-12 px-4 py-2 font-semibold">No</th>

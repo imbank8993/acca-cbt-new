@@ -25,6 +25,12 @@
 @media (max-width: 560px) {
   .validation-folder__open { padding: 13px 10px; gap: 7px; }
   .validation-folder__actions { padding-right: 5px; gap: 0; }
-  .validation-folder__actions button { padding: 7px; }
+  .validation-folder__actions button { width: 40px; height: 40px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
   .validation-folder__contents { padding-left: 10px; }
+}
+@media (max-width: 359.98px) {
+  .validation-folder { flex-wrap: wrap; }
+  .validation-folder__open { flex-basis: 100%; }
+  .validation-folder__actions { width: 100%; justify-content: flex-end; padding: 2px 6px 4px; border-top: 1px solid #c2d8f8; }
+  .dark .validation-folder__actions { border-color: #2e405a; }
 }

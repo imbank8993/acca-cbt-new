@@ -793,7 +793,7 @@ export default function ProctorPASDetailPage() {
 
                                 {/* Tabel Jadwal */}
                                 <div className="overflow-x-auto">
-                                    <table className="pas-schedule-table">
+                                    <table className="mobile-data-cards pas-schedule-table">
                                         <colgroup><col className="pas-col-check" /><col /><col className="pas-col-time" /><col className="pas-col-room" /><col className="pas-col-status" /><col className="pas-col-actions" /></colgroup>
                                         <thead>
                                             <tr className="bg-white border-b border-slate-200/80 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
@@ -873,7 +873,7 @@ export default function ProctorPASDetailPage() {
 
                     {/* ── Floating Action Bar for Selected Schedules ── */}
                     {period.canManage !== false && selectedScheduleIds.length > 0 && (
-                        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-white/95 backdrop-blur-md border border-slate-200 shadow-2xl rounded-2xl px-5 py-3 flex flex-wrap items-center gap-4 max-w-xl w-[92%] sm:w-auto">
+                        <div className="pas-selection-actions fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-white/95 backdrop-blur-md border border-slate-200 shadow-2xl rounded-2xl px-5 py-3 flex flex-wrap items-center gap-4 max-w-xl w-[92%] sm:w-auto">
                             <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#3083FF] flex items-center justify-center shrink-0">
                                 <Zap size={16} />
                             </div>

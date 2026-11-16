@@ -4,6 +4,7 @@ import { trueFalseLabels } from '@acca-cbt/shared';
 import { confirmDialog } from '@/lib/confirm-dialog';
 import { composeGeneralComment, splitGeneralComment } from '@/lib/validation-conclusion';
 import { ModeCornerRibbon } from '@/app/components/questions/ModeCornerRibbon';
+import '@/app/components/validations/validation-review-mobile.css';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -327,7 +328,7 @@ export default function ValidatorReviewPage() {
         } finally {
             setLoading(false);
         }
-    }, [validationId, setGeneralRec, setGeneralComment]);
+    }, [validationId, setGeneralRec, setGeneralComment, setGeneralSuggestion]);
 
     useEffect(() => {
         const initialLoad = setTimeout(() => { void loadData(); }, 0);
@@ -678,7 +679,7 @@ export default function ValidatorReviewPage() {
 
     if (loading) {
         return (
-            <div className="fixed inset-0 bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center gap-3 z-50">
+            <div className="fixed inset-0 bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center gap-3 z-[1100]">
                 <Spinner size={36} />
                 <p className="text-xs text-slate-500 font-semibold">Menyiapkan lembar validasi soal...</p>
             </div>
@@ -840,10 +841,10 @@ export default function ValidatorReviewPage() {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex flex-col bg-slate-100 dark:bg-[#020718] font-sans overflow-hidden">
+        <div className="validation-review-screen fixed inset-0 z-[1100] flex flex-col bg-slate-100 dark:bg-[#020718] font-sans overflow-hidden">
             <style>{'::highlight(validation-notes){background-color:rgba(251,191,36,.45);color:inherit}'}</style>
             {/* Top Navigation Bar */}
-            <header className="relative min-h-20 bg-white dark:bg-[#0d1221] border-b border-slate-200 dark:border-slate-800 pl-4 pr-24 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0">
+            <header className="validation-review-header relative min-h-20 bg-white dark:bg-[#0d1221] border-b border-slate-200 dark:border-slate-800 pl-4 pr-24 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0">
                 <ModeCornerRibbon mode="validation" />
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                     <button
@@ -903,10 +904,10 @@ export default function ValidatorReviewPage() {
             )}
 
             {/* Main Area: Split Screen (Left: Soal Simulation, Right: Panel Catatan Validator) */}
-            <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
+            <div className="validation-review-main flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
                 {/* Left Area: Lembar Soal (Read-Only) */}
                 <main
-                    className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 space-y-6"
+                    className="validation-review-question flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 space-y-6"
                     onMouseUp={handleMouseUp}
                 >
                     {isViewer && sessionValidators.length > 0 && (
@@ -1095,7 +1096,7 @@ export default function ValidatorReviewPage() {
                 </main>
 
                 {/* Right Area: Panel Catatan Validator untuk Nomor Aktif */}
-                <aside className="w-full lg:w-96 bg-white dark:bg-[#0d1221] border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-800 flex flex-col shrink-0 h-96 lg:h-auto overflow-hidden">
+                <aside className="validation-review-notes w-full lg:w-96 bg-white dark:bg-[#0d1221] border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-800 flex flex-col shrink-0 h-96 lg:h-auto overflow-hidden">
                     <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50/50 dark:bg-slate-800/40">
                         <div className="flex items-center gap-2">
                             <MessageSquare className="text-primary" size={16} />
@@ -1272,7 +1273,7 @@ export default function ValidatorReviewPage() {
             </div>
 
             {/* Navigasi nomor: satu warna = satu arti, ada legenda dan lompatan ke butir yang belum dinilai */}
-            <footer className="bg-white dark:bg-[#0d1221] border-t border-slate-200 dark:border-slate-800 px-4 py-2 shrink-0 space-y-1.5">
+            <footer className="validation-review-footer bg-white dark:bg-[#0d1221] border-t border-slate-200 dark:border-slate-800 px-4 py-2 shrink-0 space-y-1.5">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-semibold text-slate-500">
                     <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-emerald-200 border border-emerald-400" aria-hidden="true" />Layak</span>
                     <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-amber-200 border border-amber-400" aria-hidden="true" />Perlu revisi</span>

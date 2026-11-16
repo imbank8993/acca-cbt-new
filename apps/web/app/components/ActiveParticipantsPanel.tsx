@@ -106,7 +106,7 @@ export function ActiveParticipantsPanel({ attempts, onViewDetails, onFinish, att
     const selected = attempts.find(attempt => attempt.id === selectedId);
     const selectedFacts = selected ? activeMonitoringFacts(selected, elapsed) : null;
     return <section className="mb-4 overflow-hidden rounded-xl border border-border bg-[var(--card)]" aria-label="Peserta ujian aktif">
-        <div className="overflow-x-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-500" tabIndex={0} role="region" aria-label="Tabel peserta aktif, geser untuk melihat seluruh kolom"><table className="w-full sm:min-w-[780px] text-left text-xs sm:text-sm">
+        <div className="overflow-x-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-500" tabIndex={0} role="region" aria-label="Peserta aktif"><table className="mobile-data-cards w-full sm:min-w-[780px] text-left text-xs sm:text-sm">
             <caption className="sr-only">Peserta aktif, diurutkan berdasarkan kebutuhan perhatian dan sisa waktu.</caption>
             <thead className="bg-slate-50/80 text-xs sm:text-[11px] text-muted-foreground dark:bg-slate-800/40"><tr>{['Peserta', 'Progres', 'Sisa waktu', 'Koneksi', 'Perhatian', ''].map((label, index) => <th key={index} scope="col" className={`${index >= 2 ? 'hidden sm:table-cell px-5 py-3.5' : 'p-3 sm:px-5 sm:py-3.5'} font-semibold ${index === 0 ? 'sm:w-[27%]' : index === 1 ? 'w-[110px] sm:w-auto' : ''}`}>{label || <span className="sr-only">Tindakan</span>}</th>)}</tr></thead>
             <tbody>{rows.slice((currentPage - 1) * 25, currentPage * 25).map(({ attempt, facts }) => {

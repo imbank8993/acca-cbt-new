@@ -1,7 +1,16 @@
-/* Keep folder management available; BottomNav supplies the new-validation action. */
+/* Validation controls follow the page scroll on narrow screens. */
+.validation-mobile-create { display: none !important; }
+
 @media (max-width: 1023.98px) {
   .validation-toolbar .validation-create-actions .validation-create-action,
   .validation-create-action {
     display: none !important;
+  }
+
+  .validation-mobile-create {
+    display: inline-flex !important;
+    width: 100%;
+    min-height: 44px;
+    margin-top: -4px;
   }
 }

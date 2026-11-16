@@ -436,7 +436,7 @@ export default function ExamResultsDetailPage() {
               <TableSkeleton columns={5} rows={8} />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="mobile-data-cards w-full">
                   <thead className="bg-slate-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Peringkat</th>

@@ -49,7 +49,7 @@ export function analysisPdfFileName(title: string): string {
 }
 
 interface Column { label: string; width: number; align?: 'left' | 'center' | 'right' }
-interface TableOptions { size?: number; fills?: Array<Array<RGB | null> | RGB | null>; bold?: number[]; pad?: number; onRow?: (index: number, y: number, height: number) => void }
+interface TableOptions { size?: number; fills?: Array<Array<RGB | null> | RGB | null>; bold?: number[]; pad?: number; onRow?: (index: number, y: number, height: number) => void; minContinuationRows?: number }
 
 class Writer {
     y = TOP;
@@ -115,36 +115,52 @@ class Writer {
             this.y += 0.6;
         }
     }
-    cards(cards: Array<[string, string, string?]>, height = 15) {
-        this.ensure(height + 2);
-        const gap = 2.5, width = (W - gap * (cards.length - 1)) / cards.length;
-        cards.forEach(([label, value, hint], index) => {
-            const x = L + index * (width + gap);
-            this.pdf.setFillColor(...SOFT); this.pdf.roundedRect(x, this.y, width, height, 1.5, 1.5, 'F');
-            this.font(6.3, 'bold', MUTED); this.pdf.text(pdfSafe(label.toUpperCase()), x + 2.5, this.y + 4.3);
-            this.font(value.length > 12 ? 9 : 11.5, 'bold'); this.pdf.text(this.lines(value, width - 4)[0] || '', x + 2.5, this.y + 10);
-            if (hint) { this.font(6.3, 'normal', MUTED); this.pdf.text(this.lines(hint, width - 4)[0] || '', x + 2.5, this.y + 13.4); }
-        });
-        this.y += height + 3;
+    cards(cards: Array<[string, string, string?]>, height = 16, perRow = 3) {
+        const gap = 3;
+        for (let start = 0; start < cards.length; start += perRow) {
+            const group = cards.slice(start, start + perRow);
+            this.ensure(height + gap);
+            const width = (W - gap * (group.length - 1)) / group.length;
+            group.forEach(([label, value, hint], index) => {
+                const x = L + index * (width + gap);
+                this.pdf.setFillColor(...SOFT); this.pdf.roundedRect(x, this.y, width, height, 1.5, 1.5, 'F');
+                this.font(6.8, 'bold', MUTED); this.pdf.text(this.lines(label.toUpperCase(), width - 5)[0] || '', x + 2.5, this.y + 4.5);
+                this.font(value.length > 20 ? 9.5 : 11.5, 'bold'); this.pdf.text(this.lines(value, width - 5)[0] || '', x + 2.5, this.y + 10.3);
+                if (hint) { this.font(6.7, 'normal', MUTED); this.pdf.text(this.lines(hint, width - 5)[0] || '', x + 2.5, this.y + 14.2); }
+            });
+            this.y += height + gap;
+        }
     }
     table(columns: Column[], rows: string[][], options: TableOptions = {}) {
         const size = options.size ?? 7.3;
         const pad = options.pad ?? 1.5, lh = this.lineHeight(size);
         const xs = columns.map((_, index) => L + columns.slice(0, index).reduce((sum, column) => sum + column.width, 0));
+        this.font(size, 'bold');
+        const headings = columns.map(column => this.lines(column.label, column.width - pad * 2));
+        const headerHeight = Math.max(...headings.map(lines => lines.length)) * lh + pad * 2;
+        const rowHeights = rows.map((row, rowIndex) => {
+            this.font(size, options.bold?.includes(rowIndex) ? 'bold' : 'normal');
+            return Math.max(...row.map((cell, index) => this.lines(cell, columns[index].width - pad * 2).length)) * lh + pad * 2;
+        });
+        const remainingHeights = new Array<number>(rows.length);
+        for (let index = rows.length - 1, total = 0; index >= 0; index--) remainingHeights[index] = total += rowHeights[index];
         const header = () => {
             this.font(size, 'bold', [38, 65, 100]);
-            const wrapped = columns.map(column => this.lines(column.label, column.width - pad * 2));
-            const height = Math.max(...wrapped.map(lines => lines.length)) * lh + pad * 2;
-            this.pdf.setFillColor(...HEAD); this.pdf.rect(L, this.y, W, height, 'F');
-            wrapped.forEach((lines, index) => this.cellText(lines, xs[index], columns[index], pad, lh));
-            this.y += height;
+            this.pdf.setFillColor(...HEAD); this.pdf.rect(L, this.y, W, headerHeight, 'F');
+            headings.forEach((lines, index) => this.cellText(lines, xs[index], columns[index], pad, lh));
+            this.y += headerHeight;
         };
         this.ensure(lh * 4 + 6);
         header();
         rows.forEach((row, rowIndex) => {
             this.font(size, options.bold?.includes(rowIndex) ? 'bold' : 'normal');
             const wrapped = row.map((cell, index) => this.lines(cell, columns[index].width - pad * 2));
-            const height = Math.max(...wrapped.map(lines => lines.length)) * lh + pad * 2;
+            const height = rowHeights[rowIndex];
+            const remaining = remainingHeights[rowIndex];
+            if (options.minContinuationRows && rows.length - rowIndex <= options.minContinuationRows
+                && this.y + remaining > BOTTOM && remaining + headerHeight < BOTTOM - TOP - 7) {
+                this.newPage(); header(); this.font(size, options.bold?.includes(rowIndex) ? 'bold' : 'normal');
+            }
             if (this.y + height > BOTTOM) { this.newPage(); header(); this.font(size, options.bold?.includes(rowIndex) ? 'bold' : 'normal'); }
             const fill = options.fills?.[rowIndex];
             columns.forEach((column, index) => {
@@ -259,13 +275,14 @@ function generalSection(w: Writer, report: AssessmentReport, meta: { title: stri
 
     if (report.irt) {
         const irt = report.irt;
+        w.ensure(75);
         w.sub(`Teori respons butir (${irt.label})`);
         w.cards([
             ['Rata-rata theta', num(irt.meanTheta), `skala ${irt.meanTheta == null ? '-' : num(500 + 100 * irt.meanTheta, 0)}`],
             ['SB theta', num(irt.sdTheta), 'sebaran kemampuan'],
             ['Galat baku rata-rata', num(irt.meanSe), irt.hasCalibration ? 'makin kecil makin teliti' : 'perlu Kalkulasi IRT'],
             ['Paling teliti di', irt.peak == null ? '-' : `theta ${num(irt.peak, 1)}`, 'puncak informasi tes'],
-        ]);
+        ], 16, 4);
         if (irt.curve.length) drawInformation(w, irt.curve);
         w.paragraph('Nilai IRT dilaporkan pada skala lokal 500 + 100 x theta (200-800); 500 = titik acuan theta 0, bukan rata-rata nasional. '
             + 'Kurva informasi menunjukkan rentang kemampuan yang diukur paling teliti oleh tes ini; di luar puncaknya galat baku siswa membesar.', 7.8, MUTED);
@@ -305,81 +322,95 @@ function itemSection(w: Writer, report: AssessmentReport) {
     const irt = report.irt?.hasCalibration ? report.irt : null;
     const showA = irt && irt.model !== 'irt_1pl', showC = irt?.model === 'irt_3pl';
     w.section('III.', 'Analisis Butir Soal',
-        'p = proporsi skor benar; r_it = korelasi butir dengan skor total tanpa butir itu; D = selisih p kelompok atas dan bawah (27%); '
-        + 'Alpha hapus = reliabilitas bila butir dibuang (lebih tinggi dari reliabilitas tes berarti butir melemahkan tes).');
-    const fixed = 8 + 10 + 17 + 10 + 10 + 18 + 14 + (irt ? 10 : 0) + (showA ? 9 : 0) + (showC ? 9 : 0) + 13 + 17;
+        'Prioritas ditentukan dari kesukaran, korelasi butir-total (r_it), dan daya beda kelompok atas-bawah (D).');
     const columns: Column[] = [
-        { label: 'No', width: 8, align: 'center' }, { label: 'Materi', width: W - fixed }, { label: 'p', width: 10, align: 'right' },
-        { label: 'Kesukaran', width: 17 }, { label: 'r_it', width: 10, align: 'right' }, { label: 'D', width: 10, align: 'right' },
-        { label: 'Daya beda', width: 18 }, { label: 'Alpha hapus', width: 14, align: 'right' },
-        ...(irt ? [{ label: 'b', width: 10, align: 'right' as const }] : []), ...(showA ? [{ label: 'a', width: 9, align: 'right' as const }] : []),
-        ...(showC ? [{ label: 'c', width: 9, align: 'right' as const }] : []),
-        { label: 'Kosong', width: 13, align: 'right' }, { label: 'Keputusan', width: 17 },
+        { label: 'No', width: 9, align: 'center' }, { label: 'Materi', width: 68 }, { label: 'p', width: 13, align: 'right' },
+        { label: 'Kesukaran', width: 24 }, { label: 'r_it', width: 13, align: 'right' }, { label: 'D', width: 13, align: 'right' },
+        { label: 'Keputusan', width: 40 },
     ];
     const alpha = report.reliability.value;
     w.table(columns, report.items.map(item => [
-        String(item.number), item.topic, num(item.p), item.difficulty || '-', num(item.ritc), num(item.d), item.discrimination,
-        num(item.alphaIfDeleted, 3), ...(irt ? [num(item.irt?.b)] : []), ...(showA ? [num(item.irt?.a)] : []), ...(showC ? [num(item.irt?.c)] : []),
-        `${item.omitted}`, item.decision,
-    ]), { size: 7, fills: report.items.map(item => columns.map(column =>
+        String(item.number), item.topic, num(item.p), item.difficulty || '-', num(item.ritc), num(item.d), item.decision,
+    ]), { size: 8, pad: 1.8, fills: report.items.map(item => columns.map(column =>
         column.label === 'Keputusan' ? (item.decision === 'Baik' ? GOOD : item.decision === 'Revisi' ? WARN : BAD)
-            : column.label === 'Alpha hapus' && alpha != null && item.alphaIfDeleted != null && item.alphaIfDeleted > alpha ? WARN
             : column.label === 'r_it' && item.ritc != null && item.ritc < 0.2 ? (item.ritc < 0 ? BAD : WARN) : null)) });
     const counts = (['Baik', 'Revisi', 'Tinjau ulang'] as const).map(decision => `${decision}: ${report.items.filter(item => item.decision === decision).length}`);
     w.paragraph(`Ringkasan keputusan butir - ${counts.join(' | ')}.`, 8, INK, 0, 'bold');
 
     const flagged = report.items.filter(item => item.flags.length);
     if (flagged.length) {
-        w.sub('Butir yang perlu ditinjau');
-        w.table([{ label: 'No', width: 9, align: 'center' }, { label: 'Temuan', width: 55 }, { label: 'Saran tindak lanjut', width: W - 64 }],
-            flagged.map(item => [String(item.number), item.flags.map(flag => flag.label).join('; '), [...new Set(item.flags.map(flag => flag.advice))].join(' ')]),
-            { fills: flagged.map(item => item.decision === 'Tinjau ulang' ? [BAD, null, null] : [WARN, null, null]) });
+        w.sub('Prioritas tindak lanjut');
+        const grouped = new Map<string, { label: string; advice: string; numbers: number[] }>();
+        for (const item of flagged) for (const flag of item.flags) {
+            const key = `${flag.label}\u0000${flag.advice}`;
+            const group = grouped.get(key) ?? { label: flag.label, advice: flag.advice, numbers: [] };
+            group.numbers.push(item.number);
+            grouped.set(key, group);
+        }
+        const actions = [...grouped.values()].sort((a, b) => b.numbers.length - a.numbers.length);
+        w.table([{ label: 'Temuan', width: 48 }, { label: 'No. soal', width: 34 }, { label: 'Langkah perbaikan', width: 98 }],
+            actions.map(group => [group.label, group.numbers.join(', '), group.advice]), { size: 8, pad: 2 });
     }
+
+    w.sub('Parameter pendukung per butir');
+    w.paragraph('Alpha hapus menunjukkan reliabilitas jika butir dikeluarkan. Nilai yang lebih tinggi dari reliabilitas tes diberi warna kuning.', 7.8, MUTED);
+    const fixed = 9 + 30 + 25 + 16 + (irt ? 14 : 0) + (showA ? 14 : 0) + (showC ? 14 : 0);
+    const technical: Column[] = [
+        { label: 'No', width: 9, align: 'center' }, { label: 'Materi', width: W - fixed },
+        { label: 'Daya beda', width: 30 }, { label: 'Alpha hapus', width: 25, align: 'right' },
+        ...(irt ? [{ label: 'b', width: 14, align: 'right' as const }] : []),
+        ...(showA ? [{ label: 'a', width: 14, align: 'right' as const }] : []),
+        ...(showC ? [{ label: 'c', width: 14, align: 'right' as const }] : []),
+        { label: 'Kosong', width: 16, align: 'right' },
+    ];
+    w.table(technical, report.items.map(item => [String(item.number), item.topic, item.discrimination,
+        num(item.alphaIfDeleted, 3), ...(irt ? [num(item.irt?.b)] : []), ...(showA ? [num(item.irt?.a)] : []),
+        ...(showC ? [num(item.irt?.c)] : []), String(item.omitted)]),
+    { size: 8, pad: 1.8, fills: report.items.map(item => technical.map(column =>
+        column.label === 'Alpha hapus' && alpha != null && item.alphaIfDeleted != null && item.alphaIfDeleted > alpha ? WARN : null)) });
 
     const mcq = report.items.filter(item => item.distractors.length);
     if (mcq.length) {
         const letters = Math.min(6, Math.max(...mcq.map(item => item.distractors.length)));
         w.sub('Analisis pengecoh (pilihan ganda)');
-        w.paragraph('Tiap sel: % seluruh peserta yang memilih opsi, lalu % kelompok atas | bawah. Hijau = kunci. '
-            + 'Kuning = pengecoh tidak berfungsi (dipilih < 5%). Merah = pengecoh lebih banyak dipilih kelompok atas (perlu ditinjau).', 7.6, MUTED);
+        w.paragraph('Tiap sel: % seluruh peserta (kelompok atas / bawah). Hijau = kunci; kuning = dipilih < 5%; '
+            + 'merah = lebih banyak dipilih kelompok atas. Temuan dan saran ada pada Prioritas tindak lanjut.', 7.8, MUTED);
         w.y += 1;
-        const optionWidth = Math.min(22, (W - 9 - 32) / letters);
+        const optionWidth = (W - 9) / letters;
         const columns: Column[] = [{ label: 'No', width: 9, align: 'center' },
-            ...Array.from({ length: letters }, (_, index) => ({ label: String.fromCharCode(65 + index), width: optionWidth, align: 'center' as const })),
-            { label: 'Catatan', width: W - 9 - optionWidth * letters }];
+            ...Array.from({ length: letters }, (_, index) => ({ label: String.fromCharCode(65 + index), width: optionWidth, align: 'center' as const }))];
         w.table(columns, mcq.map(item => [String(item.number),
             ...Array.from({ length: letters }, (_, index) => {
                 const option = item.distractors[index];
-                return option ? `${pct(option.share)}\n${pct(option.upperShare)} | ${pct(option.lowerShare)}` : '';
+                return option ? `${pct(option.share)} (${pct(option.upperShare)} / ${pct(option.lowerShare)})` : '';
             }),
-            item.flags.filter(flag => flag.code === 'dead_distractor' || flag.code === 'upper_distractor').map(flag => flag.label).join('; ') || '-',
-        ]), { size: 6.8, fills: mcq.map(item => [null, ...Array.from({ length: letters }, (_, index) => {
+        ]), { size: 7.4, pad: 1.7, fills: mcq.map(item => [null, ...Array.from({ length: letters }, (_, index) => {
             const option = item.distractors[index];
             return !option ? null : option.isKey ? GOOD : option.flag === 'Menarik kelompok atas' ? BAD : option.flag ? WARN : null;
-        }), null]) });
+        })]) });
     }
 }
 
 function recapSection(w: Writer, report: AssessmentReport) {
     const irt = report.irt;
-    w.section('IV.', 'Rekap Peserta', 'Urut kelas lalu nama. Rincian tiap peserta ada pada bagian V.');
+    w.section('IV.', 'Rekap Peserta', 'Urut kelas lalu nama. B/S/K = benar, salah, kosong. Rincian ada pada halaman masing-masing peserta.');
     const columns: Column[] = [
-        { label: 'No', width: 8, align: 'center' }, { label: 'Nama', width: W - 8 - 20 - 13 - 26 - 30 - (irt ? 30 : 0) }, { label: 'Kelas', width: 20 },
-        { label: 'Nilai', width: 13, align: 'right' }, { label: 'Kategori', width: 26 }, { label: 'Benar/Salah/Kosong', width: 30, align: 'center' },
-        ...(irt ? [{ label: 'theta', width: 13, align: 'right' as const }, { label: 'Skala IRT', width: 17, align: 'right' as const }] : []),
+        { label: 'No', width: 9, align: 'center' }, { label: 'Peserta / kelas', width: W - 9 - 16 - 31 - 26 - (irt ? 31 : 0) },
+        { label: 'Nilai', width: 16, align: 'right' }, { label: 'Kategori', width: 31 }, { label: 'B/S/K', width: 26, align: 'center' },
+        ...(irt ? [{ label: 'theta', width: 14, align: 'right' as const }, { label: 'Skala IRT', width: 17, align: 'right' as const }] : []),
     ];
-    w.table(columns, report.students.map((student, index) => [String(index + 1), student.name, student.className, student.score == null ? '-' : num(student.score, 1), student.band?.label || 'Menunggu penilaian',
+    w.table(columns, report.students.map((student, index) => [String(index + 1), `${student.name}\n${student.className}`, student.score == null ? '-' : num(student.score, 1), student.band?.label || 'Menunggu penilaian',
         `${student.correct} / ${student.wrong} / ${student.unanswered}${student.ungraded ? ` (+${student.ungraded} belum dinilai)` : ''}`,
         ...(irt ? [num(student.theta), student.scaled == null ? '-' : num(student.scaled, 0)] : [])]),
-    { fills: report.students.map(student => columns.map(column => column.label === 'Kategori' ? bandFill(student.band?.id) : null)) });
+    { size: 8, pad: 1.8, fills: report.students.map(student => columns.map(column => column.label === 'Kategori' ? bandFill(student.band?.id) : null)) });
 }
 
-function studentSection(w: Writer, report: AssessmentReport, student: StudentReport, title: string) {
+function studentSection(w: Writer, report: AssessmentReport, student: StudentReport, title: string, index: number) {
     const { pdf } = w;
     w.running = `${title} - Laporan peserta`;
     w.newPage();
     pdf.setFillColor(...BLUE); pdf.rect(L, w.y - 1, W, 15, 'F');
-    w.font(7, 'bold', [207, 224, 245]); pdf.text('LAPORAN HASIL BELAJAR PESERTA', L + 4, w.y + 3.2);
+    w.font(7, 'bold', [207, 224, 245]); pdf.text(`V. LAPORAN PESERTA ${index + 1} DARI ${report.students.length}`, L + 4, w.y + 3.2);
     w.font(12.5, 'bold', [255, 255, 255]); pdf.text(w.lines(student.name, W - 60)[0] || '-', L + 4, w.y + 9.5);
     w.font(8, 'normal', [230, 238, 248]);
     pdf.text(pdfSafe(`NIS ${student.nis}`), R - 4, w.y + 4, { align: 'right' });
@@ -392,11 +423,16 @@ function studentSection(w: Writer, report: AssessmentReport, student: StudentRep
     w.cards([
         ['Nilai', student.score == null ? 'Menunggu' : num(student.score, 1), student.score == null ? 'penilaian guru belum selesai' : sem != null && student.score != null ? `kisaran ${num(Math.max(0, student.score - sem), 0)} - ${num(Math.min(100, student.score + sem), 0)}` : 'nilai klasik 0-100'],
         ['Kategori', student.band?.label || 'Menunggu', student.band ? `tindak lanjut: ${BAND_SHORT[student.band.id]}` : ''],
-        ['Rata-rata kelas', num(mean, 1), diff == null ? '' : `${diff >= 0 ? '+' : ''}${num(diff, 1)} dari rata-rata`],
-        ['Benar / Salah / Kosong', `${student.correct} / ${student.wrong} / ${student.unanswered}`, student.ungraded ? `${student.ungraded} belum dinilai` : student.partial ? `${student.partial} skor sebagian` : `${student.items.length} butir`],
-        ...(student.theta != null ? [['Skala IRT', num(student.scaled, 0), student.thetaSe != null
-            ? `theta ${num(student.theta)} +/- ${num(student.thetaSe)}` : `theta ${num(student.theta)}`] as [string, string, string]] : []),
-    ]);
+        student.theta != null ? ['Skala IRT', num(student.scaled, 0), student.thetaSe != null
+            ? `theta ${num(student.theta)} +/- ${num(student.thetaSe)}` : `theta ${num(student.theta)}`]
+            : ['Rata-rata kelas', num(mean, 1), diff == null ? '' : `${diff >= 0 ? '+' : ''}${num(diff, 1)} dari rata-rata`],
+    ], 15);
+    const context = [
+        ...(student.theta != null ? [`Rata-rata kelas ${num(mean, 1)}${diff == null ? '' : ` (${diff >= 0 ? '+' : ''}${num(diff, 1)})`}`] : []),
+        `Jawaban: ${student.correct} benar / ${student.wrong} salah / ${student.unanswered} kosong`,
+        ...(student.ungraded ? [`${student.ungraded} belum dinilai`] : student.partial ? [`${student.partial} skor sebagian`] : []),
+    ];
+    w.paragraph(context.join('  |  '), 8, MUTED);
 
     const named = student.topics.filter(topic => topic.max > 0);
     if (named.length) {
@@ -413,24 +449,24 @@ function studentSection(w: Writer, report: AssessmentReport, student: StudentRep
     w.paragraph('Langkah berikutnya', 8, BLUE, 0, 'bold');
     w.bullets(student.recommendations, 8.2);
     w.sub('Peta jawaban per butir');
-    const perRow = 20, box = W / perRow;
+    const perRow = 12, box = W / perRow, boxHeight = 8.7;
     const rows = Math.ceil(student.items.length / perRow);
-    w.ensure(rows * (box * 0.62) + 8);
+    w.ensure(rows * (boxHeight + 1.2) + 8);
     student.items.forEach((item, index) => {
-        const x = L + (index % perRow) * box, y = w.y + Math.floor(index / perRow) * (box * 0.62);
+        const x = L + (index % perRow) * box, y = w.y + Math.floor(index / perRow) * (boxHeight + 1.2);
         const color: RGB = item.status === 'correct' && (item.credit ?? 0) >= 1 ? [187, 230, 203]
             : item.status === 'ungraded' ? NONE : item.status === 'unanswered' ? [226, 232, 240]
             : (item.credit ?? 0) > 0 ? WARN : [250, 200, 200];
-        pdf.setFillColor(...color); pdf.rect(x + 0.4, y, box - 0.8, box * 0.62 - 0.8, 'F');
-        w.font(6.8, 'bold'); pdf.text(String(item.number), x + box / 2, y + 3.1, { align: 'center' });
-        w.font(5.6, 'normal', MUTED);
+        pdf.setFillColor(...color); pdf.roundedRect(x + 0.5, y, box - 1, boxHeight, 0.8, 0.8, 'F');
+        w.font(7, 'bold'); pdf.text(String(item.number), x + box / 2, y + 3.3, { align: 'center' });
+        w.font(6.3, 'normal', MUTED);
         pdf.text(item.status === 'correct' && (item.credit ?? 0) >= 1 ? 'B' : item.status === 'ungraded' ? '?' : item.status === 'unanswered' ? 'K' : (item.credit ?? 0) > 0 ? '1/2' : 'S',
-            x + box / 2, y + 5.6, { align: 'center' });
+            x + box / 2, y + 6.8, { align: 'center' });
     });
-    w.y += rows * (box * 0.62) + 1.5;
+    w.y += rows * (boxHeight + 1.2) + 0.5;
     w.font(6.5, 'normal', MUTED);
-    pdf.text('B = benar   S = salah   1/2 = skor sebagian   K = kosong   ? = menunggu penilaian', L, w.y + 2.5);
-    w.y += 6;
+    pdf.text('B = benar   S = salah   1/2 = skor sebagian   K = kosong   ? = menunggu penilaian', L, w.y + 2.2);
+    w.y += 4;
 
     // Jawaban yang menunggu penilaian bukan kesalahan: cukup ditandai "?" pada peta.
     const wrong = student.items.filter(item => item.status !== 'ungraded' && (item.status !== 'correct' || (item.credit ?? 1) < 1));
@@ -440,7 +476,7 @@ function studentSection(w: Writer, report: AssessmentReport, student: StudentRep
             { label: 'Benar di kelas', width: W - 154, align: 'right' }],
         wrong.map(item => [String(item.number), item.topic, item.status === 'unanswered' ? '(kosong)' : item.answer,
             item.key, pct(item.p)]),
-        { size: 6.7, pad: 1, fills: wrong.map(item => item.p != null && item.p >= 0.75 ? [WARN, null, null, null, WARN] : null) });
+        { size: 6.7, pad: 1, minContinuationRows: 4, fills: wrong.map(item => item.p != null && item.p >= 0.75 ? [WARN, null, null, null, WARN] : null) });
     }
 
 }
@@ -448,26 +484,16 @@ function studentSection(w: Writer, report: AssessmentReport, student: StudentRep
 function appendix(w: Writer) {
     w.section('', 'Cara Membaca Laporan');
     w.bullets([
-        'Kesukaran (p): proporsi skor benar. <= 0,10 sangat sulit; <= 0,30 sulit; <= 0,70 sedang; <= 0,90 mudah; > 0,90 sangat mudah.',
-        'Korelasi butir-total (r_it): >= 0,30 baik; 0,20-0,29 cukup; < 0,20 perlu revisi; negatif berarti siswa pandai justru salah - periksa kunci.',
-        'Daya beda (D, kelompok atas-bawah 27%): >= 0,40 sangat baik; 0,30-0,39 baik; 0,20-0,29 cukup; < 0,20 jelek; < 0 dibuang (Ebel & Frisbie).',
-        'Reliabilitas KR-20 / Cronbach alpha: >= 0,70 memadai untuk tes kelas; >= 0,80 tinggi. SEM = SB x akar(1 - reliabilitas).',
-        'Pengecoh berfungsi bila dipilih >= 5% peserta dan lebih banyak dipilih kelompok bawah daripada kelompok atas (Haladyna & Downing).',
-        'Kategori capaian (interval KKTP): 0-40 perlu bimbingan; 41-65 remedial sebagian; 66-85 tuntas; 86-100 pengayaan.',
-        'IRT: theta adalah taksiran kemampuan; skala laporan 500 + 100 x theta. Galat baku theta = 1 / akar(informasi tes + 1).',
-        'Jawaban yang belum dinilai tidak dihitung salah; jawaban kosong dihitung 0. Soal non-akademik (SJT, Likert, dsb.) tidak dianalisis.',
+        'p = proporsi skor benar. Makin kecil p, makin sulit soal.',
+        'r_it = hubungan skor butir dengan total tanpa butir tersebut. Nilai < 0,20 perlu ditinjau; nilai negatif perlu pemeriksaan kunci.',
+        'D = selisih proporsi benar kelompok atas dan bawah (27%). Nilai >= 0,40 sangat baik; < 0,20 perlu ditinjau.',
+        'KR-20 / Cronbach alpha menunjukkan reliabilitas; >= 0,70 memadai untuk tes kelas. SEM menunjukkan kisaran ketidakpastian nilai.',
+        'Pengecoh berfungsi bila dipilih >= 5% peserta dan lebih menarik kelompok bawah. Kategori capaian mengikuti interval KKTP.',
+        'IRT: theta = taksiran kemampuan; skala laporan = 500 + 100 x theta. Jawaban belum dinilai tidak dianggap salah.',
     ], 8);
-    w.sub('Rujukan');
-    w.bullets([
-        'AERA, APA, & NCME (2014). Standards for Educational and Psychological Testing.',
-        'Crocker, L., & Algina, J. (1986). Introduction to Classical and Modern Test Theory.',
-        'Ebel, R. L., & Frisbie, D. A. (1991). Essentials of Educational Measurement.',
-        'Haladyna, T. M., & Downing, S. M. (1993). How many options is enough for a multiple-choice test item?',
-        'Hambleton, R. K., Swaminathan, H., & Rogers, H. J. (1991). Fundamentals of Item Response Theory.',
-        'Hattie, J., & Timperley, H. (2007). The power of feedback.',
-        'Kemendikbudristek (2022/2024). Panduan Pembelajaran dan Asesmen.',
-        'Kuder & Richardson (1937); Cronbach (1951); Kelley (1939); Zenisky & Hambleton (2012).',
-    ], 7.6, MUTED);
+    w.y += 1;
+    w.paragraph('Rujukan: AERA, APA, & NCME (2014); Ebel & Frisbie (1991); Haladyna & Downing (1993); '
+        + 'Hambleton dkk. (1991); Kemendikbudristek (2022/2024).', 7.5, MUTED);
 }
 
 function withDisplayText(options: AnalysisPdfOptions) {
@@ -529,15 +555,14 @@ export async function buildAnalysisPdf(options: AnalysisPdfOptions) {
         ],
     });
     appendix(w);
-    w.section('V.', 'Laporan per Peserta', `${report.students.length} laporan berikut masing-masing dimulai di halaman baru dan dapat dibagikan kepada siswa/orang tua.`);
-    for (const student of report.students) studentSection(w, report, student, title);
+    for (const [index, student] of report.students.entries()) studentSection(w, report, student, title, index);
 
     const pages = pdf.getNumberOfPages();
     for (let page = 1; page <= pages; page++) {
         pdf.setPage(page);
         pdf.setDrawColor(...LINE); pdf.setLineWidth(0.2); pdf.line(L, 285, R, 285);
         pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7); pdf.setTextColor(...MUTED);
-        pdf.text(pdfSafe(`ACCA CBT  /  Laporan Analisis Hasil  /  ${title}`).slice(0, 110), L, 289.5);
+        pdf.text(pdf.splitTextToSize(pdfSafe(`ACCA CBT  /  Laporan Analisis Hasil  /  ${title}`), W - 36)[0], L, 289.5);
         pdf.text(`Halaman ${page} dari ${pages}`, R, 289.5, { align: 'right' });
     }
     return { pdf, report };

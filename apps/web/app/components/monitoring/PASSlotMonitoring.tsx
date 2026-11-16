@@ -276,7 +276,7 @@ export default function PASSlotMonitoring({ periodId, userRole, attemptBasePath,
             : <div className="space-y-5">{sessions.map(group => <section key={group.label} aria-label={group.label}>
                 <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">{group.label}</h3>
                 <div className="monitoring-room-table-wrap" role="region" aria-label={`Daftar ruang ${group.label}`} tabIndex={0}>
-                    <table className="monitoring-room-table">
+                    <table className="mobile-data-cards monitoring-room-table">
                         <thead><tr>
                             <th scope="col">Ruang</th><th scope="col">Kelas</th>
                             <th scope="col" className="monitoring-room-count">Mengerjakan</th>

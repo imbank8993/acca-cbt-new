@@ -139,7 +139,7 @@ export default function UnusedImagesCleanupCard() {
                     ) : (
                         <div className="border border-slate-200 rounded-lg overflow-hidden">
                             <div className="overflow-x-auto">
-                            <table className="w-full text-xs">
+                            <table className="mobile-data-cards w-full text-xs">
                                 <thead className="bg-slate-50 text-slate-600">
                                     <tr>
                                         <th className="text-left px-3 py-2 font-semibold">Berkas</th>

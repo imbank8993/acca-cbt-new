@@ -1530,7 +1530,7 @@ ${KOP_AND_A4_CSS}
                             </div>
                         ) : (
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse text-xs">
+                                <table className="mobile-data-cards w-full text-left border-collapse text-xs">
                                     <thead>
                                         <tr className="border-b border-slate-100 text-xs font-medium text-slate-500">
                                             <th className="py-3 px-4">Ruang &amp; Sesi</th>

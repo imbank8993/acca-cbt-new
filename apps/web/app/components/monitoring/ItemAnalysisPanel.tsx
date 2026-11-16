@@ -487,7 +487,7 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
                                         </div>
                                     ) : (
                                         <div className="item-analysis-students-scroll">
-                                            <table className="item-analysis-students-table w-full text-left text-xs">
+                                            <table className="mobile-data-cards item-analysis-students-table w-full text-left text-xs">
                                                 <thead className="text-slate-500 font-bold">
                                                     <tr>
                                                         <th className="p-3 w-12 text-center">No</th>
@@ -537,7 +537,7 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
                                         </div>
                                     ) : (
                                         <div className="item-analysis-students-scroll">
-                                            <table className="item-analysis-students-table w-full text-left text-xs">
+                                            <table className="mobile-data-cards item-analysis-students-table w-full text-left text-xs">
                                                 <thead className="text-slate-500 font-bold">
                                                     <tr>
                                                         <th className="p-3 w-12 text-center">No</th>

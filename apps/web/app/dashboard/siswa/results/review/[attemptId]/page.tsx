@@ -199,18 +199,18 @@ export default function ExamReviewPage() {
     return (
         <ResultImagePreview className="min-h-screen bg-slate-50 flex flex-col">
             {/* Header */}
-            <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
+            <header className="bg-white border-b border-slate-200 lg:sticky lg:top-0 lg:z-40">
                 <div className="max-w-4xl mx-auto px-4 py-4">
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
+                        <div className="flex min-w-0 items-center gap-4">
                             <button
                                 onClick={() => router.push('/dashboard/siswa/results')}
                                 className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors"
                             >
                                 <ArrowLeft size={18} className="text-slate-600" />
                             </button>
-                            <div>
-                                <h1 className="font-bold text-slate-800">{review.examTitle}</h1>
+                            <div className="min-w-0">
+                                <h1 className="break-words font-bold text-slate-800">{review.examTitle}</h1>
                                 <p className="text-sm text-slate-500">
                                     {review.subjectName && `${review.subjectName} • `}
                                     Review Ujian
@@ -219,7 +219,7 @@ export default function ExamReviewPage() {
                         </div>
 
                         {/* Grade Badge */}
-                        <div className={`px-4 py-2 rounded-xl ${gradeInfo.color.replace('text-', 'bg-')} bg-opacity-10`}>
+                        <div className={`shrink-0 px-3 sm:px-4 py-2 rounded-xl ${gradeInfo.color.replace('text-', 'bg-')} bg-opacity-10`}>
                             <span className={`text-2xl font-black ${gradeInfo.color}`}>
                                 {summary.grade}
                             </span>
@@ -320,7 +320,7 @@ export default function ExamReviewPage() {
                             Tampilkan kunci jawaban
                         </label>
                     </div>
-                    <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-2">
+                    <div className="grid grid-cols-5 sm:grid-cols-10 md:grid-cols-12 gap-2">
                         {filteredQuestions.map((q, idx) => {
                             const statusColors = getStatusColor(q.status);
                             const isActive = idx === currentIndex;
@@ -341,7 +341,7 @@ export default function ExamReviewPage() {
             </div>
 
             {/* Question Content */}
-            <main className="flex-1 pb-24">
+            <main className="flex-1 pb-0 lg:pb-24">
                 <div className="max-w-4xl mx-auto px-4 py-6">
                     {filteredQuestions.length === 0 ? (
                         <div className="text-center py-12">
@@ -365,20 +365,20 @@ export default function ExamReviewPage() {
             </main>
 
             {/* Bottom Navigation */}
-            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40">
+            <div className="bg-white border-t border-slate-200 lg:fixed lg:bottom-0 lg:left-0 lg:right-0 lg:z-40">
                 <div className="max-w-4xl mx-auto px-4 py-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                         <button
                             onClick={prevQuestion}
                             disabled={currentIndex === 0}
-                            className="px-6 py-3 rounded-xl font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                            className="px-2 py-2 sm:px-6 sm:py-3 rounded-xl text-xs sm:text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1 sm:gap-2 transition-colors"
                         >
                             <ChevronLeft size={18} />
                             Sebelumnya
                         </button>
 
                         <div className="text-center">
-                            <span className="text-lg font-bold text-slate-800">
+                            <span className="text-sm sm:text-lg font-bold text-slate-800">
                                 {currentIndex + 1}
                                 <span className="text-slate-400"> / {filteredQuestions.length}</span>
                             </span>
@@ -387,7 +387,7 @@ export default function ExamReviewPage() {
                         <button
                             onClick={nextQuestion}
                             disabled={currentIndex === filteredQuestions.length - 1}
-                            className="px-6 py-3 rounded-xl font-semibold text-white bg-primary hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                            className="px-2 py-2 sm:px-6 sm:py-3 rounded-xl text-xs sm:text-sm font-semibold text-white bg-primary hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1 sm:gap-2 transition-colors"
                         >
                             Selanjutnya
                             <ChevronRight size={18} />

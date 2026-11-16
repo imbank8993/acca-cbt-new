@@ -2,7 +2,6 @@
 
 import { ValidationConclusionText } from '@/app/components/validations/ValidationConclusionText';
 import React, { useState, useEffect, useCallback } from 'react';
-import { registerPageFab, unregisterPageFab } from '@/app/components/mobile/page-fab';
 import './validations-mobile.css';
 import Link from 'next/link';
 import {
@@ -155,16 +154,6 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
         await runManage(() => deleteValidation(selectedDetailVal.id), 'Sesi validasi gagal dihapus.', true);
     };
 
-    useEffect(() => {
-        const token = {};
-        registerPageFab(token, {
-            label: 'Tambah Validasi',
-            icon: 'plus',
-            run: () => { setTargetFolderId(undefined); setIsAssignModalOpen(true); },
-        });
-        return () => unregisterPageFab(token);
-    }, []);
-
     const saveDecision = async () => {
         if (!selectedDetailVal) return;
         setSavingDecision(true);
@@ -288,7 +277,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
     const renderSessions = (items: ValidationSession[]) => (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="mobile-data-cards w-full text-left border-collapse">
                     <thead>
                         <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                             <th className="py-3 px-4">Bank Soal</th>
@@ -308,7 +297,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                             return (
                                 <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                                     {/* Bank Soal */}
-                                    <td className="py-3.5 px-4 max-w-xs">
+                                    <td data-mobile-label="Bank soal" className="py-3.5 px-4 max-w-xs">
                                         <p className="font-bold text-slate-800 dark:text-slate-100 line-clamp-1" title={item.title}>
                                             {item.title}
                                         </p>
@@ -321,7 +310,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                                     </td>
 
                                     {/* Tim Validator */}
-                                    <td className="py-3.5 px-4">
+                                    <td data-mobile-label="Tim validator" className="py-3.5 px-4">
                                         <div className="space-y-1">
                                             <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
                                                 <UserCheck size={12} className="text-primary" />
@@ -341,13 +330,13 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                                     </td>
 
                                     {/* Status Validasi */}
-                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                    <td data-mobile-label="Status" className="py-3.5 px-4 whitespace-nowrap">
                                         {getStatusBadge(item.status, awaitsDecision(item))}
                                         {(item.round ?? 1) > 1 && <p className="mt-1 text-[10px] text-slate-400">Putaran {item.round}</p>}
                                     </td>
 
                                     {/* Batas Waktu */}
-                                    <td className="py-3.5 px-4 whitespace-nowrap text-slate-600 dark:text-slate-400 font-medium text-[11px]">
+                                    <td data-mobile-label="Batas waktu" className="py-3.5 px-4 whitespace-nowrap text-slate-600 dark:text-slate-400 font-medium text-[11px]">
                                         {item.deadline ? (
                                             <span className="flex items-center gap-1">
                                                 <Calendar size={12} className="text-slate-400" />
@@ -359,7 +348,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                                     </td>
 
                                     {/* Aksi */}
-                                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                    <td data-mobile-label="Aksi" className="py-3.5 px-4 text-right whitespace-nowrap">
                                         <div className="flex items-center justify-end gap-1.5">
                                             <button
                                                 type="button"
@@ -399,7 +388,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
     return (
         <div className="flex flex-col gap-4 sm:gap-6" aria-label={`Validasi soal ${role}`}>
             {/* Filter Toolbar (Standardized) */}
-            <FilterToolbar className="validation-toolbar">
+            <FilterToolbar actionsInline className="validation-toolbar ftb-toolbar--noSticky">
                 <FilterSearch
                     value={searchQuery}
                     onChange={setSearchQuery}
@@ -427,8 +416,8 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                     ]}
                 />
                 <FilterActions className="validation-create-actions">
-                    <Button className="validation-folder-create" variant="outline" onClick={() => setIsFolderModalOpen(true)} disabled={loading}>
-                        <FolderPlus size={15} /> Buat Folder
+                    <Button className="validation-folder-create ftb-btn-icon-mobile" variant="outline" leftIcon={<FolderPlus size={18} />} onClick={() => setIsFolderModalOpen(true)} disabled={loading} title="Buat Folder" aria-label="Buat Folder">
+                        Buat Folder
                     </Button>
                     <Button
                         onClick={() => openAssignment()}
@@ -438,6 +427,9 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                     </Button>
                 </FilterActions>
             </FilterToolbar>
+            <Button className="validation-mobile-create" onClick={() => openAssignment()} disabled={loading}>
+                <Plus size={18} /> Tambah Validasi
+            </Button>
 
             {loadError && !loading && (
                 <div role="alert" className="p-3 rounded-xl border border-red-200 bg-red-50 text-xs text-red-700 dark:bg-red-950/30 dark:border-red-900 dark:text-red-300">

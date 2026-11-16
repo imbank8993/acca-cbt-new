@@ -221,7 +221,7 @@ function MonitoringContent() {
             {activeTab === 'results' && (
                     <div className="bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left text-xs">
+                            <table className="mobile-data-cards w-full text-left text-xs">
                                 <thead>
                                     <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700/80 text-slate-500 dark:text-slate-400 font-semibold text-xs sm:font-bold sm:uppercase sm:tracking-wider sm:text-[10px]">
                                         <th className="p-3 sm:px-4">Peserta</th>

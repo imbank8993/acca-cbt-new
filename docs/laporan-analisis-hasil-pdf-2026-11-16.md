@@ -14,12 +14,12 @@ penyusunan PDF di `apps/web/lib/export-analysis-pdf.ts`.
 | Reliabilitas | KR-20 (semua butir dikotomus) atau Cronbach α (ada butir berskor parsial), SEM dalam skala nilai 0–100 | Kuder & Richardson 1937; Cronbach 1951; SEM wajib dilaporkan (AERA/APA/NCME 2014, Std. 2.13–2.14) |
 | IRT (bila ujian memakai IRT) | Model, rerata/SB θ, skala 500 + 100θ, rata-rata galat baku θ, kurva informasi tes | Hambleton, Swaminathan & Rogers 1991; Lord 1980 |
 | II. Penguasaan materi | % skor per materi (kisi-kisi) dan kategori capaian | Kriteria ketercapaian tujuan pembelajaran (KKTP) model interval, Kemendikbudristek 2022/2024 |
-| III. Analisis butir | p, kategori kesukaran, korelasi butir-total terkoreksi (r_it), daya beda D (27% atas–bawah), α bila butir dihapus, b/a/c IRT, % kosong, catatan | Kelley 1939; Ebel & Frisbie 1991; Crocker & Algina 1986 |
-| Butir perlu ditinjau | Alasan + saran tindak lanjut per butir | Ebel & Frisbie 1991 |
+| III. Analisis butir | Tabel keputusan (p, kesukaran, r_it, D, keputusan), diikuti tabel parameter pendukung (daya beda, α bila butir dihapus, b/a/c IRT, jumlah kosong) | Kelley 1939; Ebel & Frisbie 1991; Crocker & Algina 1986 |
+| Prioritas tindak lanjut | Temuan dan saran yang sama dikelompokkan, dengan nomor semua butir terkait | Ebel & Frisbie 1991 |
 | Analisis pengecoh | % pemilih tiap opsi (semua, kelompok atas, kelompok bawah); pengecoh tak berfungsi (< 5%) dan pengecoh yang menarik kelompok atas | Haladyna & Downing 1993; Haladyna, Downing & Rodriguez 2002 |
 | IV. Rekap peserta | Nilai, kategori, benar/salah/kosong, θ & skala IRT | — |
 | Cara membaca | Glosarium singkat dan rujukan, sebelum bagian V agar laporan siswa menjadi blok halaman yang utuh untuk dicetak/dibagikan | Zenisky & Hambleton 2012 (glosarium & bahasa sederhana) |
-| V. Laporan per peserta | Satu halaman per siswa: nilai dan rentang ±SEM, selisih terhadap rata-rata kelas, skala IRT ± galat baku, penguasaan per materi (dibanding kelas), umpan balik (sudah dikuasai, perlu diperbaiki, langkah berikutnya), peta benar/salah per butir, daftar butir yang belum tepat beserta jawaban, kunci dan % benar di kelas | Umpan balik "feed up–feed back–feed forward" (Hattie & Timperley 2007); pedoman laporan skor (Zenisky & Hambleton 2012); pola respons tak lazim (Sato 1975) |
+| V. Laporan per peserta | Tiap siswa dimulai pada halaman baru dan berlanjut bila rincian panjang: nilai dan rentang ±SEM, selisih terhadap rata-rata kelas, skala IRT ± galat baku, penguasaan per materi (dibanding kelas), umpan balik (sudah dikuasai, perlu diperbaiki, langkah berikutnya), peta benar/salah per butir, daftar butir yang belum tepat beserta jawaban, kunci dan % benar di kelas | Umpan balik "feed up–feed back–feed forward" (Hattie & Timperley 2007); pedoman laporan skor (Zenisky & Hambleton 2012); pola respons tak lazim (Sato 1975) |
 
 
 ## Rumus dan batas

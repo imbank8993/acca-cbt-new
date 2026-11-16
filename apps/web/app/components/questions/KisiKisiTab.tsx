@@ -148,7 +148,7 @@ export default function KisiKisiTab({ bankId, onItemsChange }: KisiKisiTabProps)
                 </div>
             ) : (
                 <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden overflow-x-auto">
-                    <table className="min-w-full divide-y divide-slate-200 text-sm">
+                    <table className="mobile-data-cards mobile-data-cards--selectable min-w-full divide-y divide-slate-200 text-sm">
                         <thead className="bg-slate-50">
                             <tr>
                                 <th className="w-12 px-4 py-3" aria-label="Pilih kisi-kisi" />
@@ -161,7 +161,7 @@ export default function KisiKisiTab({ bankId, onItemsChange }: KisiKisiTabProps)
                         <tbody className="divide-y divide-slate-200 bg-white">
                             {filteredData.map(k => (
                                 <tr key={k.id} className={selection.selectedIds.has(k.id) ? 'bg-blue-50 hover:bg-blue-50' : 'hover:bg-slate-50/50'}>
-                                    <td className="px-4 py-3 align-top">
+                                    <td data-mobile-label="" className="px-4 py-3 align-top">
                                         <input type="checkbox" checked={selection.selectedIds.has(k.id)} disabled={selection.isDeleting}
                                             onChange={() => selection.toggle(k.id)} aria-label={`Pilih kisi-kisi ${k.materi || k.indikator_soal || ''}`}
                                             className="h-4 w-4 rounded border-slate-300 accent-blue-600" />

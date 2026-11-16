@@ -1,6 +1,7 @@
 "use client";
 
 import BottomNav from '@/app/components/BottomNav';
+import { MobileTableLabels } from '@/app/components/mobile/MobileTableLabels';
 import DashboardLoading from '@/app/components/DashboardLoading';
 import Header, { type HeaderUser } from '@/app/components/Header';
 import Sidebar from '@/app/components/Sidebar';
@@ -345,6 +346,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <div className="px-3 sm:px-4 lg:px-6 py-3 sm:py-6 print:p-0!">
                         {children}
                     </div>
+                    <MobileTableLabels />
                 </main>
                 <BottomNav
                     user={currentUser}

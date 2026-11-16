@@ -731,7 +731,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                     ) : (
                         <div className="pas-room-list overflow-hidden rounded-xl border border-slate-200 bg-white">
                             <div className="overflow-x-auto" role="region" aria-label="Ruang dan pengawas" tabIndex={0}>
-                                <table className="w-full min-w-[720px] text-left text-xs">
+                                <table className="mobile-data-cards w-full min-w-[720px] text-left text-xs">
                                     <thead className="bg-slate-50 text-[11px] text-slate-500">
                                         <tr>
                                             <th scope="col" className="px-4 py-3 font-medium">Ruang</th>

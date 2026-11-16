@@ -451,7 +451,7 @@ export default function StudentAnalyticsPage() {
                         </h3>
                     </div>
                     <div className="overflow-x-auto">
-                        <table className="w-full">
+                        <table className="mobile-data-cards w-full">
                             <thead className="bg-slate-50/50">
                                 <tr>
                                     <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Mata Pelajaran</th>

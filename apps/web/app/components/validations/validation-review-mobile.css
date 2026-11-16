@@ -1,0 +1,77 @@
+@media (max-width: 1023.98px) {
+  .validation-review-screen {
+    overflow-x: clip;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    height: 100dvh;
+    display: block;
+  }
+
+  .validation-review-header {
+    padding: 14px 16px;
+    min-height: 0;
+  }
+
+  .validation-review-header .mode-corner-ribbon { display: none; }
+  .validation-review-header > div:last-child { width: 100%; min-width: 0; }
+  .validation-review-header > div:last-child > button {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: auto;
+    min-height: 40px;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .validation-review-main {
+    display: block;
+    flex: none;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .validation-review-question {
+    overflow: visible;
+    min-width: 0;
+  }
+
+  .validation-review-notes {
+    height: auto;
+    min-width: 0;
+    overflow: visible;
+  }
+
+  .validation-review-notes > div:last-child {
+    overflow: visible;
+  }
+
+  .validation-review-footer {
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+  }
+
+  .validation-review-footer > div:last-child {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .validation-review-footer > div:last-child > button {
+    justify-content: center;
+    min-width: 0;
+    white-space: normal;
+  }
+
+  .validation-review-footer > div:last-child > div {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+  }
+}
+
+@media (max-width: 479.98px) {
+  .validation-review-header > div:last-child > button { width: 100%; }
+  .validation-review-notes .grid-cols-3 { grid-template-columns: 1fr; }
+}
