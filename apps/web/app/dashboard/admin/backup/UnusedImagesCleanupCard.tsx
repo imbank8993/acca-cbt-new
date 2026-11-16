@@ -138,26 +138,28 @@ export default function UnusedImagesCleanupCard() {
                         </div>
                     ) : (
                         <div className="border border-slate-200 rounded-lg overflow-hidden">
+                            <div className="overflow-x-auto">
                             <table className="w-full text-xs">
                                 <thead className="bg-slate-50 text-slate-600">
                                     <tr>
                                         <th className="text-left px-3 py-2 font-semibold">Berkas</th>
-                                        <th className="text-left px-3 py-2 font-semibold">Jenis</th>
+                                        <th className="hidden sm:table-cell text-left px-3 py-2 font-semibold">Jenis</th>
                                         <th className="text-right px-3 py-2 font-semibold">Ukuran</th>
-                                        <th className="text-right px-3 py-2 font-semibold">Diunggah</th>
+                                        <th className="hidden sm:table-cell text-right px-3 py-2 font-semibold">Diunggah</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {preview.items.slice(0, SHOWN_ITEMS).map(item => (
                                         <tr key={item.key} className="border-t border-slate-100">
-                                            <td className="px-3 py-1.5 font-mono text-slate-700 truncate max-w-[260px]" title={item.key}>{fileName(item.key)}</td>
-                                            <td className="px-3 py-1.5 text-slate-500">{folderLabel(item.key)}</td>
+                                            <td className="px-3 py-1.5 font-mono text-slate-700 max-w-[200px] sm:max-w-[260px]" title={item.key}><span className="block truncate">{fileName(item.key)}</span></td>
+                                            <td className="hidden sm:table-cell px-3 py-1.5 text-slate-500">{folderLabel(item.key)}</td>
                                             <td className="px-3 py-1.5 text-right text-slate-700">{formatBytes(item.size)}</td>
-                                            <td className="px-3 py-1.5 text-right text-slate-500">{dateLabel(item.lastModified)}</td>
+                                            <td className="hidden sm:table-cell px-3 py-1.5 text-right text-slate-500">{dateLabel(item.lastModified)}</td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
+                            </div>
                             {preview.items.length > SHOWN_ITEMS && (
                                 <p className="px-3 py-2 text-xs text-slate-500 bg-slate-50 border-t border-slate-100">
                                     dan {(preview.items.length - SHOWN_ITEMS).toLocaleString('id-ID')} gambar lainnya.

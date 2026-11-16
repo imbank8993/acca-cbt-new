@@ -113,26 +113,27 @@ export default function AssignmentReviewerPage() {
     const submittedAt = details.attempt.finished_at ? new Date(details.attempt.finished_at).toLocaleString('id-ID') : 'Belum Selesai';
 
     return (
-        <div className="h-screen w-full bg-[#0f172a] text-slate-200 overflow-hidden flex flex-col font-sans">
+        <div className="w-full min-h-[calc(100dvh-140px)] rounded-2xl lg:rounded-none lg:min-h-0 lg:h-screen bg-[#0f172a] text-slate-200 overflow-hidden flex flex-col font-sans">
             {/* Top Navigation */}
-            <header className="h-16 shrink-0 border-b border-slate-800 bg-[#1e293b]/50 backdrop-blur-md flex items-center justify-between px-6 z-10">
-                <div className="flex items-center gap-6">
-                    <button onClick={() => router.back()} className="text-slate-400 hover:text-white transition-colors flex items-center gap-2">
+            <header className="min-h-16 shrink-0 border-b border-slate-800 bg-[#1e293b]/50 backdrop-blur-md flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-2 lg:px-6 z-10">
+                <div className="flex min-w-0 items-center gap-3 lg:gap-6">
+                    <button onClick={() => router.back()} aria-label="Kembali" className="-ml-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 hover:text-white transition-colors">
                         <ArrowLeft size={18} />
                     </button>
-                    <div className="h-6 w-px bg-slate-700" />
-                    <div>
-                        <h1 className="text-sm font-bold text-white leading-tight">{examTitle}</h1>
+                    <div className="h-6 w-px shrink-0 bg-slate-700" />
+                    <div className="min-w-0">
+                        <h1 className="truncate text-sm font-bold text-white leading-tight">{examTitle}</h1>
                         <p className="text-xs text-slate-400">Workspace Penilaian Reviewer</p>
                     </div>
                 </div>
 
                 {details.essayAnswers.length > 1 && (
-                    <div className="flex items-center gap-4 bg-slate-800/50 rounded-lg p-1 border border-slate-700">
+                    <div className="ml-auto flex items-center gap-2 lg:gap-4 bg-slate-800/50 rounded-lg p-1 border border-slate-700">
                         <button 
                             disabled={currentQuestionIdx === 0}
                             onClick={() => setCurrentQuestionIdx(prev => prev - 1)}
-                            className="p-1.5 rounded-md hover:bg-slate-700 disabled:opacity-30 transition-colors"
+                            aria-label="Soal sebelumnya"
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-slate-700 disabled:opacity-30 transition-colors lg:h-auto lg:w-auto lg:p-1.5"
                         >
                             <ChevronLeft size={18} />
                         </button>
@@ -142,7 +143,8 @@ export default function AssignmentReviewerPage() {
                         <button 
                             disabled={currentQuestionIdx === details.essayAnswers.length - 1}
                             onClick={() => setCurrentQuestionIdx(prev => prev + 1)}
-                            className="p-1.5 rounded-md hover:bg-slate-700 disabled:opacity-30 transition-colors"
+                            aria-label="Soal berikutnya"
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-slate-700 disabled:opacity-30 transition-colors lg:h-auto lg:w-auto lg:p-1.5"
                         >
                             <ChevronRight size={18} />
                         </button>
@@ -151,24 +153,24 @@ export default function AssignmentReviewerPage() {
             </header>
 
             {/* Main Content Split */}
-            <main className="flex-1 flex overflow-hidden">
-                {/* Left Side: Document Viewer */}
-                <div className="flex-1 flex flex-col relative bg-[#0B1121]">
-                    <div className="absolute top-4 left-4 right-4 z-10 flex justify-between items-center pointer-events-none">
-                        <div className="bg-slate-900/80 backdrop-blur pointer-events-auto border border-slate-700 rounded-lg px-4 py-2 flex items-center gap-3">
-                            <FileText size={16} className="text-blue-400" />
-                            <span className="text-sm font-medium">
+            <main className="flex-1 flex flex-col lg:flex-row lg:overflow-hidden">
+                {/* Left Side: Document Viewer — di mobile bertumpuk di atas panel nilai */}
+                <div className="h-[60dvh] shrink-0 lg:h-auto lg:shrink lg:flex-1 flex flex-col relative bg-[#0B1121]">
+                    <div className="absolute top-3 left-3 right-3 lg:top-4 lg:left-4 lg:right-4 z-10 flex justify-between items-center gap-2 pointer-events-none">
+                        <div className="min-w-0 bg-slate-900/80 backdrop-blur pointer-events-auto border border-slate-700 rounded-lg px-3 py-2 lg:px-4 flex items-center gap-3">
+                            <FileText size={16} className="shrink-0 text-blue-400" />
+                            <span className="truncate text-sm font-medium">
                                 {activeFileRaw ? attachmentLabel(activeFileRaw, 0) : 'Tidak ada lampiran'}
                             </span>
                         </div>
                         {activeFile && (
-                            <a href={activeFile} target="_blank" rel="noopener noreferrer" className="bg-blue-600/90 hover:bg-blue-500 backdrop-blur pointer-events-auto text-white rounded-lg px-4 py-2 text-xs font-bold transition-colors shadow-lg flex items-center gap-2">
+                            <a href={activeFile} target="_blank" rel="noopener noreferrer" className="shrink-0 bg-blue-600/90 hover:bg-blue-500 backdrop-blur pointer-events-auto text-white rounded-lg px-3 py-2.5 lg:px-4 lg:py-2 text-xs font-bold transition-colors shadow-lg flex items-center gap-2">
                                 Buka di Tab Baru
                             </a>
                         )}
                     </div>
 
-                    <div className="flex-1 p-4 pt-16 h-full">
+                    <div className="flex-1 min-h-0 p-3 pt-16 lg:p-4 lg:pt-16 h-full">
                         {activeFile ? (
                             <div className="w-full h-full bg-white rounded-xl overflow-hidden shadow-2xl border border-slate-700/50 relative">
                                 {isPdf ? (
@@ -200,8 +202,8 @@ export default function AssignmentReviewerPage() {
                 </div>
 
                 {/* Right Side: Grading Panel */}
-                <div className="w-[400px] shrink-0 border-l border-slate-800 bg-[#1e293b] flex flex-col">
-                    <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+                <div className="w-full lg:w-[400px] shrink-0 border-t lg:border-t-0 lg:border-l border-slate-800 bg-[#1e293b] flex flex-col">
+                    <div className="flex-1 lg:overflow-y-auto p-4 lg:p-6 space-y-6 lg:space-y-8 custom-scrollbar">
                         
                         {/* Student Info Card */}
                         <div className="bg-slate-800/50 rounded-2xl p-5 border border-slate-700/50 relative overflow-hidden">
@@ -310,7 +312,7 @@ export default function AssignmentReviewerPage() {
                     </div>
 
                     {/* Bottom Action */}
-                    <div className="p-6 border-t border-slate-800 bg-[#1e293b] shrink-0">
+                    <div className="p-4 lg:p-6 border-t border-slate-800 bg-[#1e293b] shrink-0">
                         <button
                             onClick={handleSave}
                             disabled={submitting}

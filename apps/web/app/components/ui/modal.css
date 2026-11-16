@@ -1227,6 +1227,17 @@
     align-items: center !important;
     justify-content: center !important;
     font-size: 0.85rem !important;
+    position: relative !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Area sentuh 44x44px (Apple HIG / WCAG 2.5.5) tanpa membesarkan
+     lingkaran 30px yang terlihat. */
+  .mdl-head__x::after {
+    content: '';
+    position: absolute;
+    inset: -7px;
+    border-radius: 50%;
   }
 
   /* Judul modal diselaraskan dengan ukuran font daftar data mobile */

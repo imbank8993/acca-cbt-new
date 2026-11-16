@@ -198,7 +198,7 @@ export default function Header({
                     </button>
 
                     <div className="user-menu-wrapper" ref={userMenuRef}>
-                        <button className="user-menu-trigger" onClick={() => setShowUserMenu(!showUserMenu)} type="button">
+                        <button className="user-menu-trigger" onClick={() => setShowUserMenu(!showUserMenu)} type="button" aria-label="Menu pengguna" aria-expanded={showUserMenu}>
                             <div className="user-avatar-small">
                                 {avatarImg ? (
                                     <Image

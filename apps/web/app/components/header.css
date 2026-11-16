@@ -1123,3 +1123,25 @@ html.dark .user_menu_nip {
     display: flex !important;
   }
 }
+
+/* =========================================================
+   AREA SENTUH TOMBOL HEADER MOBILE
+   Tombol menu dan avatar tampil 32px agar header 56px tetap ringan, tetapi
+   area ketuknya diperluas ke 44px (Apple HIG 44pt, WCAG 2.5.5) lewat
+   pseudo-elemen tak terlihat — ukuran visual tidak berubah.
+   Lihat docs/riset-desain-mobile-2026-11-17.md.
+========================================================= */
+@media (max-width: 1023.98px) {
+  .header .header-mobile-menu-btn,
+  .header .user-menu-trigger {
+    position: relative;
+  }
+
+  .header .header-mobile-menu-btn::after,
+  .header .user-menu-trigger::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+  }
+}

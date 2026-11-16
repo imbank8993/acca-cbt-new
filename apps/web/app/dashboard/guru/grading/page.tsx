@@ -189,7 +189,7 @@ function GradingContent() {
     }
 
     return (
-        <div className="space-y-8 pb-20 animate-in fade-in duration-700">
+        <div className="space-y-4 sm:space-y-8 pb-20 animate-in fade-in duration-700">
                         {/* Exam Selector Toolbar */}
             <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
                 <div className="flex items-center gap-3">
@@ -217,7 +217,8 @@ function GradingContent() {
                     <button
                         onClick={handleRefresh}
                         disabled={isRefreshing || !selectedExamId}
-                        className="p-2.5 border border-slate-200 rounded-xl text-slate-600 hover:text-[#3083FF] hover:bg-slate-50 transition-all disabled:opacity-50"
+                        aria-label="Segarkan data"
+                        className="inline-flex h-11 w-11 shrink-0 items-center justify-center sm:h-auto sm:w-auto sm:p-2.5 border border-slate-200 rounded-xl text-slate-600 hover:text-[#3083FF] hover:bg-slate-50 transition-all disabled:opacity-50"
                         title="Segarkan Data"
                     >
                         <RefreshCw size={18} className={isRefreshing ? "animate-spin" : ""} />
@@ -236,15 +237,15 @@ function GradingContent() {
                     <div className="flex border-b border-slate-200">
                         <button
                             onClick={() => setActiveTab('results')}
-                            className={`px-8 py-4 font-black uppercase tracking-widest text-[11px] transition-all flex border-b-2 items-center gap-2 ${activeTab === 'results' ? 'border-[#3083FF] text-[#3083FF]' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                            className={`flex-1 sm:flex-none justify-center min-h-11 px-3 sm:px-8 py-3 sm:py-4 font-black uppercase tracking-wider sm:tracking-widest text-[10px] sm:text-[11px] transition-all flex border-b-2 items-center gap-2 ${activeTab === 'results' ? 'border-[#3083FF] text-[#3083FF]' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                         >
-                            <Users size={16} /> REKAP HASIL SISWA
+                            <Users size={16} className="shrink-0" /> <span className="sm:hidden">REKAP HASIL</span><span className="hidden sm:inline">REKAP HASIL SISWA</span>
                         </button>
                         <button
                             onClick={() => setActiveTab('analysis')}
-                            className={`px-8 py-4 font-black uppercase tracking-widest text-[11px] transition-all flex border-b-2 items-center gap-2 ${activeTab === 'analysis' ? 'border-amber-500 text-amber-500' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                            className={`flex-1 sm:flex-none justify-center min-h-11 px-3 sm:px-8 py-3 sm:py-4 font-black uppercase tracking-wider sm:tracking-widest text-[10px] sm:text-[11px] transition-all flex border-b-2 items-center gap-2 ${activeTab === 'analysis' ? 'border-amber-500 text-amber-500' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                         >
-                            <Calculator size={16} /> ANALISIS BUTIR SOAL
+                            <Calculator size={16} className="shrink-0" /> <span className="sm:hidden">ANALISIS BUTIR</span><span className="hidden sm:inline">ANALISIS BUTIR SOAL</span>
                         </button>
                     </div>
 
@@ -259,13 +260,43 @@ function GradingContent() {
                             {/* TAB RESULTS */}
                             {activeTab === 'results' && (
                                 <motion.div key="results" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-                                    <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/50">
+                                    <div className="flex justify-between items-center gap-3 p-4 sm:p-6 border-b border-slate-100 bg-slate-50/50">
                                         <h3 className="font-bold text-slate-700">Daftar Pengumpulan</h3>
-                                        <button onClick={exportResultsToExcel} className="flex items-center gap-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
-                                            <FileSpreadsheet size={16} /> EXPORT EXCEL
+                                        <button onClick={exportResultsToExcel} className="flex shrink-0 items-center gap-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 min-h-11 sm:min-h-0 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
+                                            <FileSpreadsheet size={16} /> <span className="sm:hidden">EXCEL</span><span className="hidden sm:inline">EXPORT EXCEL</span>
                                         </button>
                                     </div>
-                                    <div className="overflow-x-auto">
+                                    {/* Mobile: daftar kartu — tabel 5 kolom tidak muat di 375px */}
+                                    <div className="md:hidden divide-y divide-slate-100">
+                                        {attempts.length === 0 ? (
+                                            <p className="p-6 text-center text-sm text-slate-400 font-medium">Belum ada siswa yang mengerjakan ujian ini.</p>
+                                        ) : attempts.map((att) => (
+                                            <button
+                                                key={att.id}
+                                                type="button"
+                                                onClick={() => router.push(`/dashboard/guru/grading/${att.id}`)}
+                                                className="flex w-full min-h-16 items-center gap-3 px-4 py-3 text-left active:bg-slate-50"
+                                            >
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="block truncate text-sm font-semibold text-slate-700">{formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}</span>
+                                                    <span className="mt-0.5 block truncate text-xs text-slate-400">
+                                                        {att.finished_at ? `Selesai ${formatUTCDateTime(att.finished_at)}` : att.started_at ? `Mulai ${formatUTCDateTime(att.started_at)}` : '-'}
+                                                    </span>
+                                                </span>
+                                                <span className="flex shrink-0 flex-col items-end gap-1">
+                                                    {att.needs_manual_grading ? (
+                                                        <span className="px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-500 border border-amber-100">BELUM DINILAI</span>
+                                                    ) : (
+                                                        <span className="text-base font-bold text-[#3083FF]">{Number(att.total_score).toFixed(0)}</span>
+                                                    )}
+                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${att.status === 'submitted' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                                                        {att.status === 'submitted' ? 'SELESAI' : att.status}
+                                                    </span>
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="hidden md:block overflow-x-auto">
                                         <table className="w-full text-left border-collapse">
                                             <thead>
                                                 <tr className="bg-slate-50 text-[10px] uppercase tracking-widest text-slate-400">
@@ -317,13 +348,37 @@ function GradingContent() {
                             {/* TAB ANALYSIS */}
                             {activeTab === 'analysis' && (
                                 <motion.div key="analysis" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-                                    <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/50">
+                                    <div className="flex justify-between items-center gap-3 p-4 sm:p-6 border-b border-slate-100 bg-slate-50/50">
                                         <h3 className="font-bold text-slate-700">Tingkat Kesulitan Soal</h3>
-                                        <button onClick={exportAnalysisToExcel} className="flex items-center gap-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
-                                            <FileSpreadsheet size={16} /> EXPORT EXCEL
+                                        <button onClick={exportAnalysisToExcel} className="flex shrink-0 items-center gap-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 min-h-11 sm:min-h-0 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
+                                            <FileSpreadsheet size={16} /> <span className="sm:hidden">EXCEL</span><span className="hidden sm:inline">EXPORT EXCEL</span>
                                         </button>
                                     </div>
-                                    <div className="overflow-x-auto">
+                                    <div className="md:hidden divide-y divide-slate-100">
+                                        {analysis.length === 0 ? (
+                                            <p className="p-6 text-center text-sm text-slate-400 font-medium">Belum ada data analisis. Pastikan ujian sudah dikerjakan siswa.</p>
+                                        ) : analysis.map((anl) => {
+                                            const isCritical = anl.incorrectPercentage > 50;
+                                            return (
+                                                <div key={anl.id} className={`px-4 py-3 ${isCritical ? 'bg-rose-50/30' : ''}`}>
+                                                    <div className="flex items-start gap-2">
+                                                        {isCritical && <AlertTriangle size={14} className="text-rose-500 mt-1 flex-shrink-0" />}
+                                                        <div className={`min-w-0 flex-1 text-sm line-clamp-2 ${isCritical ? 'font-bold text-rose-700' : 'font-medium text-slate-600'}`}><InlineMath text={anl.qText} /></div>
+                                                        <span className={`shrink-0 text-lg font-black ${isCritical ? 'text-rose-600' : 'text-slate-700'}`}>{anl.incorrectPercentage.toFixed(0)}%</span>
+                                                    </div>
+                                                    <div className="mt-2 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                        <div className={`h-full ${isCritical ? 'bg-rose-500' : 'bg-primary'}`} style={{ width: `${anl.incorrectPercentage}%` }}></div>
+                                                    </div>
+                                                    <div className="mt-2 flex gap-4 text-xs font-semibold">
+                                                        <span className="text-slate-500">Menjawab {anl.total}</span>
+                                                        <span className="text-emerald-600">Benar {anl.correct}</span>
+                                                        <span className="text-rose-500">Salah {anl.incorrect}</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="hidden md:block overflow-x-auto">
                                         <table className="w-full text-left border-collapse">
                                             <thead>
                                                 <tr className="bg-slate-50 text-[10px] uppercase tracking-widest text-slate-400">
