@@ -564,6 +564,27 @@ export class ExamMonitoringService {
      * butir menghitung SEMUA jawaban peserta yang sedang mengerjakan sebagai
      * salah, dan angkanya menyesatkan justru saat ujian sedang berlangsung.
      */
+    /** Profil sekolah untuk kop Laporan Analisis (PDF); sama dengan kop dokumen PAS. Hanya baca. */
+    private async reportSchoolProfile(organizationId?: string | null) {
+        try {
+            const [{ data: schoolProfile }, { data: organization }] = await Promise.all([
+                this.db.from('profil_sekolah')
+                    .select('nama, jenjang, jenis, alamat, desa_kelurahan, kecamatan, kabupaten_kota, provinsi, kode_pos, telepon, email, website, logo_url')
+                    .limit(1).maybeSingle(),
+                organizationId
+                    ? this.db.from('cbt_organizations').select('name, logo_url').eq('id', organizationId).maybeSingle()
+                    : Promise.resolve({ data: null }),
+            ]);
+            const school = schoolProfile as Record<string, unknown> | null;
+            const org = organization as { name?: string | null; logo_url?: string | null } | null;
+            if (!school && !org) return null;
+            return { ...(school || {}), nama: school?.nama || org?.name || 'MADRASAH', logo_url: school?.logo_url || org?.logo_url || null };
+        } catch (err) {
+            this.logger.warn(`Profil sekolah untuk laporan belum dapat dibaca: ${(err as Error).message}`);
+            return null;
+        }
+    }
+
     async getItemAnalysis(user: AuthUser, examId: string, combineWith: string[] = []) {
         // Ujian folder ASAS/AM lama yang masih terpisah per kelas: satu bank soal,
         // dianalisis bersama agar analisis tidak dipilah per kelas.
@@ -578,9 +599,9 @@ export class ExamMonitoringService {
 
         const { data: examRows } = await this.db
             .from('cbt_exams')
-            .select('id, question_bank_id, metadata')
+            .select('id, question_bank_id, organization_id, metadata')
             .in('id', examIds);
-        const rows = (examRows as Array<{ id: string; question_bank_id: string | null; metadata?: Record<string, unknown> | null }> | null) || [];
+        const rows = (examRows as Array<{ id: string; question_bank_id: string | null; organization_id?: string | null; metadata?: Record<string, unknown> | null }> | null) || [];
         const examRow = rows.find(row => row.id === examId);
 
         if (!examRow) throw new NotFoundException('Ujian tidak ditemukan.');
@@ -697,7 +718,7 @@ export class ExamMonitoringService {
             participants.filter(participant => ['submitted', 'auto_submitted'].includes(participant.status)).map(participant => participant.attempt_id),
             answers.map(answer => ({ participantId: answer.attempt_id, questionId: answer.question_id,
                 answered: hasStoredAnswer(answer), isCorrect: answer.is_correct })));
-        return { questions, answers, detailed, irt, topicAnalysis };
+        return { questions, answers, detailed, irt, topicAnalysis, profil_sekolah: await this.reportSchoolProfile(examRow.organization_id) };
     }
 
     /**

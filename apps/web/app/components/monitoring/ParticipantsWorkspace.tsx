@@ -114,6 +114,7 @@ export function ParticipantsWorkspace({
     const [section, setSection] = useState<WorkspaceSection>(sections[0]);
     const [action, setAction] = useState<'reset' | 'screen' | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
+    const [exportOpen, setExportOpen] = useState(false);
     const [status, setStatus] = useState<StatusFilter | null>(null);
     const [search, setSearch] = useState('');
     const [classFilter, setClassFilter] = useState('');
@@ -130,6 +131,7 @@ export function ParticipantsWorkspace({
     const [busy, setBusy] = useState(false);
     const analysisRequest = useRef(0);
     const menuRef = useRef<HTMLDivElement>(null);
+    const exportRef = useRef<HTMLDivElement>(null);
 
     const activeSection = sections.includes(section) ? section : sections[0];
     const resultExamIds = [...new Set(attempts
@@ -167,6 +169,15 @@ export function ParticipantsWorkspace({
         window.addEventListener('pointerdown', close);
         return () => window.removeEventListener('pointerdown', close);
     }, [menuOpen]);
+
+    useEffect(() => {
+        if (!exportOpen) return;
+        const close = (event: PointerEvent) => { if (!exportRef.current?.contains(event.target as Node)) setExportOpen(false); };
+        const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setExportOpen(false); };
+        window.addEventListener('pointerdown', close);
+        window.addEventListener('keydown', escape);
+        return () => { window.removeEventListener('pointerdown', close); window.removeEventListener('keydown', escape); };
+    }, [exportOpen]);
 
     // ── Filter bersama ──────────────────────────────────────────────────────
     const classOptions = useMemo(() => [...new Set(attempts.flatMap(row => String(row.kelas_name || '').split(',').map(name => name.trim()).filter(name => name && name !== '-')))]
@@ -218,8 +229,9 @@ export function ParticipantsWorkspace({
         if (next === 'analisis' && analysis?.examId !== analysisKey) void loadAnalysis(analysisKey);
     };
 
-    const exportResults = async () => {
+    const exportResults = async (format: 'excel' | 'pdf') => {
         if (!focusId) return;
+        setExportOpen(false);
         setBusy(true);
         try {
             const [freshAttempts, freshAnalysis, timeZone] = await Promise.all([
@@ -229,7 +241,14 @@ export function ParticipantsWorkspace({
             if (freshAttempts.some(a => a.status !== 'belum') && (freshAnalysis.questions.length || freshAttempts.some(a => (a.total_questions || 0) > 0)) && !freshAnalysis.detailed) {
                 throw new Error('Analisis rinci belum tersedia. Coba kembali setelah layanan penilaian tersedia.');
             }
-            await exportDetailedAnalysisToExcel({
+            if (format === 'pdf') {
+                if (!freshAnalysis.detailed?.matrix?.length) throw new Error('Belum ada jawaban peserta yang dapat dianalisis.');
+                const { exportAnalysisToPdf } = await import('@/lib/export-analysis-pdf');
+                await exportAnalysisToPdf({
+                    exam: focusExam, attempts: freshAttempts, detailedAnalysis: freshAnalysis.detailed, timeZone,
+                    questions: freshAnalysis.questions, answers: freshAnalysis.answers, irt: freshAnalysis.irt ?? null, profile: freshAnalysis.profilSekolah ?? null,
+                });
+            } else await exportDetailedAnalysisToExcel({
                 exam: focusExam, attempts: freshAttempts, analysis: [], detailedAnalysis: freshAnalysis.detailed, timeZone,
                 questions: freshAnalysis.questions, answers: freshAnalysis.answers, irt: freshAnalysis.irt ?? null,
             });
@@ -406,7 +425,21 @@ export function ParticipantsWorkspace({
                 <div className="monitoring-results__actions">
                     {focusExam?.canManage === true && focusExam.canCorrectKeys !== false && focusId && <ExamKeyCorrectionButton key={focusId} examId={focusId} onComplete={() => void onReload()} />}
                     {hasIrt && focusExam?.canManage === true && <Button variant="outline" size="sm" onClick={() => void calculateIrt()} disabled={busy} leftIcon={<Calculator size={14} />}>Kalkulasi IRT</Button>}
-                    <Button variant="outline" size="sm" icon="export" onClick={() => void exportResults()} disabled={busy || !focusId}>Export</Button>
+                    <div ref={exportRef} className="relative">
+                        <Button variant="outline" size="sm" icon="export" aria-haspopup="menu" aria-expanded={exportOpen} onClick={() => setExportOpen(open => !open)} disabled={busy || !focusId}
+                            rightIcon={<ChevronDown size={14} className={`transition-transform ${exportOpen ? 'rotate-180' : ''}`} aria-hidden="true" />}>
+                            {busy ? 'Menyiapkan…' : 'Export'}
+                        </Button>
+                        {exportOpen && <div role="menu" aria-label="Export hasil" className="absolute right-0 z-20 mt-1.5 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+                            {([['excel', 'Excel (data lengkap)', 'Rekap nilai, jawaban siswa, analisis butir, pengecoh, parameter IRT'],
+                                ['pdf', 'PDF Laporan Analisis', 'Analisis kelas (reliabilitas, butir, materi) dan laporan tiap peserta dalam satu berkas']] as const)
+                                .map(([format, label, hint]) => <button key={format} type="button" role="menuitem" onClick={() => void exportResults(format)}
+                                    className="flex w-full flex-col items-start rounded-lg px-3 py-2 text-left hover:bg-slate-50">
+                                    <span className="text-sm font-medium text-slate-800">{label}</span>
+                                    <span className="text-[11px] text-slate-500">{hint}</span>
+                                </button>)}
+                        </div>}
+                    </div>
                 </div>
             </div>
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

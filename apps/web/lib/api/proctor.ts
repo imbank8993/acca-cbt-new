@@ -1,5 +1,6 @@
 import type { TopicAnalysis } from '@acca-cbt/shared';
 import type { IrtCalibration } from '@/lib/irt-calibration';
+import type { ProfilSekolah } from '@/lib/pas/print-kop';
 import { getSessionUser } from '../session';
 import { apiCreate,apiGet,apiSend } from './client';
 import type { AnswerValue,Question } from '@/app/types';
@@ -843,6 +844,8 @@ export async function getExamAnswersForAnalysisAction(
     detailed: DetailedItemAnalysisResponse | null;
     /** Parameter butir dari Kalkulasi IRT terakhir; `null` bila belum pernah dihitung. */
     irt?: IrtCalibration | null;
+    /** Profil sekolah untuk kop Laporan Analisis (PDF). */
+    profilSekolah?: ProfilSekolah | null;
 }> {
     const res = await apiGet<{
         topicAnalysis?: TopicAnalysis;
@@ -850,12 +853,13 @@ export async function getExamAnswersForAnalysisAction(
         answers: ExamAnswerRecord[];
         detailed?: DetailedItemAnalysisResponse | null;
         irt?: IrtCalibration | null;
+        profil_sekolah?: ProfilSekolah | null;
     }>(
         `/api/proctor/exams/${encodeURIComponent(examId)}/item-analysis${combineWith.length ? `?with=${combineWith.map(encodeURIComponent).join(',')}` : ''}`,
         { timeoutMs: 60_000 },
     );
     return res.success
-        ? { questions: res.questions, answers: res.answers, detailed: res.detailed ?? null, irt: res.irt ?? null, topicAnalysis: res.topicAnalysis }
+        ? { questions: res.questions, answers: res.answers, detailed: res.detailed ?? null, irt: res.irt ?? null, topicAnalysis: res.topicAnalysis, profilSekolah: res.profil_sekolah ?? null }
         : { questions: [], answers: [], detailed: null, irt: null };
 }
 
