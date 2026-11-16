@@ -57,11 +57,11 @@ function createFixtures() {
             { id: 'inv-map-1', pas_room_id: 'room-1', session_id: 'session-1', user_id: 'pengawas-1', exam_date: '2026-10-17' },
         ],
         cbt_profiles: [
-            { id: 'proctor-creator-1', full_name: 'Budi Santoso, S.Kom.', nis: '19880101', email: 'proktor@icgowa.sch.id' },
-            { id: 'pengawas-1', full_name: 'Dra. Siti Aminah, M.Pd.', nis: '19790512', email: 'siti@icgowa.sch.id' },
-            { id: 'student-1', full_name: 'Ahmad Fauzan', nis: '24001', email: 'ahmad@siswa.id' },
-            { id: 'student-2', full_name: 'Nadia Putri', nis: '24002', email: 'nadia@siswa.id' },
-            { id: 'student-3', full_name: 'Rizky Ramadhan', nis: '24003', email: 'rizky@siswa.id' },
+            { id: 'proctor-creator-1', full_name: 'Budi Santoso, S.Kom.', identity_number: '19880101', email: 'proktor@icgowa.sch.id' },
+            { id: 'pengawas-1', full_name: 'Dra. Siti Aminah, M.Pd.', identity_number: '19790512', email: 'siti@icgowa.sch.id' },
+            { id: 'student-1', full_name: 'Ahmad Fauzan', identity_number: '24001', email: 'ahmad@siswa.id' },
+            { id: 'student-2', full_name: 'Nadia Putri', identity_number: '24002', email: 'nadia@siswa.id' },
+            { id: 'student-3', full_name: 'Rizky Ramadhan', identity_number: '24003', email: 'rizky@siswa.id' },
         ],
         cbt_classes: [
             { id: 'class-10a', organization_id: 'org-1', name: 'X MIPA 1' },
@@ -111,10 +111,6 @@ function createFixtures() {
                 room: 'Lab Komputer 2',
                 status: 'active',
             },
-        ],
-        cbt_pas_room_schedules: [
-            { id: 'prs-1', pas_room_id: 'room-1', schedule_id: 'sched-1' },
-            { id: 'prs-2', pas_room_id: 'room-2', schedule_id: 'sched-other-room' },
         ],
         cbt_exam_attempts: [
             {

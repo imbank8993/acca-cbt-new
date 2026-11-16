@@ -140,8 +140,19 @@ export class PasAdministrationService {
         const organizationId = (period as any).organization_id as string;
         await this.authz.assertOrgMonitoring(user, organizationId);
 
-        const isManager = await this.isProktorOrAdmin(user, organizationId);
-        if (isManager && mode === 'write') await this.authz.assertPasPeriodManage(user, periodId);
+        let isManager = await this.isProktorOrAdmin(user, organizationId);
+        // Proktor yang tidak mengelola folder ini tetap boleh mengisi sebagai
+        // pengawas pada slot tugasnya sendiri; ia diperlakukan seperti pengawas.
+        let manageError: unknown = null;
+        if (isManager && mode === 'write') {
+            try {
+                await this.authz.assertPasPeriodManage(user, periodId);
+            } catch (error) {
+                if (!(error instanceof ForbiddenException)) throw error;
+                manageError = error;
+                isManager = false;
+            }
+        }
         // Pengawas bergilir per hari: pengawas hanya boleh membuka slot pada
         // tanggal ia bertugas. Proktor/Admin melihat semua tanggal (null).
         let assignedDates: string[] | null = null;
@@ -157,6 +168,7 @@ export class PasAdministrationService {
                 .map((row) => cleanDateString(row.exam_date)).filter(Boolean))].sort();
             const requested = examDate ? cleanDateString(examDate) : '';
             if (!allDates.length || (requested && !allDates.includes(requested))) {
+                if (manageError) throw manageError;
                 throw new ForbiddenException(
                     requested
                         ? 'Anda tidak ditugaskan sebagai pengawas pada ruang, sesi, dan tanggal ujian ini.'
@@ -369,7 +381,6 @@ export class PasAdministrationService {
             { data: creatorProfile },
             { data: invigilatorRows },
             { data: roomStudentRows },
-            { data: roomScheduleLinks },
             { data: sessionSchedules },
         ] = await Promise.all([
             this.db
@@ -387,7 +398,7 @@ export class PasAdministrationService {
             period.created_by
                 ? this.db
                       .from('cbt_profiles')
-                      .select('id, full_name, identity_number, nis')
+                      .select('id, full_name, identity_number')
                       .eq('id', period.created_by)
                       .maybeSingle()
                 : Promise.resolve({ data: null }),
@@ -401,12 +412,8 @@ export class PasAdministrationService {
                 .select('user_id, profiles:cbt_profiles!user_id(id, full_name, identity_number, unique_id)')
                 .eq('pas_room_id', room.id),
             this.db
-                .from('cbt_pas_room_schedules')
-                .select('schedule_id')
-                .eq('pas_room_id', room.id),
-            this.db
                 .from('cbt_pas_class_schedules')
-                .select('id, bank_id, class_id, subject_id, exam_id, scheduled_date, duration_minutes, room, classes:cbt_classes(name), subjects:cbt_subjects(name), question_banks:cbt_question_banks(id, title, subject)')
+                .select('id, bank_id, class_id, additional_class_id, subject_id, exam_id, scheduled_date, duration_minutes, room, classes:cbt_classes(name), subjects:cbt_subjects(name), question_banks:cbt_question_banks(id, title, subject)')
                 .eq('pas_period_id', period.id)
                 .eq('session_id', session.id),
         ]);
@@ -416,12 +423,14 @@ export class PasAdministrationService {
         const allProfileIds = [...new Set([...studentIds, ...invigilatorUserIds])];
 
         // Load student classes, profiles fallback, subjects fallback, and question banks fallback
-        const [profilesRes, classMembersRes, classesRes, subjectsRes, questionBanksRes] =
+        const additionalClassIds = [...new Set(((sessionSchedules as any[]) || [])
+            .map((sc) => sc.additional_class_id as string | null).filter(Boolean))] as string[];
+        const [profilesRes, classMembersRes, classesRes, subjectsRes, questionBanksRes, additionalMembersRes, additionalClassesRes] =
             await Promise.all([
                 allProfileIds.length > 0
                     ? this.db
                           .from('cbt_profiles')
-                          .select('id, full_name, identity_number, unique_id, nis')
+                          .select('id, full_name, identity_number, unique_id')
                           .in('id', allProfileIds)
                     : Promise.resolve({ data: [] }),
                 studentIds.length > 0
@@ -432,7 +441,7 @@ export class PasAdministrationService {
                     : Promise.resolve({ data: [] }),
                 this.db
                     .from('cbt_classes')
-                    .select('id, name')
+                    .select('id, name, program, school_year')
                     .eq('organization_id', organizationId),
                 this.db
                     .from('cbt_subjects')
@@ -442,6 +451,16 @@ export class PasAdministrationService {
                     .from('cbt_question_banks')
                     .select('id, title, subject')
                     .eq('organization_id', organizationId),
+                studentIds.length > 0 && additionalClassIds.length > 0
+                    ? this.db
+                          .from('cbt_additional_class_members')
+                          .select('user_id, class_id')
+                          .in('class_id', additionalClassIds)
+                          .in('user_id', studentIds)
+                    : Promise.resolve({ data: [] }),
+                additionalClassIds.length > 0
+                    ? this.db.from('cbt_additional_classes').select('id, name').in('id', additionalClassIds)
+                    : Promise.resolve({ data: [] }),
             ]);
 
         const profileById = new Map<string, any>();
@@ -474,15 +493,55 @@ export class PasAdministrationService {
             }
         }
 
-        const linkedScheduleIds = new Set(
-            ((roomScheduleLinks as Array<{ schedule_id: string }>) || []).map((r) => r.schedule_id),
-        );
+        // Keanggotaan per siswa: kelas reguler/peminatan dan kelas tambahan.
+        const memberClassIds = new Map<string, Set<string>>();
+        for (const cm of ((classMembersRes.data as any[]) || [])) {
+            if (!cm.user_id || !cm.class_id) continue;
+            if (!memberClassIds.has(cm.user_id)) memberClassIds.set(cm.user_id, new Set());
+            memberClassIds.get(cm.user_id)!.add(cm.class_id);
+        }
+        const memberAdditionalIds = new Map<string, Set<string>>();
+        const roomAdditionalClassIds = new Set<string>();
+        for (const am of ((additionalMembersRes.data as any[]) || [])) {
+            if (!am.user_id || !am.class_id) continue;
+            roomAdditionalClassIds.add(am.class_id);
+            if (!memberAdditionalIds.has(am.user_id)) memberAdditionalIds.set(am.user_id, new Set());
+            memberAdditionalIds.get(am.user_id)!.add(am.class_id);
+        }
+        // Kolom kelas dokumen memakai kelas Reguler siswa (X A … XII D) pada tahun
+        // ajaran folder, bukan kelas peminatan/UTBK tempat ujiannya dijadwalkan.
+        const regularClassById = new Map<string, { name: string; year: string }>();
+        for (const c of ((classesRes.data as any[]) || [])) {
+            if (c.id && c.name && String(c.program || '').trim().toLowerCase() === 'reguler') {
+                regularClassById.set(c.id, { name: c.name, year: String(c.school_year || '') });
+            }
+        }
+        const periodYear = String(period.school_year || '');
+        const regularClassName = new Map<string, string>();
+        const regularClassYear = new Map<string, string>();
+        for (const [userId, classIds] of memberClassIds) {
+            for (const classId of classIds) {
+                const regular = regularClassById.get(classId);
+                if (!regular) continue;
+                const current = regularClassYear.get(userId);
+                const better = current === undefined
+                    || (current !== periodYear && (regular.year === periodYear || regular.year > current));
+                if (better) {
+                    regularClassName.set(userId, regular.name);
+                    regularClassYear.set(userId, regular.year);
+                }
+            }
+        }
+        const additionalClassById = new Map<string, string>();
+        for (const c of ((additionalClassesRes.data as any[]) || [])) {
+            if (c.id && c.name) additionalClassById.set(c.id, c.name);
+        }
         const roomNameLower = String(room.name || '').trim().toLowerCase();
         const allSessionSchedules = ((sessionSchedules as any[]) || []);
 
-        // Filter schedules relevant to this specific room (via room_schedules, room name, or student classes in room)
+        // Filter schedules relevant to this specific room (via room name or student classes in room)
         const roomScopedSchedules = allSessionSchedules.filter((sc) => {
-            if (linkedScheduleIds.has(sc.id)) return true;
+            if (sc.additional_class_id && roomAdditionalClassIds.has(sc.additional_class_id)) return true;
             if (sc.room && String(sc.room).trim().toLowerCase() === roomNameLower) return true;
             if (sc.class_id && studentClassIds.has(sc.class_id)) return true;
             return false;
@@ -566,22 +625,31 @@ export class PasAdministrationService {
             });
         }
 
-        const students = ((roomStudentRows as any[]) || [])
+        // Jadwal yang benar-benar diikuti seorang siswa pada slot ini: lewat kelas
+        // jadwal, kelas tambahan, atau pemetaan peserta ujian. Sama dengan monitoring.
+        const participantRows = ((participantsRes.data as any[]) || []);
+        const ownSchedule = (userId: string, attemptExamId?: string) => {
+            const own = activeSchedules.filter((sc) =>
+                (sc.class_id && memberClassIds.get(userId)?.has(sc.class_id)) ||
+                (sc.additional_class_id && memberAdditionalIds.get(userId)?.has(sc.additional_class_id)) ||
+                (sc.exam_id && participantRows.some((p) => p.user_id === userId && p.exam_id === sc.exam_id)));
+            return own.find((sc) => attemptExamId && sc.exam_id === attemptExamId) || own[0];
+        };
+
+        const allStudents = ((roomStudentRows as any[]) || [])
             .map((row) => {
                 const userId = row.user_id as string;
                 const profile = row.profiles || profileById.get(userId) || {};
                 const attempt = attemptByStudent.get(userId);
                 const savedAtt = savedAttendanceByStudent.get(userId);
-                const matchedSchedule = attempt?.exam_id ? scheduleByExamId.get(attempt.exam_id) : undefined;
+                const matchedSchedule = (attempt?.exam_id ? scheduleByExamId.get(attempt.exam_id) : undefined)
+                    || ownSchedule(userId, attempt?.exam_id);
                 // Gunakan pemetaan ujian, bukan keanggotaan kelas terakhir (mis. UTBK).
-                const mappedParticipant = ((participantsRes.data as any[]) || []).find(participant =>
+                const mappedParticipant = participantRows.find(participant =>
                     participant.user_id === userId && classById.has(participant.regular_class_id)
                     && (!attempt?.exam_id || participant.exam_id === attempt.exam_id));
-                const mappedSchedule = activeSchedules.find(sc =>
-                    classById.has(sc.class_id) && ((classMembersRes.data as any[]) || []).some(member =>
-                        member.user_id === userId && member.class_id === sc.class_id)
-                    && (!attempt?.exam_id || sc.exam_id === attempt.exam_id));
-                const nisValue = profile.identity_number || profile.unique_id || profile.nis || '-';
+                const mappedSchedule = ownSchedule(userId, attempt?.exam_id);
+                const nisValue = profile.identity_number || profile.unique_id || '-';
                 const fallbackBank = matchedSchedule?.bank_id
                     ? bankById.get(matchedSchedule.bank_id)
                     : activeSchedules[0]?.bank_id
@@ -591,18 +659,22 @@ export class PasAdministrationService {
                 const status: AttendanceStatus = savedAtt?.status || 'hadir';
                 return {
                     user_id: userId,
+                    has_exam: Boolean(matchedSchedule),
                     full_name: profile.full_name || 'Tanpa Nama',
                     nis: nisValue,
                     identity_number: nisValue,
                     class_name:
+                        regularClassName.get(userId) ||
                         classById.get(mappedParticipant?.regular_class_id) ||
                         classById.get(mappedSchedule?.class_id) ||
+                        additionalClassById.get(mappedSchedule?.additional_class_id) ||
                         matchedSchedule?.classes?.name ||
                         (matchedSchedule?.class_id ? classById.get(matchedSchedule.class_id) : undefined) ||
                         classMap.get(userId) ||
                         '-',
                     exam_title:
                         matchedSchedule?.question_banks?.title ||
+                        (matchedSchedule ? fallbackBank?.title : undefined) ||
                         activeSchedules[0]?.question_banks?.title ||
                         fallbackBank?.title ||
                         '-',
@@ -613,7 +685,14 @@ export class PasAdministrationService {
                     attendance_status: status,
                     remark: savedAtt?.remark || '',
                 };
-            })
+            });
+        // Daftar hadir hanya memuat siswa ruang yang punya ujian pada sesi & tanggal
+        // ini. Tanpa jadwal pada tanggal ini (atau tanpa kecocokan), seluruh siswa
+        // ruang tetap ditampilkan seperti sebelumnya.
+        const hasDatedExaminee = dateSchedules.length > 0 && allStudents.some((student) => student.has_exam);
+        const students = allStudents
+            .filter((student) => !hasDatedExaminee || student.has_exam)
+            .map(({ has_exam: _hasExam, ...student }) => student)
             .sort((a, b) => {
                 const classCmp = String(a.class_name).localeCompare(String(b.class_name), 'id-ID', { numeric: true });
                 if (classCmp !== 0) return classCmp;
@@ -636,7 +715,7 @@ export class PasAdministrationService {
             return {
                 user_id: inv.user_id as string,
                 full_name: prof.full_name || 'Pengawas Ruang',
-                identity_number: prof.identity_number || prof.nis || null,
+                identity_number: prof.identity_number || null,
             };
         }).sort((a, b) => a.full_name.localeCompare(b.full_name, 'id-ID') || a.user_id.localeCompare(b.user_id));
 
@@ -647,7 +726,7 @@ export class PasAdministrationService {
         const defaultProctorName =
             (creatorProfile as any)?.full_name || 'Proktor / Panitia Ujian';
         const defaultProctorNip =
-            (creatorProfile as any)?.identity_number || (creatorProfile as any)?.nis || '-';
+            (creatorProfile as any)?.identity_number || '-';
 
         const savedReport = savedReportRes.data as Record<string, any> | null;
         const configuredChair = await this.committeeChair(this.db, period);
@@ -808,7 +887,7 @@ export class PasAdministrationService {
             throw new BadRequestException('Format tanggal pelaksanaan harus YYYY-MM-DD.');
         }
 
-        const { period, room, session, organizationId } = await this.assertSlotAccess(
+        const { period, room, session, organizationId, isManager } = await this.assertSlotAccess(
             user,
             dto.pas_period_id,
             dto.pas_room_id,
@@ -833,13 +912,13 @@ export class PasAdministrationService {
                 throw new BadRequestException('Nama Ketua Panitia belum diatur pada folder ujian ini. Silakan atur Ketua Panitia terlebih dahulu.');
             }
             const { data: creator, error: creatorError } = await db.from('cbt_profiles')
-                .select('id, full_name, identity_number, nis').eq('id', period.created_by).maybeSingle();
+                .select('id, full_name, identity_number').eq('id', period.created_by).maybeSingle();
             if (creatorError || !period.created_by || !creator?.full_name?.trim()) {
                 throw new BadRequestException('Profil pembuat ujian belum tersedia untuk penandatangan Proktor.');
             }
             // Proktor always comes from the folder creator, never from client input.
             const resolvedProctorName = creator.full_name.trim();
-            const resolvedProctorNip = creator.identity_number || creator.nis || '';
+            const resolvedProctorNip = creator.identity_number || '';
 
             // Validate room students
             const { data: roomStudents, error: roomReadError } = await db
@@ -848,13 +927,14 @@ export class PasAdministrationService {
                 .eq('pas_room_id', room.id);
 
             if (roomReadError) throw new BadRequestException('Peserta ruang belum dapat diperiksa.');
-            const validStudentIds = new Set(
+            const roomStudentIds = new Set(
                 ((roomStudents as Array<{ user_id: string }>) || []).map((r) => r.user_id),
             );
-
-            if (liveSlot.students.length !== validStudentIds.size || liveSlot.students.some((student: any) => !validStudentIds.has(student.user_id))) {
+            // Peserta dokumen = siswa ruang yang punya ujian pada slot ini (liveSlot).
+            if (liveSlot.students.some((student: any) => !roomStudentIds.has(student.user_id))) {
                 throw new ConflictException('Penempatan peserta berubah. Muat ulang dokumen sebelum menyimpan.');
             }
+            const validStudentIds = new Set<string>(liveSlot.students.map((student: any) => student.user_id as string));
             const incomingAttendances = (dto.attendances || []).filter((item) =>
                 validStudentIds.has(item.user_id),
             );
@@ -977,7 +1057,6 @@ export class PasAdministrationService {
             const signatureHash = documentHash(documentSnapshot);
 
             const nowIso = new Date().toISOString();
-            const isManager = await this.isProktorOrAdmin(user, organizationId);
             let finalStatus: 'draft' | 'submitted' | 'approved' = 'submitted';
             let submittedAt: string | null = nowIso;
             let submittedBy: string | null = user.id;
@@ -1195,7 +1274,7 @@ export class PasAdministrationService {
                 .order('start_time'),
             this.db
                 .from('cbt_pas_class_schedules')
-                .select('id, session_id, scheduled_date')
+                .select('id, session_id, scheduled_date, class_id, additional_class_id, exam_id')
                 .eq('pas_period_id', periodId),
             this.db
                 .from('cbt_pas_administration_reports')
@@ -1216,6 +1295,45 @@ export class PasAdministrationService {
         const scheduleList = ((schedules as any[]) || []);
         const reportList = ((reports as any[]) || []);
         const attendanceList = ((studentAttendances as any[]) || []);
+
+        // Peserta per slot = siswa ruang yang punya ujian pada sesi & tanggal itu
+        // (sama dengan daftar hadir dan monitoring), bukan seluruh isi ruang.
+        const ids = (values: unknown[]) => [...new Set(values.filter(Boolean))] as string[];
+        const scheduleClassIds = ids(scheduleList.map((sc) => sc.class_id));
+        const scheduleAdditionalIds = ids(scheduleList.map((sc) => sc.additional_class_id));
+        const scheduleExamIds = ids(scheduleList.map((sc) => sc.exam_id));
+        const [classMembersRes, additionalMembersRes, participantsRes] = await Promise.all([
+            scheduleClassIds.length
+                ? this.db.from('cbt_class_members').select('class_id, user_id').in('class_id', scheduleClassIds)
+                : Promise.resolve({ data: [] }),
+            scheduleAdditionalIds.length
+                ? this.db.from('cbt_additional_class_members').select('class_id, user_id').in('class_id', scheduleAdditionalIds)
+                : Promise.resolve({ data: [] }),
+            scheduleExamIds.length
+                ? this.db.from('cbt_exam_participants').select('exam_id, user_id').in('exam_id', scheduleExamIds)
+                : Promise.resolve({ data: [] }),
+        ]);
+        const usersBy = (rows: any[], key: string) => {
+            const map = new Map<string, Set<string>>();
+            for (const row of rows || []) {
+                if (!row[key] || !row.user_id) continue;
+                if (!map.has(row[key])) map.set(row[key], new Set());
+                map.get(row[key])!.add(row.user_id);
+            }
+            return map;
+        };
+        const classUsers = usersBy(classMembersRes.data as any[], 'class_id');
+        const additionalUsers = usersBy(additionalMembersRes.data as any[], 'class_id');
+        const examUsers = usersBy(participantsRes.data as any[], 'exam_id');
+        const slotStudentCount = (roomStudentIds: string[], sessionId: string, date: string) => {
+            const slotSchedules = scheduleList.filter(
+                (sc) => sc.session_id === sessionId && cleanDateString(sc.scheduled_date) === date,
+            );
+            const examinees = roomStudentIds.filter((id) => slotSchedules.some((sc) =>
+                classUsers.get(sc.class_id)?.has(id) || additionalUsers.get(sc.additional_class_id)?.has(id)
+                || examUsers.get(sc.exam_id)?.has(id)));
+            return examinees.length || roomStudentIds.length;
+        };
 
         const overview: Array<Record<string, any>> = [];
 
@@ -1243,7 +1361,8 @@ export class PasAdministrationService {
                         .map((inv) => inv.profiles?.full_name || 'Pengawas')
                         .filter(Boolean);
 
-                    const studentCount = ((room.pas_room_students as any[]) || []).length;
+                    const studentCount = slotStudentCount(
+                        ((room.pas_room_students as any[]) || []).map((row) => row.user_id as string), session.id, date);
 
                     const report = reportList.find(
                         (r) =>

@@ -1,5 +1,6 @@
 // Run from repository root: node --test apps/api/test/pas-administration-stage39.test.cjs
 const { test } = require('node:test');
+const { ForbiddenException } = require('@nestjs/common');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -160,8 +161,8 @@ for (const assessmentType of ['pas', 'pat', 'am']) test(`ADMIN-05 ${assessmentTy
 test('ADMIN: dokumen menyimpan semua pengawas pada tanggal slot meskipun klien memilih satu nama', async () => {
     const db = fixtureDb(createFixtures(), [], { now: '2026-10-17T01:00:00Z' });
     db.tables.cbt_profiles.push(
-        { id: 'pengawas-2', full_name: 'Ahmad Rifai, S.Pd.', nis: '19850203' },
-        { id: 'pengawas-3', full_name: 'Pengawas Hari Lain', nis: '19860101' },
+        { id: 'pengawas-2', full_name: 'Ahmad Rifai, S.Pd.', identity_number: '19850203' },
+        { id: 'pengawas-3', full_name: 'Pengawas Hari Lain', identity_number: '19860101' },
     );
     db.tables.cbt_pas_room_invigilators.push(
         { id: 'inv-map-2', pas_room_id: 'room-1', session_id: 'session-1', exam_date: '2026-10-17', user_id: 'pengawas-2' },
@@ -368,7 +369,7 @@ test('ADMIN-14: period-level committee chair can be configured and updated direc
 
 test('ADMIN-12: pengawas bergilir per hari — akses dan nama di berita acara mengikuti tanggal slot', async () => {
     const db = fixtureDb(createFixtures(), [], { now: '2026-10-17T01:00:00Z' });
-    db.tables.cbt_profiles.push({ id: 'pengawas-2', full_name: 'Ahmad Rifai, S.Pd.', nis: '19850203' });
+    db.tables.cbt_profiles.push({ id: 'pengawas-2', full_name: 'Ahmad Rifai, S.Pd.', identity_number: '19850203' });
     db.tables.cbt_pas_room_invigilators.push({ id: 'inv-map-2', pas_room_id: 'room-1', session_id: 'session-1', exam_date: '2026-10-18', user_id: 'pengawas-2' });
     db.tables.cbt_pas_class_schedules.push({ ...db.tables.cbt_pas_class_schedules[0], id: 'sched-2', exam_id: 'exam-math-2', scheduled_date: '2026-10-18' });
     const service = new PasAdministrationService(db, createAuthzMock());
@@ -407,4 +408,77 @@ test('administrasi memakai kelas yang dipetakan ke ujian meski siswa juga anggot
     db.tables.cbt_exam_participants = [{ exam_id: 'exam-math-1', user_id: 'student-1', regular_class_id: 'class-11b' }];
     slot = await service.getAdministrationSlot(user, params);
     assert.equal(slot.students.find(student => student.user_id === 'student-1').class_name, 'XI IPS 1');
+});
+
+test('ADMIN-40: Proktor yang bukan pengelola folder tetap dapat mengisi sebagai pengawas slot tugasnya', async () => {
+    const db = fixtureDb(createFixtures(), [], { now: '2026-10-17T01:00:00Z' });
+    db.tables.cbt_profiles.push({ id: 'proktor-lain', full_name: 'Proktor Lain, S.Pd.', identity_number: '19900101' });
+    const authz = { ...createAuthzMock(),
+        assertProktor: async (user) => {
+            if (!['proctor-creator-1', 'proktor-lain'].includes(user.id)) throw new ForbiddenException('Khusus Proktor/Admin.');
+        },
+        assertPasPeriodManage: async (user) => {
+            if (user.id !== 'proctor-creator-1') throw new ForbiddenException('Folder ujian ini hanya dapat diubah oleh pembuat.');
+        },
+    };
+    const service = new PasAdministrationService(db, authz);
+    const proktorLain = { id: 'proktor-lain', isPlatformAdmin: false };
+    const input = { pas_period_id: 'period-1', pas_room_id: 'room-1', session_id: 'session-1', exam_date: '2026-10-17',
+        action: 'submit', attendances: [{ user_id: 'student-1', status: 'hadir', remark: '' }] };
+
+    // Belum ditugaskan: tetap ditolak dengan alasan hak kelola folder.
+    await assert.rejects(service.saveAdministrationSlot(proktorLain, input), ForbiddenException);
+
+    db.tables.cbt_pas_room_invigilators.push({ id: 'inv-map-proktor', pas_room_id: 'room-1', session_id: 'session-1',
+        user_id: 'proktor-lain', exam_date: '2026-10-17' });
+    const saved = await service.saveAdministrationSlot(proktorLain, input);
+    assert.equal(saved.report.status, 'submitted');
+    // Ia tidak boleh meng-ACC dokumen folder yang tidak ia kelola.
+    await assert.rejects(service.saveAdministrationSlot(proktorLain, { ...input, action: 'approve' }), ForbiddenException);
+});
+
+test('ADMIN-41: daftar hadir hanya memuat siswa ruang yang punya ujian pada sesi dan tanggal itu', async () => {
+    const db = fixtureDb(createFixtures(), [], { now: '2026-10-17T01:00:00Z' });
+    // student-3 pindah ke kelas yang tidak punya ujian pada slot ruang ini.
+    db.tables.cbt_classes.push({ id: 'class-12c', organization_id: 'org-1', name: 'XII C' });
+    db.tables.cbt_class_members.find(row => row.user_id === 'student-3').class_id = 'class-12c';
+    const service = new PasAdministrationService(db, createAuthzMock());
+    const pengawasUser = { id: 'pengawas-1', isPlatformAdmin: false };
+
+    const slot = await service.getAdministrationSlot(pengawasUser, {
+        periodId: 'period-1', roomId: 'room-1', sessionId: 'session-1', examDate: '2026-10-17' });
+    assert.deepEqual(slot.students.map(student => student.user_id).sort(), ['student-1', 'student-2']);
+    assert.ok(slot.students.every(student => student.class_name === 'X MIPA 1'));
+
+    const saved = await service.saveAdministrationSlot(pengawasUser, {
+        pas_period_id: 'period-1', pas_room_id: 'room-1', session_id: 'session-1', exam_date: '2026-10-17',
+        attendances: [
+            { user_id: 'student-1', status: 'hadir', remark: '' },
+            { user_id: 'student-2', status: 'alpha', remark: '' },
+            { user_id: 'student-3', status: 'hadir', remark: '' },
+        ],
+    });
+    assert.equal(saved.counts.total, 2);
+    assert.equal(db.tables.cbt_pas_student_attendances.length, 2);
+});
+
+test('ADMIN-42: kolom kelas memakai kelas Reguler siswa, bukan kelas peminatan jadwal ujiannya', async () => {
+    const db = fixtureDb(createFixtures(), [], { now: '2026-10-17T01:00:00Z' });
+    // Ujian dijadwalkan untuk kelas peminatan; siswa tetap anggota kelas Reguler X A.
+    Object.assign(db.tables.cbt_classes.find(row => row.id === 'class-10a'), { name: 'XI Ekonomi 1', program: 'Peminatan', school_year: '2026/2027' });
+    db.tables.cbt_classes.push(
+        { id: 'class-reg-lama', organization_id: 'org-1', name: 'X A', program: 'Reguler', school_year: '2025/2026' },
+        { id: 'class-reg', organization_id: 'org-1', name: 'XI A', program: 'Reguler', school_year: '2026/2027' },
+    );
+    for (const id of ['student-1', 'student-2', 'student-3']) {
+        db.tables.cbt_class_members.push(
+            { id: `cm-lama-${id}`, class_id: 'class-reg-lama', user_id: id },
+            { id: `cm-reg-${id}`, class_id: 'class-reg', user_id: id },
+        );
+    }
+    const service = new PasAdministrationService(db, createAuthzMock());
+    const slot = await service.getAdministrationSlot({ id: 'pengawas-1', isPlatformAdmin: false }, {
+        periodId: 'period-1', roomId: 'room-1', sessionId: 'session-1', examDate: '2026-10-17' });
+    assert.equal(slot.students.length, 3);
+    assert.ok(slot.students.every(student => student.class_name === 'XI A'));
 });
