@@ -108,7 +108,8 @@ test('Author editor panel selects history, scopes notes and exposes resolve fail
     const calls = [];
     const api = {
         getBankValidationFeedback: async () => ['new', 'old'].map(id => ({ id, title: id, created_at: '2026-10-13', notes: [
-            { id: id + '-note', question_id: 'q1', comment: id + ' correction', is_resolved: false },
+            { id: id + '-note', question_id: 'q1', category: 'kunci_jawaban', comment: id + ' correction', is_resolved: false },
+            { id: id + '-tip', question_id: 'q1', status_item: 'valid', comment: id + ' suggestion', is_resolved: false },
             { id: 'foreign', question_id: 'q2', comment: 'other question' },
         ] })),
         resolveValidationNote: async (id, resolved) => { calls.push([id, resolved]); return fail ? { success: false, error: 'Save failed' } : { success: true }; },
@@ -118,12 +119,16 @@ test('Author editor panel selects history, scopes notes and exposes resolve fail
     const module = { exports: {} };
     // Pemilih sesi kini memakai InlineSelect (bukan <select> bawaan): onChange menerima nilai langsung.
     function InlineSelect() { return null; }
-    new Function('require','module','exports','window',code)(name => name === 'react' ? React : name.endsWith('/inlineselect') ? { InlineSelect } : api, module, module.exports, { location: { search: '' }, dispatchEvent() {} });
+    new Function('require','module','exports','window',code)(name => name === 'react' ? React : name.endsWith('/inlineselect') ? { InlineSelect } : name.endsWith('/validation-status') ? { NOTE_CATEGORY_LABELS: { kunci_jawaban: 'Kunci jawaban' } } : api, module, module.exports, { location: { search: '' }, dispatchEvent() {} });
     const render = () => { cursor = 0; const tree = module.exports.ValidationNotesPanel({ bankId: 'bank', questionId: 'q1' }); initial = false; return tree; };
     const nodes = root => !root || typeof root !== 'object' ? [] : Array.isArray(root) ? root.flatMap(nodes) : [root, ...nodes(root.children)];
     const text = root => root == null || typeof root === 'boolean' ? '' : typeof root !== 'object' ? String(root) : Array.isArray(root) ? root.map(text).join('') : text(root.children);
     render(); effects.forEach(fn => fn()); await new Promise(resolve => setTimeout(resolve, 0));
     let tree = render(); assert.match(text(tree), /new correction/); assert.doesNotMatch(text(tree), /other question/);
+    // Saran pada butir Layak diberi label dan tidak punya tombol tandai diperbaiki.
+    assert.match(text(tree), /Kunci jawaban/);
+    assert.match(text(tree), /Saran · tidak wajib diperbaiki/);
+    assert.equal(nodes(tree).filter(n => n.type === 'button' && text(n).includes('Tandai')).length, 1);
     nodes(tree).find(n => n.type === InlineSelect).props.onChange('old');
     tree = render(); assert.match(text(tree), /old correction/);
     fail = true; await nodes(tree).find(n => n.type === 'button' && text(n).includes('Tandai')).props.onClick();
@@ -255,4 +260,50 @@ test('Marking an item Layak saves it and jumps to the next unreviewed item', asy
     // q2 sudah dinilai, jadi lompat ke q3.
     assert.ok(page.nodes(tree).some(n => n.type === 'QuestionContent' && n.props.content === 'Third'));
     assert.equal(page.nodes(tree).some(n => n.type === 'textarea'), false);
+});
+
+test('"Layak, dengan saran" keeps the validator on the item with a suggestion form', async () => {
+    const calls = []; const saved = [];
+    const questions = [{ id: 'q1', question_text: 'First' }, { id: 'q2', question_text: 'Second' }];
+    const page = loadReviewPage(
+        { validation: { id: 's', title: 'Test' }, myValidatorStatus: { validator_id: 'v', status: 'in_progress' }, notes: [], items: [], questions },
+        {
+            setValidationItemStatus: async (id, questionId, status) => { calls.push([questionId, status]); return { success: true, question_id: questionId, validator_id: 'v', status }; },
+            saveValidationNote: async (id, payload) => { saved.push(payload); return { success: true, id: 'tip', question_id: payload.questionId, validator_id: 'v', status_item: payload.statusItem, category: payload.category, comment: payload.comment }; },
+        },
+    );
+    let tree = await page.start();
+    await page.nodes(tree).find(n => n.type === 'button' && page.text(n) === 'Layak, dengan saran').props.onClick();
+    tree = page.render();
+    assert.deepEqual(calls, [['q1', 'valid']]);
+    assert.ok(page.nodes(tree).some(n => n.type === 'QuestionContent' && n.props.content === 'First'));
+    assert.match(page.text(tree), /Saran untuk pembuat soal/);
+    page.nodes(tree).find(n => n.type === 'textarea').props.onChange({ target: { value: 'Pertimbangkan pengecoh lain' } });
+    tree = page.render();
+    await page.nodes(tree).find(n => n.type === 'Button' && page.text(n).includes('Simpan Catatan')).props.onClick();
+    assert.equal(saved[0].statusItem, 'valid');
+});
+
+test('Admin/Proktor viewers pick a validator and see that validator\'s results read-only', async () => {
+    const questions = [{ id: 'q1', question_text: 'First' }, { id: 'q2', question_text: 'Second' }];
+    const page = loadReviewPage({
+        validation: { id: 's', title: 'Test', validators: [
+            { validator_id: 'a', status: 'submitted', general_recommendation: 'approved', general_comment: 'Belum ada soal berbahasa Inggris.', profile: { full_name: 'Guru A' } },
+            { validator_id: 'b', status: 'in_progress', general_recommendation: null, profile: { full_name: 'Guru B' } },
+        ] },
+        myValidatorStatus: null,
+        notes: [],
+        items: [{ question_id: 'q1', validator_id: 'a', status: 'valid' }, { question_id: 'q2', validator_id: 'a', status: 'revision' }],
+        questions,
+    });
+    let tree = await page.start();
+    assert.match(page.text(tree), /Lihat hasil validator/);
+    assert.match(page.text(tree), /Rekomendasi: Disetujui/);
+    assert.match(page.text(tree), /Belum ada soal berbahasa Inggris/);
+    assert.match(page.text(tree), /Dinilai 2\/2/);
+    assert.equal(page.nodes(tree).some(n => n.type === 'textarea'), false);
+    page.nodes(tree).find(n => n.type === 'InlineSelect' && n.props.id === 'viewed-validator').props.onChange('b');
+    tree = page.render();
+    assert.match(page.text(tree), /Sedang dikerjakan/);
+    assert.match(page.text(tree), /Dinilai 0\/2/);
 });

@@ -291,6 +291,8 @@ export default function ValidatorReviewPage() {
     const [isSubmittingFinal, setIsSubmittingFinal] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
     const [accessError, setAccessError] = useState<string | null>(null);
+    // Admin/Proktor yang bukan validator memilih hasil validator mana yang dilihat.
+    const [viewedValidatorId, setViewedValidatorId] = useState('');
 
     const loadData = useCallback(async () => {
         if (!validationId) return;
@@ -360,6 +362,13 @@ export default function ValidatorReviewPage() {
 
     const round = validation?.round ?? 1;
     const myUserId = validatorStatus?.validator_id || null;
+    const isViewer = !validatorStatus;
+    const sessionValidators = validation?.validators || [];
+    const viewedValidator = isViewer
+        ? sessionValidators.find(v => v.validator_id === viewedValidatorId) || sessionValidators[0] || null
+        : null;
+    /** Pemilik hasil yang ditampilkan: diri sendiri (validator) atau validator pilihan (Admin/Proktor). */
+    const resultOwnerId = isViewer ? viewedValidator?.validator_id || null : myUserId;
     const alreadySubmitted = validatorStatus?.status === 'submitted';
     const deadlinePassed = isDeadlinePassed(validation?.deadline);
     // Hanya validator yang ditugaskan, belum mengirim, dan masih dalam batas waktu yang boleh menulis.
@@ -373,8 +382,8 @@ export default function ValidatorReviewPage() {
     const canEdit = !readOnlyReason;
     const canReopen = !!validatorStatus && alreadySubmitted && !deadlinePassed;
 
-    const myItems = new Map(items.filter(item => myUserId && item.validator_id === myUserId).map(item => [item.question_id, item.status]));
-    const myNotes = myUserId ? notes.filter(n => n.validator_id === myUserId) : [];
+    const myItems = new Map(items.filter(item => resultOwnerId && item.validator_id === resultOwnerId).map(item => [item.question_id, item.status]));
+    const myNotes = resultOwnerId ? notes.filter(n => n.validator_id === resultOwnerId) : [];
     const isPreviousRound = (note: ValidationNote) => (note.round ?? 1) < round;
     const pendingVerification = myNotes.filter(n => n.status_item !== 'valid' && isPreviousRound(n) && !n.verification);
     const reviewedIds = new Set<string>([...myItems.keys(), ...myNotes.map(n => n.question_id)]);
@@ -462,11 +471,18 @@ export default function ValidatorReviewPage() {
         setSelectedOptionId(optionId);
     };
 
+    /** Kembali ke daftar validasi di dasbor yang sedang dipakai (guru, admin, atau proktor). */
+    const backToList = () => {
+        const current = typeof window !== 'undefined' ? window.location?.pathname || '' : '';
+        router.push(/\/review\/?$/.test(current) ? current.replace(/\/[^/]+\/review\/?$/, '') : '/dashboard/guru/validations');
+    };
+
     const markWorking = () => {
         setValidatorStatus(current => current && current.status === 'assigned' ? { ...current, status: 'in_progress' } : current);
     };
 
-    const handleSetItem = async (status: NoteStatusItem) => {
+    /** `stay`: tetap di butir ini (mis. Layak dengan saran). */
+    const handleSetItem = async (status: NoteStatusItem, stay = false) => {
         if (!canEdit || !currentQuestion) return;
         setItemSavingId(currentQuestion.id);
         setActionError(null);
@@ -476,9 +492,10 @@ export default function ValidatorReviewPage() {
             const saved = res as unknown as ValidationItem;
             setItems(prev => [...prev.filter(item => !(item.question_id === currentQuestion.id && item.validator_id === myUserId)), saved]);
             markWorking();
-            // Butir layak tanpa catatan perbaikan langsung lanjut ke butir berikutnya.
+            // Butir layak tanpa catatan perbaikan langsung lanjut ke butir berikutnya,
+            // kecuali validator sedang menulis saran untuk butir ini.
             const flaggedNotes = myNotes.some(n => n.question_id === currentQuestion.id && !isPreviousRound(n) && n.status_item !== 'valid');
-            if (status === 'valid' && !flaggedNotes && !commentText.trim()) advanceFrom(currentQuestion.id);
+            if (status === 'valid' && !stay && !noteFormOpen && !flaggedNotes && !commentText.trim()) advanceFrom(currentQuestion.id);
         } catch (e) {
             setActionError(e instanceof Error ? e.message : 'Gagal menyimpan penilaian butir.');
         } finally {
@@ -780,7 +797,7 @@ export default function ValidatorReviewPage() {
                 <ModeCornerRibbon mode="validation" />
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                     <button
-                        onClick={() => router.push('/dashboard/guru/validations')}
+                        onClick={() => backToList()}
                         className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                         title="Kembali"
                     >
@@ -830,6 +847,44 @@ export default function ValidatorReviewPage() {
                     className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 space-y-6"
                     onMouseUp={handleMouseUp}
                 >
+                    {isViewer && sessionValidators.length > 0 && (
+                        <section aria-label="Hasil validator" className="max-w-3xl mx-auto bg-white dark:bg-[#0d1221] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 space-y-3">
+                            <div className="flex flex-wrap items-end gap-3">
+                                <div className="min-w-[220px] flex-1">
+                                    <label htmlFor="viewed-validator" className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">Lihat hasil validator</label>
+                                    <InlineSelect id="viewed-validator" value={viewedValidator?.validator_id || ''} minWidth="100%" height="40px"
+                                        onChange={value => setViewedValidatorId(value)}
+                                        options={sessionValidators.map(v => ({ value: v.validator_id, label: v.profile?.full_name || 'Validator' }))} />
+                                </div>
+                                {viewedValidator && (
+                                    <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
+                                        <span className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
+                                            {viewedValidator.status === 'submitted' ? 'Terkirim' : viewedValidator.status === 'in_progress' ? 'Sedang dikerjakan' : 'Belum dikerjakan'}
+                                        </span>
+                                        <span className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
+                                            Rekomendasi: {RECOMMENDATIONS.find(rec => rec.id === viewedValidator.general_recommendation)?.label || '—'}
+                                        </span>
+                                        <span className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
+                                            Dinilai {reviewedCount}/{questions.length}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                            {viewedValidator?.general_comment && (
+                                <p className="text-xs text-slate-600 dark:text-slate-300"><span className="font-bold">Catatan umum:</span> {viewedValidator.general_comment}</p>
+                            )}
+                            <div className="grid grid-cols-3 gap-2 text-center">
+                                {summaryTiles.slice(0, 3).map(tile => (
+                                    <div key={tile.label} className={`rounded-xl border px-2 py-1.5 ${tile.tone}`}>
+                                        <p className="text-sm font-bold leading-none">{tile.value}</p>
+                                        <p className="mt-1 text-[10px] font-semibold">{tile.label}</p>
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="text-[11px] text-slate-500">Warna nomor soal dan penilaian butir mengikuti validator yang dipilih; catatan semua validator tetap tampil per nomor.</p>
+                        </section>
+                    )}
+
                     {alreadySubmitted && validatorStatus && (
                         <section aria-label="Ringkasan hasil validasi" className="max-w-3xl mx-auto bg-white dark:bg-[#0d1221] rounded-2xl border border-emerald-200 dark:border-emerald-900 shadow-sm p-5 space-y-4">
                             <div className="flex items-start gap-3">
@@ -856,7 +911,7 @@ export default function ValidatorReviewPage() {
                                 <p className="text-xs text-slate-500 italic whitespace-pre-wrap">&quot;{validatorStatus.general_comment}&quot;</p>
                             )}
                             <div className="flex flex-wrap gap-2">
-                                <Button variant="outline" onClick={() => router.push('/dashboard/guru/validations')} className="text-xs font-bold flex items-center gap-1.5">
+                                <Button variant="outline" onClick={() => backToList()} className="text-xs font-bold flex items-center gap-1.5">
                                     <ArrowLeft size={14} /> Kembali ke daftar tugas
                                 </Button>
                                 {canReopen && (
@@ -987,7 +1042,7 @@ export default function ValidatorReviewPage() {
                             </h3>
                         </div>
                         <div className="flex items-center gap-2">
-                            {myUserId && (
+                            {resultOwnerId && (
                                 <button type="button" onClick={() => setShowSummary(value => !value)}
                                     className="text-[11px] font-bold text-primary hover:underline">
                                     {showSummary ? 'Kembali' : `Ringkasan (${myNotes.length})`}
@@ -1023,7 +1078,7 @@ export default function ValidatorReviewPage() {
                         ) : (
                             <>
                                 {/* Keputusan butir: satu-satunya tempat menilai Layak / Perlu revisi / Tolak */}
-                                {validatorStatus && (
+                                {(validatorStatus || viewedValidator) && (
                                     <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
                                         <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{canEdit ? 'Butir ini sudah layak?' : 'Penilaian butir ini'}</p>
                                         <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="Penilaian butir">
@@ -1042,7 +1097,12 @@ export default function ValidatorReviewPage() {
                                             ))}
                                         </div>
                                         {canEdit && !currentStatus && (
-                                            <p className="text-[11px] text-slate-500">Layak: tersimpan dan langsung ke nomor berikutnya. Perlu revisi / Tolak: tulis catatan perbaikannya.</p>
+                                            <p className="text-[11px] text-slate-500">
+                                                Layak: tersimpan dan langsung ke nomor berikutnya. Perlu revisi / Tolak: tulis catatan perbaikannya.{' '}
+                                                <button type="button" disabled={itemSavingId === currentQuestion?.id}
+                                                    onClick={() => { setNoteFormOpen(true); void handleSetItem('valid', true); }}
+                                                    className="font-semibold text-primary hover:underline disabled:opacity-50">Layak, dengan saran</button>
+                                            </p>
                                         )}
                                         {canEdit && currentStatus === 'valid' && !showNoteForm && (
                                             <p className="text-[11px] text-slate-500">

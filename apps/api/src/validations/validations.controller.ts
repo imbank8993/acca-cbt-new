@@ -85,6 +85,12 @@ export class ValidationsController {
         return this.validations.listMyAssignedTasks(user);
     }
 
+    @Get('notification-counts')
+    @ApiOperation({ summary: 'Angka notifikasi menu: tugas validasi aktif dan catatan validator pada bank soal milik pengguna' })
+    notificationCounts(@CurrentUser() user: AuthUser) {
+        return this.validations.notificationCounts(user);
+    }
+
     @Get('bank/:bankId/feedback')
     @ApiOperation({ summary: 'Catatan & umpan balik validasi untuk bank soal (dilihat pembuat soal)' })
     getBankFeedback(

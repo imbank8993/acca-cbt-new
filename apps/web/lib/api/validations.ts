@@ -206,6 +206,21 @@ export async function listMyValidationTasks(): Promise<ValidationTask[]> {
     return res.data || [];
 }
 
+export interface ValidationNotificationCounts {
+    /** Tugas validasi yang masih menunggu tindakan pengguna. */
+    validationTasks: number;
+    /** Catatan Revisi/Tolak yang belum diperbaiki pada bank soal milik pengguna. */
+    bankNotes: number;
+    banksWithNotes: number;
+}
+
+/** Angka notifikasi menu samping; null bila belum dapat dimuat (badge disembunyikan). */
+export async function getValidationNotificationCounts(): Promise<ValidationNotificationCounts | null> {
+    const res = await apiGet<ValidationNotificationCounts>('/api/validations/notification-counts');
+    if (!res.success) return null;
+    return { validationTasks: res.validationTasks || 0, bankNotes: res.bankNotes || 0, banksWithNotes: res.banksWithNotes || 0 };
+}
+
 export async function getValidationReviewData(validationId: string): Promise<{
     profil_sekolah?: ProfilSekolah;
     validation: ValidationSession;

@@ -1,5 +1,6 @@
 "use client";
 
+import { NOTE_CATEGORY_LABELS } from '@/lib/validation-status';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     ShieldCheck,
@@ -25,7 +26,7 @@ import { ValidationReportModal } from '@/app/components/validations/ValidationRe
 import { VALIDATION_STATUS_LABELS } from '@/lib/validation-status';
 
 const recommendationLabels = { approved: 'Disetujui', revision_needed: 'Perlu revisi', rejected: 'Ditolak' } as const;
-const categoryLabels = { typo: 'Salah ketik', materi: 'Materi', kunci_jawaban: 'Kunci jawaban', konstruksi: 'Konstruksi', bahasa: 'Bahasa', lainnya: 'Lainnya' };
+const categoryLabels = NOTE_CATEGORY_LABELS;
 const itemLabels = { valid: 'Layak', revision: 'Revisi', rejected: 'Tolak' } as const;
 
 interface BankValidationFeedbackTabProps {

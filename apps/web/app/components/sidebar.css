@@ -1120,3 +1120,45 @@
 @media (max-width: 1023.98px) and (prefers-reduced-motion: reduce) {
   .sidebar { transition: none !important; }
 }
+
+/* Badge notifikasi menu (tugas validasi, catatan validator) */
+.menu-btn {
+  position: relative;
+}
+
+.menu-badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #e11d48;
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.menu-btn.active .menu-badge {
+  background: #ffffff;
+  color: #e11d48;
+}
+
+.menu-badge-dot {
+  position: absolute;
+  top: 8px;
+  right: calc(50% - 16px);
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #e11d48;
+  box-shadow: 0 0 0 2px var(--sidebar-bg, #ffffff);
+}
+
+.tooltip-badge {
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: #e11d48;
+  font-weight: 600;
+}

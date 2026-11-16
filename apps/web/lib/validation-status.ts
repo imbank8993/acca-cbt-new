@@ -1,5 +1,10 @@
 import type { BankValidationSummary } from '@/lib/api/questions';
-import type { ValidationStatus } from '@/lib/api/validations';
+import type { NoteCategory, ValidationStatus } from '@/lib/api/validations';
+
+/** Nama kategori catatan validasi yang mudah dibaca. */
+export const NOTE_CATEGORY_LABELS: Record<NoteCategory, string> = {
+    typo: 'Salah ketik', materi: 'Materi', kunci_jawaban: 'Kunci jawaban', konstruksi: 'Konstruksi', bahasa: 'Bahasa', lainnya: 'Lainnya',
+};
 
 /** Label status sesi validasi yang sama di semua halaman. */
 export const VALIDATION_STATUS_LABELS: Record<ValidationStatus, string> = {

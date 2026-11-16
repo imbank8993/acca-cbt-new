@@ -70,6 +70,9 @@ interface ValidationsListPageProps {
 }
 
 export function ValidationsListPage({ role }: ValidationsListPageProps) {
+    // Lembar validasi dibuka di bawah dasbor peran ini: Admin/Proktor tanpa peran Guru
+    // akan dialihkan keluar bila tautannya mengarah ke /dashboard/guru.
+    const reviewBase = role === 'Admin' ? '/dashboard/admin/questions/validations' : '/dashboard/proktor/questions/validations';
     const [validations, setValidations] = useState<ValidationSession[]>([]);
     const [folders, setFolders] = useState<ValidationFolder[]>([]);
     const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
@@ -367,7 +370,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                                                 Rincian <ChevronRight size={13} />
                                             </button>
                                             <Link
-                                                href={`/dashboard/guru/validations/${item.id}/review`}
+                                                href={`${reviewBase}/${item.id}/review`}
                                                 title={assignedToMe ? 'Buka lembar validasi' : 'Anda tidak ditugaskan pada sesi ini; hanya dapat melihat'}
                                                 className={assignedToMe
                                                     ? 'px-3 py-1.5 bg-primary text-white hover:bg-primary/90 font-bold rounded-xl flex items-center gap-1.5 text-xs shadow-sm shadow-primary/20 transition-all shrink-0'
@@ -656,7 +659,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                             </Button>
                         </div>
                         <Link
-                            href={`/dashboard/guru/validations/${selectedDetailVal.id}/review`}
+                            href={`${reviewBase}/${selectedDetailVal.id}/review`}
                             className="w-full sm:w-auto px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm shadow-primary/20 shrink-0"
                         >
                             {isAssignedToMe(selectedDetailVal)

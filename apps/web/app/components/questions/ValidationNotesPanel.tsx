@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Check, RotateCcw } from 'lucide-react';
 import { getBankValidationFeedback, resolveValidationNote, type ValidationSession } from '@/lib/api/validations';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
+import { NOTE_CATEGORY_LABELS } from '@/lib/validation-status';
 
 export function ValidationNotesPanel({ bankId, questionId }: { bankId: string; questionId: string }) {
     const [sessions, setSessions] = useState<ValidationSession[]>([]);
@@ -40,15 +41,19 @@ export function ValidationNotesPanel({ bankId, questionId }: { bankId: string; q
             />
         </div>}
         {!loading && !error && !notes.length && <p>Belum ada catatan untuk soal ini pada sesi yang dipilih.</p>}
-        {notes.map(note => <article key={note.id} className="space-y-2 rounded-lg border border-blue-100 bg-white p-3">
-            <p className="text-xs font-semibold text-blue-700">{note.category} · {note.target_scope === 'option' ? 'Pilihan jawaban' : note.target_scope === 'stimulus' ? 'Stimulus' : note.target_scope === 'question_text' ? 'Teks soal' : 'Umum'}</p>
+        {notes.map(note => {
+            // Saran pada butir Layak: boleh diikuti, tidak wajib diperbaiki dan tidak perlu ditandai.
+            const suggestion = note.status_item === 'valid';
+            return <article key={note.id} className={`space-y-2 rounded-lg border bg-white p-3 ${suggestion ? 'border-emerald-200' : 'border-blue-100'}`}>
+            {suggestion && <p className="inline-flex rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">Saran · tidak wajib diperbaiki</p>}
+            <p className="text-xs font-semibold text-blue-700">{NOTE_CATEGORY_LABELS[note.category] || note.category} · {note.target_scope === 'option' ? 'Pilihan jawaban' : note.target_scope === 'stimulus' ? 'Stimulus' : note.target_scope === 'question_text' ? 'Teks soal' : 'Umum'}</p>
             {note.selected_text && <blockquote className="border-l-2 border-amber-300 pl-2 text-xs text-slate-600 whitespace-pre-wrap">{note.selected_text}</blockquote>}
             <p className="whitespace-pre-wrap break-words">{note.comment}</p>
             <p className="text-xs text-slate-500">{note.validator?.full_name || 'Validator'}</p>
             {note.verification === 'accepted' && <p className="text-xs font-semibold text-emerald-700">✓ Perbaikan diterima validator</p>}
             {note.verification === 'not_fixed' && !note.is_resolved && <p className="text-xs font-semibold text-rose-600">Validator menilai perbaikan belum sesuai.</p>}
-            {session?.status === 'resubmitted' && <p className="text-xs text-violet-700">Sedang ditelaah ulang validator; tanda perbaikan dikunci.</p>}
-            <button type="button" disabled={!!busy || session?.status === 'resubmitted' || note.verification === 'accepted'} className={`inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-center text-xs font-semibold shadow-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60 ${note.is_resolved ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200' : 'border-blue-700 bg-blue-700 text-white hover:bg-blue-800'}`} onClick={async () => {
+            {!suggestion && session?.status === 'resubmitted' && <p className="text-xs text-violet-700">Sedang ditelaah ulang validator; tanda perbaikan dikunci.</p>}
+            {!suggestion && <button type="button" disabled={!!busy || session?.status === 'resubmitted' || note.verification === 'accepted'} className={`inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-center text-xs font-semibold shadow-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60 ${note.is_resolved ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200' : 'border-blue-700 bg-blue-700 text-white hover:bg-blue-800'}`} onClick={async () => {
                 setBusy(note.id); setError('');
                 try {
                     const result = await resolveValidationNote(note.id, !note.is_resolved);
@@ -57,7 +62,8 @@ export function ValidationNotesPanel({ bankId, questionId }: { bankId: string; q
                     window.dispatchEvent(new Event('validation-feedback-updated'));
                 } catch (err) { setError(err instanceof Error ? err.message : 'Status perbaikan gagal disimpan.'); }
                 finally { setBusy(''); }
-            }}>{note.is_resolved && note.verification !== 'accepted' ? <RotateCcw size={15} aria-hidden="true" /> : <Check size={15} aria-hidden="true" />}{busy === note.id ? 'Menyimpan…' : note.verification === 'accepted' ? 'Sudah diperbaiki' : note.is_resolved ? 'Batalkan tanda diperbaiki' : 'Tandai sudah diperbaiki'}</button>
-        </article>)}
+            }}>{note.is_resolved && note.verification !== 'accepted' ? <RotateCcw size={15} aria-hidden="true" /> : <Check size={15} aria-hidden="true" />}{busy === note.id ? 'Menyimpan…' : note.verification === 'accepted' ? 'Sudah diperbaiki' : note.is_resolved ? 'Batalkan tanda diperbaiki' : 'Tandai sudah diperbaiki'}</button>}
+        </article>;
+        })}
     </aside>;
 }

@@ -529,6 +529,55 @@ export class ValidationsService {
     }
 
     /**
+     * Angka notifikasi menu samping:
+     * - validationTasks: tugas validasi yang masih menunggu tindakan pengguna ini
+     *   (belum dikirim, sesi belum diputuskan, batas waktu belum lewat).
+     * - bankNotes: catatan Revisi/Tolak yang belum ditandai diperbaiki pada sesi
+     *   validasi terbaru bank soal buatan pengguna ini (saran Layak tidak dihitung).
+     */
+    async notificationCounts(user: AuthUser) {
+        const organizationId = user.organizationId;
+        if (!organizationId) return { validationTasks: 0, bankNotes: 0, banksWithNotes: 0 };
+        const [tasks, banks] = await Promise.all([
+            this.db.from('cbt_question_bank_validators')
+                .select('status, validation:cbt_question_bank_validations(organization_id, deadline, status, bank:cbt_question_banks(created_by, is_published))')
+                .eq('validator_id', user.id).neq('status', 'submitted'),
+            this.db.from('cbt_question_banks').select('id').eq('organization_id', organizationId).eq('created_by', user.id),
+        ]);
+        if (tasks.error || banks.error) throw new BadRequestException('Notifikasi validasi belum dapat dimuat.');
+
+        const restricted = await this.authz.isRestrictedProctor(user, organizationId);
+        const validationTasks = ((tasks.data as any[]) || []).filter(row => {
+            const session = row.validation;
+            if (!session || session.organization_id !== organizationId) return false;
+            if (restricted && session.bank?.created_by !== user.id && session.bank?.is_published !== true) return false;
+            return !['approved', 'rejected'].includes(session.status) && !isValidationDeadlinePassed(session.deadline);
+        }).length;
+
+        const bankIds = ((banks.data as Array<{ id: string }>) || []).map(bank => bank.id);
+        let bankNotes = 0;
+        let banksWithNotes = 0;
+        if (bankIds.length) {
+            const { data, error } = await this.db.from('cbt_question_bank_validations')
+                .select('bank_id, status, created_at, notes:cbt_question_validation_notes(status_item, is_resolved)')
+                .in('bank_id', bankIds).order('created_at', { ascending: false });
+            if (error) throw new BadRequestException('Notifikasi validasi belum dapat dimuat.');
+            const seen = new Set<string>();
+            for (const session of (data as any[]) || []) {
+                if (seen.has(session.bank_id)) continue;
+                seen.add(session.bank_id);
+                // Perbaikan sudah diajukan: menunggu validator, bukan tugas pembuat soal.
+                if (session.status === 'resubmitted') continue;
+                const open = ((session.notes || []) as Array<{ status_item?: string; is_resolved?: boolean }>)
+                    .filter(note => note.status_item !== 'valid' && !note.is_resolved).length;
+                bankNotes += open;
+                if (open) banksWithNotes += 1;
+            }
+        }
+        return { validationTasks, bankNotes, banksWithNotes };
+    }
+
+    /**
      * Data lengkap untuk layar review simulasi validasi soal bagi guru validator.
      */
     async getReviewData(user: AuthUser, validationId: string) {

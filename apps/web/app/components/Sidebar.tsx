@@ -4,6 +4,7 @@ import Image from 'next/image';
 
 import { getUserRole,type Role } from '@/lib/rbac';
 import { getSessionUser } from '@/lib/session';
+import { getValidationNotificationCounts, type ValidationNotificationCounts } from '@/lib/api/validations';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCallback,useEffect,useMemo,useRef,useState } from 'react';
@@ -16,8 +17,14 @@ interface MenuItem {
     label: string;
     href: string;
     badge?: number;
+    /** Keterangan angka badge (tooltip & pembaca layar). */
+    badgeLabel?: string;
     children?: MenuItem[];
 }
+
+/** Peran yang punya menu Bank Soal / Validasi Soal. */
+const VALIDATION_ROLES = new Set(['Superadmin', 'Admin', 'Proktor', 'Guru']);
+const NOTIFICATION_REFRESH_MS = 2 * 60 * 1000;
 
 export interface SidebarProps {
     isCollapsed: boolean;
@@ -137,10 +144,41 @@ export default function Sidebar({
         ],
     }), []);
 
+    const activeRoleName = activeRole?.role ?? role;
+    const showValidationBadges = VALIDATION_ROLES.has(activeRoleName);
+    const [counts, setCounts] = useState<ValidationNotificationCounts | null>(null);
+
+    // Angka notifikasi: dimuat saat pindah halaman, saat catatan validasi berubah, dan berkala.
+    useEffect(() => {
+        if (!showValidationBadges) return;
+        let active = true;
+        const refresh = () => {
+            void getValidationNotificationCounts().then(next => { if (active) setCounts(next); }).catch(() => { /* badge disembunyikan */ });
+        };
+        const initial = window.setTimeout(refresh, 0);
+        const timer = window.setInterval(refresh, NOTIFICATION_REFRESH_MS);
+        window.addEventListener('validation-feedback-updated', refresh);
+        return () => {
+            active = false;
+            window.clearTimeout(initial);
+            window.clearInterval(timer);
+            window.removeEventListener('validation-feedback-updated', refresh);
+        };
+    }, [showValidationBadges, pathname]);
+
     const menuItems = useMemo(() => {
-        const activeRoleName = activeRole?.role ?? role;
-        return menuConfig[activeRoleName] || menuConfig['Admin'] || [];
-    }, [menuConfig, role, activeRole]);
+        const items = menuConfig[activeRoleName] || menuConfig['Admin'] || [];
+        if (!showValidationBadges || !counts) return items;
+        return items.map(item => {
+            if (item.href.endsWith('/validations') && counts.validationTasks > 0) {
+                return { ...item, badge: counts.validationTasks, badgeLabel: `${counts.validationTasks} tugas validasi menunggu Anda` };
+            }
+            if (item.href.endsWith('/questions') && counts.bankNotes > 0) {
+                return { ...item, badge: counts.bankNotes, badgeLabel: `${counts.bankNotes} catatan validator belum diperbaiki di ${counts.banksWithNotes} bank soal` };
+            }
+            return item;
+        });
+    }, [menuConfig, activeRoleName, showValidationBadges, counts]);
 
     const handleItemClick = () => {
         if (typeof window !== 'undefined' && window.innerWidth < 768 && setIsOpen) {
@@ -234,6 +272,8 @@ export default function Sidebar({
                                             href={item.href}
                                             className={`menu-btn ${isActive ? 'active' : ''}`}
                                             onClick={handleItemClick}
+                                            aria-label={item.badge ? `${item.label}, ${item.badgeLabel}` : undefined}
+                                            title={item.badge ? item.badgeLabel : undefined}
                                         >
                                             <div className="menu-content">
                                                 <i className={`fa-solid ${item.icon} menu-icon`}></i>
@@ -241,6 +281,9 @@ export default function Sidebar({
                                                     <span className="menu-label">{item.label}</span>
                                                 )}
                                             </div>
+                                            {!!item.badge && (isCollapsed
+                                                ? <span className="menu-badge-dot" aria-hidden="true" />
+                                                : <span className="menu-badge" aria-hidden="true">{item.badge > 99 ? '99+' : item.badge}</span>)}
                                         </Link>
 
                                         {/* Tooltip for Collapsed State */}
@@ -254,6 +297,7 @@ export default function Sidebar({
                                                     <i className={`fa-solid ${item.icon}`}></i>
                                                     <span>{item.label}</span>
                                                 </div>
+                                                {!!item.badge && <div className="tooltip-badge">{item.badgeLabel}</div>}
                                             </div>
                                         )}
                                     </div>

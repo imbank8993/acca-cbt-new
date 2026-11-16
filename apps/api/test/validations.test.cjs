@@ -508,3 +508,34 @@ test('Bank cards summarise the latest validation without blocking the list on re
     const failing = new QuestionBanksService(fixtureDb({}, ['cbt_question_bank_validations']), authz);
     assert.equal((await failing['validationSummaries'](['bank'])).size, 0);
 });
+
+test('Sidebar notification counts: active tasks and open validator notes on own banks', async () => {
+    const session = (status, deadline = null, bankOwner = 'author') => ({ organization_id: 'school', status, deadline, bank: { created_by: bankOwner, is_published: true } });
+    const db = fixtureDb({
+        cbt_question_bank_validators: [
+            { validator_id: 'teacher', status: 'assigned', validation: session('pending') },
+            { validator_id: 'teacher', status: 'in_progress', validation: session('resubmitted') },
+            { validator_id: 'teacher', status: 'submitted', validation: session('in_progress') },
+            { validator_id: 'teacher', status: 'assigned', validation: session('approved') },
+            { validator_id: 'teacher', status: 'assigned', validation: session('pending', '2020-01-01T00:00:00Z') },
+            { validator_id: 'teacher', status: 'assigned', validation: { ...session('pending'), organization_id: 'other' } },
+        ],
+        cbt_question_banks: [
+            { id: 'mine', organization_id: 'school', created_by: 'teacher' },
+            { id: 'waiting', organization_id: 'school', created_by: 'teacher' },
+            { id: 'theirs', organization_id: 'school', created_by: 'someone' },
+        ],
+        cbt_question_bank_validations: [
+            { bank_id: 'mine', status: 'revision_needed', created_at: '2026-11-02', notes: [
+                { status_item: 'revision', is_resolved: false }, { status_item: 'rejected', is_resolved: false },
+                { status_item: 'revision', is_resolved: true }, { status_item: 'valid', is_resolved: false },
+            ] },
+            { bank_id: 'mine', status: 'rejected', created_at: '2026-10-01', notes: [{ status_item: 'revision', is_resolved: false }] },
+            { bank_id: 'waiting', status: 'resubmitted', created_at: '2026-11-03', notes: [{ status_item: 'revision', is_resolved: false }] },
+        ],
+    });
+    const authz = { isRestrictedProctor: async () => false };
+    const service = new ValidationsService(db, authz);
+    assert.deepEqual(await service.notificationCounts({ id: 'teacher', organizationId: 'school' }),
+        { validationTasks: 2, bankNotes: 2, banksWithNotes: 1 });
+});
