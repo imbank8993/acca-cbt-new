@@ -1,5 +1,6 @@
 "use client";
 
+import { ValidationConclusionText } from '@/app/components/validations/ValidationConclusionText';
 import { NOTE_CATEGORY_LABELS } from '@/lib/validation-status';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -281,9 +282,8 @@ export default function BankValidationFeedbackTab({
                                 </span>
                             </div>
                             {v.general_comment && (
-                                <p className="text-[11px] text-slate-600 dark:text-slate-300 italic bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
-                                    &quot;{v.general_comment}&quot;
-                                </p>
+                                <ValidationConclusionText text={v.general_comment}
+                                    className="text-[11px] text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-100 dark:border-slate-800" />
                             )}
                         </div>
                     ))}

@@ -280,6 +280,15 @@ export function setValidationItemStatus(validationId: string, questionId: string
     );
 }
 
+/** Tetapkan kelayakan banyak butir sekaligus; semua tersimpan atau tidak sama sekali. */
+export function setValidationItemsStatus(validationId: string, questionIds: string[], status: NoteStatusItem) {
+    return apiSend<{ success: boolean; items: ValidationItem[] }>(
+        `/api/validations/${encodeURIComponent(validationId)}/items`,
+        { questionIds, status },
+        'PUT',
+    );
+}
+
 export function reopenValidationReview(validationId: string) {
     return apiSend<{ success: boolean }>(`/api/validations/${encodeURIComponent(validationId)}/reopen`, {}, 'POST');
 }

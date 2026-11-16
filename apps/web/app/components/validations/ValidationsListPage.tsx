@@ -1,5 +1,6 @@
 "use client";
 
+import { ValidationConclusionText } from '@/app/components/validations/ValidationConclusionText';
 import React, { useState, useEffect, useCallback } from 'react';
 import { registerPageFab, unregisterPageFab } from '@/app/components/mobile/page-fab';
 import './validations-mobile.css';
@@ -629,9 +630,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                                             </p>
                                         )}
                                         {v.general_comment && (
-                                            <p className="text-[11px] text-slate-500 italic bg-slate-50 dark:bg-slate-800/80 p-2 rounded-lg">
-                                                &quot;{v.general_comment}&quot;
-                                            </p>
+                                            <ValidationConclusionText text={v.general_comment} className="text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-800/80 p-2 rounded-lg" />
                                         )}
                                     </div>
                                 ))}

@@ -866,6 +866,44 @@ export class ValidationsService {
     }
 
     /**
+     * Kelayakan banyak butir sekaligus, mis. "Tandai semua Layak" untuk butir yang belum dinilai.
+     * Satu transaksi: semua butir harus milik bank yang divalidasi, atau tidak ada yang disimpan.
+     */
+    async setItemsStatus(user: AuthUser, validationId: string, questionIds: string[], status: 'valid' | 'revision' | 'rejected') {
+        const ids = [...new Set(questionIds)];
+        if (!ids.length) throw new BadRequestException('Pilih minimal satu butir soal.');
+        return this.db.transaction(async (tx) => {
+            await advisoryTransactionLock(tx, `validation:${validationId}`);
+            const { session, assignment } = await this.requireEditable(tx, user, validationId);
+            const { data: questionRows, error: questionError } = await tx.from('cbt_bank_questions')
+                .select('id, metadata, revision').eq('bank_id', session.bank_id).in('id', ids);
+            if (questionError) throw new BadRequestException('Soal pada bank yang divalidasi belum dapat dibaca.');
+            const questions = new Map(((questionRows || []) as Array<{ id: string; metadata?: { _deleted?: boolean } | null; revision?: number | null }>)
+                .filter(row => !row.metadata?._deleted).map(row => [row.id, row]));
+            if (ids.some(id => !questions.has(id))) throw new BadRequestException('Sebagian soal tidak ditemukan pada bank yang divalidasi.');
+            const { data: existingRows, error: readError } = await tx.from('cbt_question_validation_items').select('id, question_id')
+                .eq('validation_id', validationId).eq('validator_id', user.id).in('question_id', ids);
+            if (readError) throw new BadRequestException('Status butir belum dapat dibaca.');
+            const existing = new Map(((existingRows || []) as Array<{ id: string; question_id: string }>).map(row => [row.question_id, row.id]));
+            const now = new Date().toISOString();
+            const saved: unknown[] = [];
+            for (const id of ids) {
+                const values = { status, round: session.round ?? 1, question_revision: questions.get(id)?.revision ?? null, updated_at: now };
+                const itemId = existing.get(id);
+                const result = itemId
+                    ? await tx.from('cbt_question_validation_items').update(values).eq('id', itemId).select('*').single()
+                    : await tx.from('cbt_question_validation_items').insert({
+                        validation_id: validationId, question_id: id, validator_id: user.id, ...values,
+                    }).select('*').single();
+                if (result.error) throw new BadRequestException('Gagal menyimpan status butir. Silakan coba lagi.');
+                saved.push(result.data);
+            }
+            await this.markInProgress(tx, validationId, session, assignment);
+            return { success: true, items: saved };
+        });
+    }
+
+    /**
      * Validator menilai perbaikan atas catatannya dari putaran sebelumnya.
      * "Belum sesuai" membuka kembali catatan itu untuk pembuat soal.
      */

@@ -3,6 +3,7 @@
 import React from 'react';
 import { BookMarked, KeyRound, Lightbulb } from 'lucide-react';
 import type { DimensionItem, KisiKisiItem, QuestionRecord } from '@/lib/api/questions';
+import { InlineMath } from '@/app/components/questions/InlineMath';
 import { QuestionContent } from '@/app/components/questions/QuestionRenderer';
 
 /** Relasi dari API review dapat berupa objek tunggal atau larik. */
@@ -31,10 +32,10 @@ export function ValidationQuestionContext({ question }: { question: ReviewQuesti
                 </p>
                 {hasKisi ? (
                     <dl className="grid grid-cols-1 sm:grid-cols-[8rem_1fr] gap-x-3 gap-y-1 text-slate-700 dark:text-slate-200">
-                        {kisi?.materi && (<><dt className="font-semibold text-slate-500 dark:text-slate-400">Materi</dt><dd>{kisi.materi}</dd></>)}
-                        {kisi?.indikator_soal && (<><dt className="font-semibold text-slate-500 dark:text-slate-400">Indikator soal</dt><dd>{kisi.indikator_soal}</dd></>)}
-                        {kisi?.level_kognitif && (<><dt className="font-semibold text-slate-500 dark:text-slate-400">Level kognitif</dt><dd>{kisi.level_kognitif}</dd></>)}
-                        {!kisi && legacyKisi && (<><dt className="font-semibold text-slate-500 dark:text-slate-400">Kisi-kisi</dt><dd>{legacyKisi}</dd></>)}
+                        {kisi?.materi && (<><dt className="font-semibold text-slate-500 dark:text-slate-400">Materi</dt><dd><InlineMath text={kisi.materi} /></dd></>)}
+                        {kisi?.indikator_soal && (<><dt className="font-semibold text-slate-500 dark:text-slate-400">Indikator soal</dt><dd><InlineMath text={kisi.indikator_soal} /></dd></>)}
+                        {kisi?.level_kognitif && (<><dt className="font-semibold text-slate-500 dark:text-slate-400">Level kognitif</dt><dd><InlineMath text={kisi.level_kognitif} /></dd></>)}
+                        {!kisi && legacyKisi && (<><dt className="font-semibold text-slate-500 dark:text-slate-400">Kisi-kisi</dt><dd><InlineMath text={legacyKisi} /></dd></>)}
                     </dl>
                 ) : (
                     <p className="text-amber-700 dark:text-amber-300">Butir ini belum terhubung ke kisi-kisi, sehingga kesesuaian dengan indikator tidak dapat diperiksa.</p>
@@ -76,8 +77,8 @@ export function ValidationAnswerKey({ question }: { question: ReviewQuestion }) 
                             const variations = (Array.isArray(blank.variations) ? blank.variations : []).filter(Boolean);
                             return (
                                 <li key={index}>
-                                    <span className="font-semibold">{blank.answer || '—'}</span>
-                                    {variations.length > 0 && <span className="text-slate-500 dark:text-slate-400"> (juga diterima: {variations.join(', ')})</span>}
+                                    <span className="font-semibold"><InlineMath text={String(blank.answer || '')} fallback="—" /></span>
+                                    {variations.length > 0 && <span className="text-slate-500 dark:text-slate-400"> (juga diterima: {variations.map((variation, i) => <React.Fragment key={i}>{i > 0 && ', '}<InlineMath text={String(variation)} /></React.Fragment>)})</span>}
                                 </li>
                             );
                         })}

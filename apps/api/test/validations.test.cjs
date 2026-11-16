@@ -539,3 +539,24 @@ test('Sidebar notification counts: active tasks and open validator notes on own 
     assert.deepEqual(await service.notificationCounts({ id: 'teacher', organizationId: 'school' }),
         { validationTasks: 2, bankNotes: 2, banksWithNotes: 1 });
 });
+
+test('Bulk item status marks many questions Layak at once, updating existing marks, all-or-nothing', async () => {
+    const { db, service } = setup();
+    db.tables.cbt_bank_questions.find(q => q.id === 'q2').revision = 3;
+    await service.setItemStatus(user('a'), 'session', 'q1', 'revision');
+    const result = await service.setItemsStatus(user('a'), 'session', ['q1', 'q2'], 'valid');
+    assert.equal(result.items.length, 2);
+    const mine = db.tables.cbt_question_validation_items.filter(item => item.validator_id === 'a');
+    assert.equal(mine.length, 2, 'existing mark updated, not duplicated');
+    assert.ok(mine.every(item => item.status === 'valid'));
+    assert.equal(mine.find(item => item.question_id === 'q2').question_revision, 3);
+    assert.equal(db.tables.cbt_question_bank_validators.find(v => v.id === 'a').status, 'in_progress');
+    // Soal asing atau terhapus: tidak ada yang disimpan.
+    const before = db.tables.cbt_question_validation_items.length;
+    await assert.rejects(service.setItemsStatus(user('b'), 'session', ['q1', 'foreign'], 'valid'), /tidak ditemukan/);
+    await assert.rejects(service.setItemsStatus(user('b'), 'session', ['q1', 'deleted'], 'valid'), /tidak ditemukan/);
+    assert.equal(db.tables.cbt_question_validation_items.length, before);
+    await assert.rejects(service.setItemsStatus(user('owner'), 'session', ['q1'], 'valid'), ForbiddenException);
+    await service.submitReview(user('a'), 'session', recommendation('approved'));
+    await assert.rejects(service.setItemsStatus(user('a'), 'session', ['q1'], 'valid'), /Buka kembali/);
+});

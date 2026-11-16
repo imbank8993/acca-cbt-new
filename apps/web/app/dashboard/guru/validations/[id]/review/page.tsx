@@ -1,6 +1,8 @@
 "use client";
+import { ValidationConclusionText } from '@/app/components/validations/ValidationConclusionText';
 import { trueFalseLabels } from '@acca-cbt/shared';
 import { confirmDialog } from '@/lib/confirm-dialog';
+import { composeGeneralComment, splitGeneralComment } from '@/lib/validation-conclusion';
 import { ModeCornerRibbon } from '@/app/components/questions/ModeCornerRibbon';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -36,6 +38,7 @@ import {
     updateValidationNote,
     verifyValidationNote,
     setValidationItemStatus,
+    setValidationItemsStatus,
     reopenValidationReview,
     type ValidationSession,
     type ValidationValidator,
@@ -288,6 +291,9 @@ export default function ValidatorReviewPage() {
     // Tidak ada pilihan bawaan: validator harus memilih rekomendasinya sendiri.
     const [generalRec, setGeneralRec] = useState<Recommendation | ''>('');
     const [generalComment, setGeneralComment] = useState('');
+    /** Saran umum untuk seluruh bank soal; disimpan bersama kesimpulan di `general_comment`. */
+    const [generalSuggestion, setGeneralSuggestion] = useState('');
+    const [isMarkingAll, setIsMarkingAll] = useState(false);
     const [isSubmittingFinal, setIsSubmittingFinal] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
     const [accessError, setAccessError] = useState<string | null>(null);
@@ -308,7 +314,9 @@ export default function ValidatorReviewPage() {
                 setItems(res.items || []);
                 setGeneralRec(res.myValidatorStatus?.general_recommendation || '');
                 if (res.myValidatorStatus?.general_comment) {
-                    setGeneralComment(res.myValidatorStatus.general_comment);
+                    const saved = splitGeneralComment(res.myValidatorStatus.general_comment);
+                    setGeneralComment(saved.conclusion);
+                    setGeneralSuggestion(saved.suggestion);
                 }
             } else {
                 setAccessError('Data validasi tidak ditemukan atau Anda tidak memiliki akses.');
@@ -604,10 +612,45 @@ export default function ValidatorReviewPage() {
         }
     };
 
+    /** Tetapkan Layak untuk semua butir yang belum dinilai; penilaian & catatan yang ada tidak berubah. */
+    const handleMarkRemainingValid = async () => {
+        if (!canEdit || isMarkingAll) return;
+        const targets = questions.filter(q => !reviewedIds.has(q.id)).map(q => q.id);
+        if (!targets.length) return;
+        const confirmed = await confirmDialog({
+            title: `Tandai ${targets.length} butir Layak?`,
+            text: `${targets.length} butir yang belum dinilai akan ditetapkan Layak sekaligus. Butir yang sudah Anda nilai Perlu revisi/Tolak atau beri catatan tidak berubah, dan setiap butir masih dapat diubah satu per satu.`,
+            confirmText: 'Ya, tandai Layak', cancelText: 'Batal', variant: 'primary',
+        });
+        if (!confirmed) return;
+        setIsMarkingAll(true);
+        setActionError(null);
+        setSubmitError(null);
+        try {
+            const res = await setValidationItemsStatus(validationId, targets, 'valid');
+            if (!res.success) throw new Error(res.error || 'Gagal menandai butir sebagai Layak.');
+            const saved = (res as unknown as { items?: ValidationItem[] }).items || [];
+            const ids = new Set(saved.map(item => item.question_id));
+            setItems(prev => [...prev.filter(item => !(ids.has(item.question_id) && item.validator_id === myUserId)), ...saved]);
+            markWorking();
+        } catch (e) {
+            const message = e instanceof Error ? e.message : 'Gagal menandai butir sebagai Layak.';
+            setActionError(message);
+            setSubmitError(message);
+        } finally {
+            setIsMarkingAll(false);
+        }
+    };
+
     const handleFinalSubmit = async () => {
         if (!canEdit) return;
         if (!generalRec) {
             setSubmitError('Pilih rekomendasi kelayakan bank soal terlebih dahulu.');
+            return;
+        }
+        const composedComment = composeGeneralComment(generalComment, generalSuggestion);
+        if (composedComment.length > 10000) {
+            setSubmitError('Kesimpulan dan saran umum terlalu panjang (maksimal 10.000 karakter).');
             return;
         }
         setIsSubmittingFinal(true);
@@ -615,7 +658,7 @@ export default function ValidatorReviewPage() {
         try {
             const res = await submitValidationReview(validationId, {
                 generalRecommendation: generalRec,
-                generalComment: generalComment.trim(),
+                generalComment: composedComment,
             });
 
             if (!res.success) throw new Error(res.error || 'Gagal mengirim hasil validasi.');
@@ -824,6 +867,18 @@ export default function ValidatorReviewPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                    {canEdit && unreviewedCount > 0 && (
+                        <Button
+                            variant="outline"
+                            onClick={() => void handleMarkRemainingValid()}
+                            disabled={isMarkingAll || isSavingNote}
+                            title="Tetapkan Layak untuk semua butir yang belum dinilai"
+                            className="font-bold text-xs flex items-center gap-1.5 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                        >
+                            {isMarkingAll ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+                            {reviewedCount === 0 ? 'Tandai semua Layak' : `Tandai ${unreviewedCount} sisanya Layak`}
+                        </Button>
+                    )}
                     {canEdit && (
                         <Button
                             variant={unreviewedCount > 0 ? 'outline' : undefined}
@@ -871,7 +926,7 @@ export default function ValidatorReviewPage() {
                                 )}
                             </div>
                             {viewedValidator?.general_comment && (
-                                <p className="text-xs text-slate-600 dark:text-slate-300"><span className="font-bold">Catatan umum:</span> {viewedValidator.general_comment}</p>
+                                <ValidationConclusionText text={viewedValidator.general_comment} className="text-xs text-slate-600 dark:text-slate-300" />
                             )}
                             <div className="grid grid-cols-3 gap-2 text-center">
                                 {summaryTiles.slice(0, 3).map(tile => (
@@ -908,7 +963,7 @@ export default function ValidatorReviewPage() {
                             </div>
                             <p className="text-xs text-slate-600 dark:text-slate-300"><span className="font-bold">Berikutnya:</span> {nextStepText}</p>
                             {validatorStatus.general_comment && (
-                                <p className="text-xs text-slate-500 italic whitespace-pre-wrap">&quot;{validatorStatus.general_comment}&quot;</p>
+                                <ValidationConclusionText text={validatorStatus.general_comment} className="text-xs text-slate-500" />
                             )}
                             <div className="flex flex-wrap gap-2">
                                 <Button variant="outline" onClick={() => backToList()} className="text-xs font-bold flex items-center gap-1.5">
@@ -1326,7 +1381,13 @@ export default function ValidatorReviewPage() {
 
                         {(unreviewedCount > 0 || contradiction || pendingVerification.length > 0) && (
                             <ul className="space-y-1.5 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 p-3 text-xs text-amber-800 dark:text-amber-300 list-disc pl-6">
-                                {unreviewedCount > 0 && <li>{unreviewedCount} dari {questions.length} butir belum Anda nilai atau beri catatan.</li>}
+                                {unreviewedCount > 0 && <li>
+                                    {unreviewedCount} dari {questions.length} butir belum Anda nilai atau beri catatan.{' '}
+                                    <button type="button" onClick={() => void handleMarkRemainingValid()} disabled={isMarkingAll}
+                                        className="font-bold text-emerald-700 dark:text-emerald-300 hover:underline disabled:opacity-50">
+                                        {isMarkingAll ? 'Menandai…' : `Tandai ${unreviewedCount} butir itu Layak`}
+                                    </button>
+                                </li>}
                                 {contradiction && <li>{contradiction}</li>}
                                 {pendingVerification.length > 0 && <li>{pendingVerification.length} perbaikan dari putaran sebelumnya belum dinilai; hasil belum dapat dikirim sebelum semuanya dinilai.</li>}
                             </ul>
@@ -1334,7 +1395,7 @@ export default function ValidatorReviewPage() {
 
                         <div>
                             <label htmlFor="validation-general-comment" className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-                                Catatan Umum / Kesimpulan Akhir:
+                                Kesimpulan Akhir:
                             </label>
                             <textarea
                                 id="validation-general-comment"
@@ -1342,6 +1403,20 @@ export default function ValidatorReviewPage() {
                                 value={generalComment}
                                 onChange={e => setGeneralComment(e.target.value)}
                                 placeholder="Contoh: Secara umum naskah soal sudah baik dan sesuai kisi-kisi, hanya perlu sedikit perbaikan redaksi rumus pada nomor 12 dan 18."
+                                className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="validation-general-suggestion" className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
+                                Saran Umum untuk Seluruh Bank Soal:
+                            </label>
+                            <p className="text-[11px] text-slate-500 mb-1.5">Saran atau catatan yang berlaku untuk semua soal, mis. format penulisan, keseragaman opsi, sebaran level kognitif, atau kesesuaian dengan kisi-kisi.</p>
+                            <textarea
+                                id="validation-general-suggestion"
+                                rows={4}
+                                value={generalSuggestion}
+                                onChange={e => setGeneralSuggestion(e.target.value)}
+                                placeholder="Contoh: Seragamkan panjang opsi jawaban, gunakan satuan SI secara konsisten, dan tambah butir level C4-C6 agar sebaran kognitif seimbang."
                                 className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-primary/20"
                             />
                         </div>

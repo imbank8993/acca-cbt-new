@@ -137,10 +137,14 @@ test('Author editor panel selects history, scopes notes and exposes resolve fail
     tree = render(); assert.match(text(tree), /Batalkan tanda/); assert.deepEqual(calls[1], ['old-note', true]);
 });
 
+function loadConclusion() {
+    require('ts-node').register({ project: path.resolve(__dirname, '../tsconfig.json'), transpileOnly: true });
+    return require('../../web/lib/validation-conclusion.ts');
+}
 function loadReviewPage(reviewData, apiOverrides = {}) {
     const state = []; let cursor = 0; let firstRender = true; const effects = [];
     const React = {
-        createElement: (type, props, ...children) => ({ type, props: props || {}, children }),
+        createElement: (type, props, ...children) => type && type.name === 'ValidationConclusionText' ? type(props || {}) : ({ type, props: props || {}, children }),
         useState(initial) { const index = cursor++; if (!(index in state)) state[index] = initial; return [state[index], value => { state[index] = typeof value === 'function' ? value(state[index]) : value; }]; },
         useRef(initial) { const index = cursor++; if (!(index in state)) state[index] = { current: initial }; return state[index]; },
         useEffect(fn) { if (firstRender) effects.push(fn); },
@@ -155,6 +159,12 @@ function loadReviewPage(reviewData, apiOverrides = {}) {
         if (name === 'next/navigation') return { useParams: () => ({ id: 's' }), useRouter: () => ({ push() {} }) };
         if (name === '@/lib/api/validations') return api;
         if (name === '@/lib/confirm-dialog') return { confirmDialog: async () => true };
+        if (name === '@/lib/validation-conclusion') return loadConclusion();
+        // Kesimpulan ditampilkan lewat komponen: render langsung agar teksnya ikut diperiksa.
+        if (name.endsWith('/ValidationConclusionText')) return { ValidationConclusionText: ({ text }) => {
+            const { conclusion, suggestion } = loadConclusion().splitGeneralComment(text);
+            return React.createElement('div', null, conclusion, suggestion ? ` Saran umum: ${suggestion}` : '');
+        } };
         return new Proxy({}, { get: (_, key) => key });
     }, module, module.exports, { getSelection: () => ({ removeAllRanges() {} }) });
     const nodes = root => !root || typeof root !== 'object' ? [] : Array.isArray(root) ? root.flatMap(nodes) : [root, ...nodes(root.children)];
@@ -306,4 +316,57 @@ test('Admin/Proktor viewers pick a validator and see that validator\'s results r
     tree = page.render();
     assert.match(page.text(tree), /Sedang dikerjakan/);
     assert.match(page.text(tree), /Dinilai 0\/2/);
+});
+
+test('Kisi-kisi and short-answer key in the review context render LaTeX through InlineMath', () => {
+    const React = { createElement: (type, props, ...children) => ({ type, props: props || {}, children }), Fragment: 'Fragment' };
+    const InlineMath = function InlineMath() { return null; };
+    const source = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/validations/ValidationQuestionContext.tsx'), 'utf8');
+    const code = ts.transpileModule(source, { compilerOptions: { jsx: ts.JsxEmit.React, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
+    const module = { exports: {} };
+    new Function('require', 'module', 'exports', code)(name => name === 'react' ? React : name.endsWith('InlineMath') ? { InlineMath } : { QuestionContent: () => null, BookMarked: 'i', KeyRound: 'i', Lightbulb: 'i' }, module, module.exports);
+    const nodes = root => !root || typeof root !== 'object' ? [] : Array.isArray(root) ? root.flatMap(nodes) : [root, ...nodes(root.children)];
+    const math = tree => nodes(tree).filter(node => node.type === InlineMath).map(node => node.props.text);
+    const question = { id: 'q', type: 'short_answer', question_text: '', kisi_kisi: { materi: 'Matriks', indikator_soal: 'Determinan $2\times2$', level_kognitif: 'C3' },
+        metadata: { blanks: [{ answer: '$-2$', variations: ['$-\frac{4}{2}$'] }] } };
+    assert.deepEqual(math(module.exports.ValidationQuestionContext({ question })), ['Matriks', 'Determinan $2\times2$', 'C3']);
+    assert.deepEqual(math(module.exports.ValidationAnswerKey({ question })), ['$-2$', '$-\frac{4}{2}$']);
+});
+
+test('Final conclusion and general suggestion share general_comment and split back losslessly', () => {
+    require('ts-node').register({ project: path.resolve(__dirname, '../tsconfig.json'), transpileOnly: true });
+    const { composeGeneralComment, splitGeneralComment, GENERAL_SUGGESTION_HEADING } = require('../../web/lib/validation-conclusion.ts');
+    const both = composeGeneralComment('  Sudah baik.\nPerbaiki no 3. ', ' Seragamkan opsi.\nTambah C4. ');
+    assert.equal(both, `Sudah baik.\nPerbaiki no 3.\n\n${GENERAL_SUGGESTION_HEADING}\nSeragamkan opsi.\nTambah C4.`);
+    assert.deepEqual(splitGeneralComment(both), { conclusion: 'Sudah baik.\nPerbaiki no 3.', suggestion: 'Seragamkan opsi.\nTambah C4.' });
+    assert.equal(composeGeneralComment('Hanya kesimpulan', '  '), 'Hanya kesimpulan');
+    assert.deepEqual(splitGeneralComment('Catatan lama tanpa saran'), { conclusion: 'Catatan lama tanpa saran', suggestion: '' });
+    assert.deepEqual(splitGeneralComment(composeGeneralComment('', 'Saran saja')), { conclusion: '', suggestion: 'Saran saja' });
+    assert.deepEqual(splitGeneralComment(both.replace(/\n/g, '\r\n')), splitGeneralComment(both));
+    assert.deepEqual(splitGeneralComment(null), { conclusion: '', suggestion: '' });
+});
+
+test('"Tandai sisanya Layak" marks only unreviewed items at once and keeps existing marks', async () => {
+    const calls = [];
+    const questions = [{ id: 'q1', question_text: 'First' }, { id: 'q2', question_text: 'Second' }, { id: 'q3', question_text: 'Third' }];
+    const page = loadReviewPage(
+        { validation: { id: 's', title: 'Test' }, myValidatorStatus: { validator_id: 'v', status: 'in_progress', general_comment: 'Baik.\n\nSaran umum untuk seluruh bank soal:\nSeragamkan opsi.' }, notes: [],
+            items: [{ question_id: 'q2', validator_id: 'v', status: 'revision' }], questions },
+        { setValidationItemsStatus: async (id, questionIds, status) => { calls.push([questionIds, status]);
+            return { success: true, items: questionIds.map(question_id => ({ question_id, validator_id: 'v', status })) }; } },
+    );
+    let tree = await page.start();
+    const bulk = page.nodes(tree).find(n => n.type === 'Button' && /Tandai 2 sisanya Layak/.test(page.text(n)));
+    assert.ok(bulk, 'bulk button shown while items remain unreviewed');
+    bulk.props.onClick();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    tree = page.render();
+    assert.deepEqual(calls, [[['q1', 'q3'], 'valid']]);
+    assert.match(page.text(tree), /Selesaikan Validasi \(3\/3\)/);
+    assert.equal(page.nodes(tree).some(n => n.type === 'Button' && /sisanya Layak/.test(page.text(n))), false);
+    // Kesimpulan tersimpan dipisah kembali ke dua isian modal.
+    page.nodes(tree).find(n => n.type === 'Button' && /Selesaikan Validasi/.test(page.text(n))).props.onClick();
+    tree = page.render();
+    const areas = page.nodes(tree).filter(n => n.type === 'textarea');
+    assert.deepEqual(areas.map(n => n.props.value), ['Baik.', 'Seragamkan opsi.']);
 });

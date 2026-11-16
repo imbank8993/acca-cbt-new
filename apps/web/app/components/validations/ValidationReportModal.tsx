@@ -1,5 +1,6 @@
 "use client";
 
+import { ValidationConclusionText } from '@/app/components/validations/ValidationConclusionText';
 import { formatKopParts, type ProfilSekolah } from '@/lib/pas/print-kop';
 import { useKopLogo } from '@/lib/useKopLogo';
 import React, { useState, useEffect } from 'react';
@@ -304,7 +305,7 @@ export function ValidationReportModal({
                                                         {getRecommendationLabel(v.general_recommendation)}
                                                     </td>
                                                     <td className="border border-slate-400 px-2 py-1 italic text-slate-700">
-                                                        {v.general_comment || '-'}
+                                                        {v.general_comment ? <ValidationConclusionText text={v.general_comment} /> : '-'}
                                                     </td>
                                                 </tr>
                                             ))

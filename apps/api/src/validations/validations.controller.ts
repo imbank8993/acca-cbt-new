@@ -25,6 +25,7 @@ import {
     ResolveNoteDto,
     SaveValidationNoteDto,
     SetItemStatusDto,
+    SetItemsStatusDto,
     SubmitValidationDto,
     UpdateValidationDto,
     UpdateValidationNoteDto,
@@ -148,6 +149,16 @@ export class ValidationsController {
         @Param('id', ParseUUIDPipe) id: string,
     ) {
         return this.validations.resubmit(user, id);
+    }
+
+    @Put(':id/items')
+    @ApiOperation({ summary: 'Validator menetapkan kelayakan banyak butir sekaligus (mis. tandai semua Layak)' })
+    setItemsStatus(
+        @CurrentUser() user: AuthUser,
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() dto: SetItemsStatusDto,
+    ) {
+        return this.validations.setItemsStatus(user, id, dto.questionIds, dto.status);
     }
 
     @Put(':id/items/:questionId')

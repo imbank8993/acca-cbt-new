@@ -181,6 +181,20 @@ export class SetItemStatusDto {
     status: 'valid' | 'revision' | 'rejected';
 }
 
+export class SetItemsStatusDto {
+    @ApiProperty({ type: [String], description: 'Butir yang dinilai sekaligus (mis. semua butir yang belum dinilai)' })
+    @IsArray()
+    @ArrayMinSize(1)
+    @ArrayMaxSize(1000)
+    @ArrayUnique()
+    @IsUUID('all', { each: true })
+    questionIds: string[];
+
+    @ApiProperty({ enum: ['valid', 'revision', 'rejected'], description: 'Kelayakan yang diterapkan ke semua butir tersebut' })
+    @IsIn(['valid', 'revision', 'rejected'])
+    status: 'valid' | 'revision' | 'rejected';
+}
+
 export class UpdateValidationDto {
     @ApiPropertyOptional({ description: 'Folder tujuan; null mengeluarkan sesi dari folder', nullable: true })
     @IsOptional()
