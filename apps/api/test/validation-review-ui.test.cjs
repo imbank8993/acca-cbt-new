@@ -51,6 +51,7 @@ test('Question navigation isolates and restores drafts and option targets', asyn
             { id: 'q2', question_text: 'Second', bank_question_options: [] },
         ] }),
         saveValidationNote: async (id, payload) => { saved.push(payload); return { success: true, id: 'note', question_id: payload.questionId, category: 'typo' }; },
+        setValidationItemStatus: async (id, questionId, status) => ({ success: true, question_id: questionId, validator_id: 'v', status }),
     };
     const source = fs.readFileSync(path.resolve(__dirname, '../../web/app/dashboard/guru/validations/[id]/review/page.tsx'), 'utf8');
     const code = ts.transpileModule(source, { compilerOptions: { jsx: ts.JsxEmit.React, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
@@ -69,12 +70,17 @@ test('Question navigation isolates and restores drafts and option targets', asyn
     effects.forEach(effect => effect());
     await new Promise(resolve => setTimeout(resolve, 0));
     tree = render();
+    // Form catatan baru muncul setelah butir dinilai Perlu revisi / Tolak.
+    assert.equal(nodes(tree).some(n => n.type === 'textarea'), false);
+    const markRevision = async () => { await find(tree, n => n.type === 'button' && text(n) === 'Perlu revisi').props.onClick(); tree = render(); };
+    await markRevision();
     find(tree, n => n.type === 'div' && n.props.onClick && nodes(n).some(child => child.props?.content === 'Option')).props.onClick();
     tree = render();
     find(tree, n => n.type === 'textarea').props.onChange({ target: { value: 'Draft for first question' } });
     tree = render();
     find(tree, n => n.type === 'button' && text(n).includes('Selanjutnya')).props.onClick();
     tree = render();
+    await markRevision();
     assert.equal(find(tree, n => n.type === 'textarea').props.value, '');
     find(tree, n => n.type === 'textarea').props.onChange({ target: { value: 'Note for second question' } });
     tree = render();
@@ -179,7 +185,9 @@ test('Submitted reviews are locked until reopened', async () => {
         { validation: { id: 's', title: 'Test' }, myValidatorStatus: { validator_id: 'v', status: 'submitted' }, notes: reviewNotes, questions: reviewQuestions },
     );
     const tree = await page.start();
-    assert.match(page.text(tree), /Buka Kembali untuk Diubah/);
+    assert.match(page.text(tree), /Hasil validasi terkirim/);
+    assert.match(page.text(tree), /Berikutnya:/);
+    assert.match(page.text(tree), /Ubah hasil/);
     assert.equal(page.nodes(tree).some(n => n.type === 'textarea'), false);
     assert.equal(deleteButtons(page, tree).length, 0);
 });
@@ -228,4 +236,23 @@ test('Load failures show the server reason instead of a generic access denial', 
     const page = loadReviewPage(null, { getValidationReviewData: async () => { throw new Error('Tidak dapat menghubungi server.'); } });
     const tree = await page.start();
     assert.match(page.text(tree), /Tidak dapat menghubungi server/);
+});
+
+test('Marking an item Layak saves it and jumps to the next unreviewed item', async () => {
+    const calls = [];
+    const questions = [{ id: 'q1', question_text: 'First' }, { id: 'q2', question_text: 'Second' }, { id: 'q3', question_text: 'Third' }];
+    const page = loadReviewPage(
+        { validation: { id: 's', title: 'Test' }, myValidatorStatus: { validator_id: 'v', status: 'in_progress' }, notes: [],
+            items: [{ question_id: 'q2', validator_id: 'v', status: 'valid' }], questions },
+        { setValidationItemStatus: async (id, questionId, status) => { calls.push([questionId, status]); return { success: true, question_id: questionId, validator_id: 'v', status }; } },
+    );
+    let tree = await page.start();
+    assert.match(page.text(tree), /Selesaikan Validasi \(1\/3\)/);
+    assert.match(page.text(tree), /Ke yang belum dinilai \(2\)/);
+    await page.nodes(tree).find(n => n.type === 'button' && page.text(n) === 'Layak').props.onClick();
+    tree = page.render();
+    assert.deepEqual(calls, [['q1', 'valid']]);
+    // q2 sudah dinilai, jadi lompat ke q3.
+    assert.ok(page.nodes(tree).some(n => n.type === 'QuestionContent' && n.props.content === 'Third'));
+    assert.equal(page.nodes(tree).some(n => n.type === 'textarea'), false);
 });

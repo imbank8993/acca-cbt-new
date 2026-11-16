@@ -22,7 +22,6 @@ import {
     Highlighter,
     Pencil,
     RotateCcw,
-    ListChecks,
     Calendar,
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
@@ -89,7 +88,7 @@ const ITEM_STATUS: Record<NoteStatusItem, { label: string; chip: string; active:
         active: 'bg-emerald-600 text-white border-emerald-600',
     },
     revision: {
-        label: 'Revisi',
+        label: 'Perlu revisi',
         chip: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900',
         active: 'bg-amber-500 text-white border-amber-500',
     },
@@ -208,6 +207,32 @@ function findTextRange(root: Element, text: string): Range | null {
     return range;
 }
 
+/** Penanda tahap: validator selalu tahu sedang di mana dan apa berikutnya. */
+function ValidationStepper({ steps, current }: { steps: string[]; current: number }) {
+    return (
+        <nav aria-label="Tahap validasi" className="shrink-0 bg-white dark:bg-[#0d1221] border-b border-slate-200 dark:border-slate-800 px-4 py-2 overflow-x-auto">
+            <ol className="flex items-center gap-1.5 text-[11px] font-semibold whitespace-nowrap">
+                {steps.map((label, index) => {
+                    const done = index < current || (index === current && label === 'Selesai');
+                    const active = index === current && !done;
+                    return (
+                        <li key={index} className="flex items-center gap-1.5" aria-current={active ? 'step' : undefined}>
+                            {index > 0 && <ChevronRight size={12} className="text-slate-300" aria-hidden="true" />}
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border ${
+                                active ? 'bg-primary/10 border-primary/30 text-primary'
+                                    : done ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/40 dark:border-emerald-900 dark:text-emerald-300'
+                                        : 'border-slate-200 dark:border-slate-700 text-slate-400'}`}>
+                                {done ? <CheckCircle2 size={12} aria-hidden="true" /> : <span aria-hidden="true">{index + 1}</span>}
+                                {label}
+                            </span>
+                        </li>
+                    );
+                })}
+            </ol>
+        </nav>
+    );
+}
+
 export default function ValidatorReviewPage() {
     const params = useParams();
     const router = useRouter();
@@ -228,7 +253,8 @@ export default function ValidatorReviewPage() {
     const [selectedOptionId, setSelectedOptionId] = useState<string | undefined>(undefined);
     const [commentText, setCommentText] = useState('');
     const [category, setCategory] = useState<NoteCategory>('typo');
-    const [statusItem, setStatusItem] = useState<NoteStatusItem>('revision');
+    // Form catatan untuk butir Layak (saran) dibuka manual; Revisi/Tolak selalu menampilkannya.
+    const [noteFormOpen, setNoteFormOpen] = useState(false);
     const [isSavingNote, setIsSavingNote] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
     const [itemSavingId, setItemSavingId] = useState<string | null>(null);
@@ -239,18 +265,18 @@ export default function ValidatorReviewPage() {
     const [isReopening, setIsReopening] = useState(false);
     const drafts = useRef<Record<string, {
         selectedText: string; targetScope: typeof targetScope; selectedOptionId?: string;
-        commentText: string; category: NoteCategory; statusItem: NoteStatusItem;
+        commentText: string; category: NoteCategory; noteFormOpen: boolean;
     }>>({});
     const changeQuestion = (index: number) => {
         if (isSavingNote || index === currentIndex || !questions[index]) return;
-        drafts.current[questions[currentIndex].id] = { selectedText, targetScope, selectedOptionId, commentText, category, statusItem };
+        drafts.current[questions[currentIndex].id] = { selectedText, targetScope, selectedOptionId, commentText, category, noteFormOpen };
         const draft = drafts.current[questions[index].id];
         setSelectedText(draft?.selectedText || '');
         setTargetScope(draft?.targetScope || 'question_text');
         setSelectedOptionId(draft?.selectedOptionId);
         setCommentText(draft?.commentText || '');
         setCategory(draft?.category || 'typo');
-        setStatusItem(draft?.statusItem || 'revision');
+        setNoteFormOpen(draft?.noteFormOpen || false);
         setActionError(null);
         setEditingNoteId(null);
         window.getSelection()?.removeAllRanges();
@@ -342,7 +368,7 @@ export default function ValidatorReviewPage() {
         : deadlinePassed
             ? 'Batas waktu validasi telah berakhir. Catatan dan rekomendasi tidak dapat diubah lagi.'
             : alreadySubmitted
-                ? 'Hasil validasi Anda sudah dikirim. Buka kembali bila perlu mengubah catatan atau penilaian butir; pembuat soal diberi tahu saat Anda mengirim ulang.'
+                ? 'Hasil validasi sudah dikirim, jadi lembar ini hanya untuk dilihat. Pilih Ubah hasil pada ringkasan di atas soal bila perlu mengubahnya.'
                 : null;
     const canEdit = !readOnlyReason;
     const canReopen = !!validatorStatus && alreadySubmitted && !deadlinePassed;
@@ -360,6 +386,38 @@ export default function ValidatorReviewPage() {
             myNotes.some(n => n.question_id === q.id && !isPreviousRound(n) && n.status_item !== 'valid');
     }).length;
     const questionNumber = (questionId: string) => questions.findIndex(q => q.id === questionId) + 1;
+    /** Penilaian efektif satu butir: tombol penilaian, atau (data lama) status catatan putaran ini. */
+    const statusOf = (questionId: string): NoteStatusItem | undefined => {
+        const item = myItems.get(questionId);
+        if (item) return item;
+        const current = myNotes.filter(n => n.question_id === questionId && !isPreviousRound(n));
+        if (current.some(n => n.status_item === 'rejected')) return 'rejected';
+        if (current.some(n => n.status_item === 'revision')) return 'revision';
+        return current.length ? 'valid' : undefined;
+    };
+    const statusCounts = questions.reduce((acc, q) => {
+        const status = statusOf(q.id);
+        if (status) acc[status] += 1;
+        return acc;
+    }, { valid: 0, revision: 0, rejected: 0 } as Record<NoteStatusItem, number>);
+    /** Nomor berikutnya yang belum dinilai (melingkar); -1 bila semua sudah dinilai. */
+    const nextUnreviewedIndex = (from: number, alsoReviewed?: string) => {
+        for (let step = 1; step <= questions.length; step++) {
+            const index = (from + step) % questions.length;
+            const id = questions[index].id;
+            if (id !== alsoReviewed && !reviewedIds.has(id)) return index;
+        }
+        return -1;
+    };
+    /** Setelah butir ini selesai dinilai: ke butir belum dinilai berikutnya, atau nomor berikutnya. */
+    const advanceFrom = (questionId: string) => {
+        const target = nextUnreviewedIndex(currentIndex, questionId);
+        if (target >= 0) changeQuestion(target);
+        else if (currentIndex < questions.length - 1) changeQuestion(currentIndex + 1);
+        // Catatan yang baru disimpan bukan draf lagi.
+        delete drafts.current[questionId];
+    };
+    const noteStatus: NoteStatusItem = (currentQuestion && statusOf(currentQuestion.id)) || 'revision';
 
     /** Status perbaikan atas catatan dari putaran sebelumnya. */
     const fixState = (note: ValidationNote): { text: string; tone: string } => {
@@ -418,6 +476,9 @@ export default function ValidatorReviewPage() {
             const saved = res as unknown as ValidationItem;
             setItems(prev => [...prev.filter(item => !(item.question_id === currentQuestion.id && item.validator_id === myUserId)), saved]);
             markWorking();
+            // Butir layak tanpa catatan perbaikan langsung lanjut ke butir berikutnya.
+            const flaggedNotes = myNotes.some(n => n.question_id === currentQuestion.id && !isPreviousRound(n) && n.status_item !== 'valid');
+            if (status === 'valid' && !flaggedNotes && !commentText.trim()) advanceFrom(currentQuestion.id);
         } catch (e) {
             setActionError(e instanceof Error ? e.message : 'Gagal menyimpan penilaian butir.');
         } finally {
@@ -425,8 +486,9 @@ export default function ValidatorReviewPage() {
         }
     };
 
-    const handleSaveNote = async () => {
+    const handleSaveNote = async (advance = false) => {
         if (!canEdit || !currentQuestion || !commentText.trim()) return;
+        const questionId = currentQuestion.id;
         setIsSavingNote(true);
         setActionError(null);
         try {
@@ -437,7 +499,8 @@ export default function ValidatorReviewPage() {
                 selectedText: selectedText || undefined,
                 comment: commentText.trim(),
                 category,
-                statusItem,
+                // Status catatan selalu mengikuti penilaian butir; tidak dipilih dua kali.
+                statusItem: noteStatus,
             });
 
             if (!res.success) throw new Error(res.error || 'Gagal menyimpan catatan.');
@@ -448,6 +511,7 @@ export default function ValidatorReviewPage() {
             setSelectedOptionId(undefined);
             setTargetScope('question_text');
             markWorking();
+            if (advance) advanceFrom(questionId);
         } catch (e) {
             setActionError(e instanceof Error ? e.message : 'Gagal menyimpan catatan.');
         } finally {
@@ -539,7 +603,9 @@ export default function ValidatorReviewPage() {
 
             if (!res.success) throw new Error(res.error || 'Gagal mengirim hasil validasi.');
             setIsSubmitModalOpen(false);
-            router.push('/dashboard/guru/validations');
+            setShowSummary(false);
+            // Tetap di halaman ini: kartu ringkasan menjelaskan apa yang terjadi berikutnya.
+            await loadData();
         } catch (e) {
             console.error('Failed to submit validation review', e);
             setSubmitError(e instanceof Error ? e.message : 'Gagal mengirim hasil validasi.');
@@ -568,12 +634,49 @@ export default function ValidatorReviewPage() {
         );
     }
 
-    const currentItemStatus = currentQuestion ? myItems.get(currentQuestion.id) : undefined;
+    const currentStatus = currentQuestion ? statusOf(currentQuestion.id) : undefined;
+    const showNoteForm = canEdit && (currentStatus === 'revision' || currentStatus === 'rejected' || noteFormOpen);
+    const needsNote = (currentStatus === 'revision' || currentStatus === 'rejected') && !!currentQuestion &&
+        !myNotes.some(n => n.question_id === currentQuestion.id && !isPreviousRound(n));
+    const optionIndex = currentQuestion?.bank_question_options?.findIndex(option => option.id === selectedOptionId) ?? -1;
+    const scopeChoices: Array<{ value: NoteScope; label: string }> = [
+        { value: 'question_text', label: 'Teks soal' },
+        ...(currentQuestion?.stimulus?.content ? [{ value: 'stimulus' as const, label: 'Stimulus' }] : []),
+        ...(selectedOptionId ? [{ value: 'option' as const, label: optionIndex >= 0 ? `Opsi ${String.fromCharCode(65 + optionIndex)}` : 'Opsi terpilih' }] : []),
+        { value: 'general', label: 'Umum' },
+    ];
     const contradiction = generalRec === 'approved' && flaggedCount > 0
         ? `Anda memilih Disetujui, padahal ${flaggedCount} butir Anda nilai Revisi/Tolak.`
         : (generalRec === 'revision_needed' || generalRec === 'rejected') && flaggedCount === 0
             ? 'Belum ada butir yang Anda nilai Revisi/Tolak. Beri catatan pada butir yang perlu diperbaiki agar pembuat soal tahu bagian yang dimaksud.'
             : null;
+
+    const submittedRec = validatorStatus?.general_recommendation || null;
+    const suggestedRec: Recommendation | null = flaggedCount > 0 ? 'revision_needed' : unreviewedCount === 0 ? 'approved' : null;
+    const summaryTiles = [
+        { label: 'Layak', value: statusCounts.valid, tone: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300' },
+        { label: 'Perlu revisi', value: statusCounts.revision, tone: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300' },
+        { label: 'Tolak', value: statusCounts.rejected, tone: 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300' },
+        { label: 'Belum dinilai', value: unreviewedCount, tone: 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300' },
+    ];
+    const toFix = statusCounts.revision + statusCounts.rejected;
+    const fixLabel = toFix ? `${toFix} butir yang` : 'butir yang';
+    /** Apa yang terjadi setelah hasil dikirim, dalam bahasa validator. */
+    const nextStepText = submittedRec === 'approved'
+        ? 'Anda menyatakan bank soal ini layak. Tidak ada lagi yang perlu Anda kerjakan, kecuali Proktor membuka putaran telaah ulang.'
+        : validation.status === 'pending' || validation.status === 'in_progress'
+            ? `Menunggu validator lain dan keputusan Proktor. Bila perbaikan diminta, pembuat soal memperbaiki ${fixLabel} Anda tandai, lalu tugas ini kembali ke daftar Anda sebagai "Perlu Ditelaah Ulang".`
+            : `Pembuat soal memperbaiki ${fixLabel} Anda tandai. Setelah selesai, tugas ini kembali ke daftar Anda sebagai "Perlu Ditelaah Ulang" untuk menilai perbaikannya.`;
+    const submittedAt = validatorStatus?.submitted_at ? new Date(validatorStatus.submitted_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) : null;
+    // Tahapan alur validasi untuk validator ini (lihat ValidationStepper).
+    const stepperSteps = [
+        `Nilai butir · ${reviewedCount}/${questions.length}`,
+        'Kirim rekomendasi',
+        submittedRec === 'approved' ? 'Selesai' : 'Pembuat soal memperbaiki',
+        ...(submittedRec === 'approved' && round === 1 ? [] : [round > 1 && !alreadySubmitted && pendingVerification.length
+            ? `Telaah ulang · ${pendingVerification.length} perbaikan belum dinilai` : 'Telaah ulang']),
+    ];
+    const stepperCurrent = alreadySubmitted ? 2 : round > 1 ? 3 : unreviewedCount > 0 ? 0 : 1;
 
     const renderNoteCard = (n: ValidationNote, showNumber = false) => {
         const mine = !!myUserId && n.validator_id === myUserId;
@@ -616,16 +719,10 @@ export default function ValidatorReviewPage() {
                 )}
                 {isEditing ? (
                     <div className="space-y-2">
-                        <div className="grid grid-cols-2 gap-2">
-                            <InlineSelect aria-label="Kategori catatan" value={editDraft.category} minWidth="0" height="34px"
-                                className="w-full" onChange={value => setEditDraft(d => ({ ...d, category: value as NoteCategory }))}
-                                options={Object.entries(CATEGORY_LABELS).map(([value, label]) => ({ value, label }))}
-                            />
-                            <InlineSelect aria-label="Status catatan" value={editDraft.statusItem} minWidth="0" height="34px"
-                                className="w-full" onChange={value => setEditDraft(d => ({ ...d, statusItem: value as NoteStatusItem }))}
-                                options={[{ value: 'valid', label: '🟢 Layak' }, { value: 'revision', label: '🟡 Revisi' }, { value: 'rejected', label: '🔴 Tolak' }]}
-                            />
-                        </div>
+                        <InlineSelect aria-label="Kategori catatan" value={editDraft.category} minWidth="0" height="34px"
+                            className="w-full" onChange={value => setEditDraft(d => ({ ...d, category: value as NoteCategory }))}
+                            options={Object.entries(CATEGORY_LABELS).map(([value, label]) => ({ value, label }))}
+                        />
                         <textarea rows={3} value={editDraft.comment} aria-label="Ubah isi catatan"
                             onChange={e => setEditDraft(d => ({ ...d, comment: e.target.value }))}
                             className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary/20" />
@@ -710,32 +807,21 @@ export default function ValidatorReviewPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                    {validatorStatus && (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-bold" title="Butir yang sudah Anda nilai atau beri catatan">
-                            <ListChecks size={12} /> Dinilai {reviewedCount}/{questions.length}
-                        </span>
-                    )}
-                    {alreadySubmitted && (
-                        <span className="hidden sm:inline-flex px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
-                            Rekomendasi sudah dikirim
-                        </span>
-                    )}
-                    {canReopen && (
-                        <Button variant="outline" onClick={handleReopen} disabled={isReopening}
-                            className="font-bold text-xs flex items-center gap-1.5">
-                            {isReopening ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />} Buka Kembali untuk Diubah
-                        </Button>
-                    )}
                     {canEdit && (
                         <Button
+                            variant={unreviewedCount > 0 ? 'outline' : undefined}
                             onClick={() => { setSubmitError(null); setIsSubmitModalOpen(true); }}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm"
+                            title={unreviewedCount > 0 ? `${unreviewedCount} butir belum dinilai` : 'Semua butir sudah dinilai'}
+                            className={`font-bold text-xs flex items-center gap-1.5 ${unreviewedCount > 0 ? '' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'}`}
                         >
-                            <CheckCircle2 size={15} /> {round > 1 ? 'Kirim Hasil Telaah Ulang' : 'Selesaikan Validasi'}
+                            <CheckCircle2 size={15} /> {round > 1 ? 'Kirim Hasil Telaah Ulang' : 'Selesaikan Validasi'} ({reviewedCount}/{questions.length})
                         </Button>
                     )}
                 </div>
             </header>
+            {validatorStatus && (
+                <ValidationStepper steps={stepperSteps} current={stepperCurrent} />
+            )}
 
             {/* Main Area: Split Screen (Left: Soal Simulation, Right: Panel Catatan Validator) */}
             <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
@@ -744,6 +830,44 @@ export default function ValidatorReviewPage() {
                     className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 space-y-6"
                     onMouseUp={handleMouseUp}
                 >
+                    {alreadySubmitted && validatorStatus && (
+                        <section aria-label="Ringkasan hasil validasi" className="max-w-3xl mx-auto bg-white dark:bg-[#0d1221] rounded-2xl border border-emerald-200 dark:border-emerald-900 shadow-sm p-5 space-y-4">
+                            <div className="flex items-start gap-3">
+                                <CheckCircle2 size={22} className="text-emerald-600 shrink-0 mt-0.5" />
+                                <div>
+                                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Hasil validasi terkirim ke Proktor dan pembuat soal</h3>
+                                    {submittedAt && <p className="text-[11px] text-slate-500">Dikirim {submittedAt}</p>}
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                <div className="rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2">
+                                    <p className="text-[10px] font-semibold text-slate-500">Rekomendasi</p>
+                                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{RECOMMENDATIONS.find(rec => rec.id === submittedRec)?.label || '—'}</p>
+                                </div>
+                                {summaryTiles.slice(0, 3).map(tile => (
+                                    <div key={tile.label} className={`rounded-xl border px-3 py-2 ${tile.tone}`}>
+                                        <p className="text-[10px] font-semibold">{tile.label}</p>
+                                        <p className="text-sm font-bold">{tile.value} butir</p>
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="text-xs text-slate-600 dark:text-slate-300"><span className="font-bold">Berikutnya:</span> {nextStepText}</p>
+                            {validatorStatus.general_comment && (
+                                <p className="text-xs text-slate-500 italic whitespace-pre-wrap">&quot;{validatorStatus.general_comment}&quot;</p>
+                            )}
+                            <div className="flex flex-wrap gap-2">
+                                <Button variant="outline" onClick={() => router.push('/dashboard/guru/validations')} className="text-xs font-bold flex items-center gap-1.5">
+                                    <ArrowLeft size={14} /> Kembali ke daftar tugas
+                                </Button>
+                                {canReopen && (
+                                    <Button variant="outline" onClick={handleReopen} disabled={isReopening} className="text-xs font-bold flex items-center gap-1.5">
+                                        {isReopening ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />} Ubah hasil
+                                    </Button>
+                                )}
+                            </div>
+                        </section>
+                    )}
+
                     {currentQuestion && (
                         <div data-validation-sheet="" className="max-w-3xl mx-auto bg-white dark:bg-[#0d1221] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 md:p-8 space-y-6">
                             {/* Header Soal */}
@@ -898,18 +1022,18 @@ export default function ValidatorReviewPage() {
                             </div>
                         ) : (
                             <>
-                                {/* Penilaian butir */}
+                                {/* Keputusan butir: satu-satunya tempat menilai Layak / Perlu revisi / Tolak */}
                                 {validatorStatus && (
                                     <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
-                                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Penilaian butir ini</p>
-                                        <div className="grid grid-cols-3 gap-1.5">
+                                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{canEdit ? 'Butir ini sudah layak?' : 'Penilaian butir ini'}</p>
+                                        <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="Penilaian butir">
                                             {(Object.keys(ITEM_STATUS) as NoteStatusItem[]).map(status => (
                                                 <button key={status} type="button"
                                                     disabled={!canEdit || itemSavingId === currentQuestion?.id}
-                                                    aria-pressed={currentItemStatus === status}
+                                                    aria-pressed={currentStatus === status}
                                                     onClick={() => handleSetItem(status)}
-                                                    className={`py-1.5 rounded-lg border text-[11px] font-bold transition-all disabled:cursor-not-allowed ${
-                                                        currentItemStatus === status
+                                                    className={`py-2 rounded-lg border text-xs font-bold transition-all disabled:cursor-not-allowed ${
+                                                        currentStatus === status
                                                             ? ITEM_STATUS[status].active
                                                             : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-300 disabled:opacity-60'
                                                     }`}>
@@ -917,72 +1041,92 @@ export default function ValidatorReviewPage() {
                                                 </button>
                                             ))}
                                         </div>
-                                        <p className="text-[10px] text-slate-400">
-                                            Butir yang layak cukup ditandai Layak tanpa catatan.
-                                        </p>
+                                        {canEdit && !currentStatus && (
+                                            <p className="text-[11px] text-slate-500">Layak: tersimpan dan langsung ke nomor berikutnya. Perlu revisi / Tolak: tulis catatan perbaikannya.</p>
+                                        )}
+                                        {canEdit && currentStatus === 'valid' && !showNoteForm && (
+                                            <p className="text-[11px] text-slate-500">
+                                                Butir ditandai layak.{' '}
+                                                <button type="button" onClick={() => setNoteFormOpen(true)} className="font-semibold text-primary hover:underline">Tambah saran (opsional)</button>
+                                            </p>
+                                        )}
+                                        {canEdit && needsNote && (
+                                            <p role="status" className="text-[11px] font-semibold text-amber-700 dark:text-amber-300">Tulis minimal satu catatan agar pembuat soal tahu apa yang harus diperbaiki.</p>
+                                        )}
                                     </div>
                                 )}
 
-                                {/* Form Input Catatan Baru */}
-                                {canEdit && (
+                                {/* Catatan: muncul setelah butir dinilai Perlu revisi / Tolak (atau saran untuk butir layak) */}
+                                {showNoteForm && (
                                 <div className="p-4 bg-slate-50 dark:bg-[#111728] rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
-                                    <div className="flex items-center justify-between">
+                                    <div className="flex items-center justify-between gap-2">
                                         <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                                            Tambah Catatan Butir
+                                            {currentStatus === 'valid' ? 'Saran untuk pembuat soal' : 'Apa yang perlu diperbaiki?'}
                                         </span>
-                                        <InlineSelect aria-label="Status catatan" value={statusItem}
-                                            onChange={value => setStatusItem(value as NoteStatusItem)} minWidth="120px" height="34px"
-                                            options={[{ value: 'valid', label: '🟢 Layak' }, { value: 'revision', label: '🟡 Revisi' }, { value: 'rejected', label: '🔴 Tolak' }]}
-                                        />
+                                        <span className={`px-1.5 py-0.5 rounded border text-[10px] font-semibold ${ITEM_STATUS[noteStatus].chip}`}>{ITEM_STATUS[noteStatus].label}</span>
                                     </div>
-
-                                    {/* Teks Terpilih / Highlight Quote */}
-                                    {selectedText && (
-                                        <div className="p-2 bg-amber-100/70 dark:bg-amber-950/40 rounded-lg border border-amber-300 dark:border-amber-800 text-[11px] text-amber-900 dark:text-amber-200 relative">
-                                            <div className="flex items-center justify-between mb-0.5 font-bold text-[10px] text-amber-700 dark:text-amber-300">
-                                                <span>Teks yang Ditandai:</span>
-                                                <button
-                                                    onClick={() => setSelectedText('')}
-                                                    className="text-amber-600 hover:text-amber-800"
-                                                >
-                                                    ✕ Batal
+                                    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Kategori catatan">
+                                        {(Object.keys(CATEGORY_LABELS) as NoteCategory[]).map(value => (
+                                            <button key={value} type="button" aria-pressed={category === value} onClick={() => setCategory(value)}
+                                                className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-colors ${category === value
+                                                    ? 'bg-primary text-white border-primary'
+                                                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-300'}`}>
+                                                {CATEGORY_LABELS[value]}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <p className="text-[11px] font-semibold text-slate-500">Bagian yang dimaksud</p>
+                                        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Bagian yang diberi catatan">
+                                            {scopeChoices.map(choice => (
+                                                <button key={choice.value} type="button" aria-pressed={targetScope === choice.value}
+                                                    onClick={() => {
+                                                        setTargetScope(choice.value);
+                                                        if (choice.value !== 'option') setSelectedOptionId(undefined);
+                                                    }}
+                                                    className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-colors ${targetScope === choice.value
+                                                        ? 'bg-slate-800 text-white border-slate-800 dark:bg-slate-100 dark:text-slate-900'
+                                                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-300'}`}>
+                                                    {choice.label}
                                                 </button>
+                                            ))}
+                                        </div>
+                                        {!selectedText && (
+                                            <p className="text-[10px] text-slate-400">Blok teks atau klik opsi pada soal untuk menunjuk bagiannya secara otomatis.</p>
+                                        )}
+                                    </div>
+                                    {selectedText && (
+                                        <div className="p-2 bg-amber-100/70 dark:bg-amber-950/40 rounded-lg border border-amber-300 dark:border-amber-800 text-[11px] text-amber-900 dark:text-amber-200">
+                                            <div className="flex items-center justify-between mb-0.5 font-bold text-[10px] text-amber-700 dark:text-amber-300">
+                                                <span>Kutipan</span>
+                                                <button type="button" onClick={() => setSelectedText('')} className="text-amber-600 hover:text-amber-800">✕ Hapus kutipan</button>
                                             </div>
                                             <p className="italic line-clamp-2 font-mono">&quot;{selectedText}&quot;</p>
                                         </div>
                                     )}
-                                    <InlineSelect aria-label="Kategori catatan" value={category} onChange={value => setCategory(value as NoteCategory)}
-                                        minWidth="100%" height="44px"
-                                        options={[{ value: 'typo', label: 'Salah Ketik (Typo)' }, { value: 'kunci_jawaban', label: 'Kunci Jawaban' },
-                                            { value: 'materi', label: 'Materi / Konsep' }, { value: 'konstruksi', label: 'Konstruksi Butir' },
-                                            { value: 'bahasa', label: 'Kaidah Bahasa' }, { value: 'lainnya', label: 'Lainnya' }]}
-                                    />
-                                    <div className="text-xs font-semibold">
-                                        <label htmlFor="validation-note-scope" className="mb-1 block">Bagian yang diberi catatan</label>
-                                        <InlineSelect id="validation-note-scope" value={targetScope} onChange={value => {
-                                            const scope = value as typeof targetScope;
-                                            setTargetScope(scope);
-                                            if (scope !== 'option') setSelectedOptionId(undefined);
-                                        }} minWidth="100%" height="44px"
-                                            options={[{ value: 'question_text', label: 'Teks soal' }, { value: 'stimulus', label: 'Stimulus' },
-                                                { value: 'general', label: 'Umum' }, ...(selectedOptionId ? [{ value: 'option', label: 'Opsi jawaban yang dipilih' }] : [])]}
-                                        />
-                                    </div>
                                     <textarea
                                         rows={3}
                                         value={commentText}
                                         onChange={e => setCommentText(e.target.value)}
-                                        placeholder="Tuliskan catatan perbaikan atau saran Anda..."
+                                        aria-label="Isi catatan"
+                                        placeholder={currentStatus === 'valid' ? 'Saran perbaikan kecil (tidak wajib diperbaiki)...' : 'Jelaskan apa yang salah dan usulan perbaikannya...'}
                                         className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium outline-none focus:ring-2 focus:ring-primary/20"
                                     />
-                                    <Button
-                                        onClick={handleSaveNote}
-                                        disabled={isSavingNote || !commentText.trim()}
-                                        className="w-full bg-primary text-white font-bold text-xs flex items-center justify-center gap-1.5 py-2"
-                                    >
-                                        {isSavingNote ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                                        Simpan Catatan
-                                    </Button>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <Button variant="outline" onClick={() => handleSaveNote()} disabled={isSavingNote || !commentText.trim()}
+                                            className="font-bold text-xs flex items-center justify-center gap-1.5 py-2">
+                                            {isSavingNote ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />} Simpan Catatan
+                                        </Button>
+                                        <Button onClick={() => handleSaveNote(true)} disabled={isSavingNote || !commentText.trim()}
+                                            className="bg-primary text-white font-bold text-xs flex items-center justify-center gap-1.5 py-2">
+                                            Simpan dan lanjut <ChevronRight size={13} />
+                                        </Button>
+                                    </div>
+                                    {currentStatus !== 'valid' && !needsNote && !!currentQuestion && (
+                                        <button type="button" onClick={() => advanceFrom(currentQuestion.id)} className="w-full text-[11px] font-semibold text-primary hover:underline">
+                                            Catatan sudah cukup, lanjut ke butir berikutnya
+                                        </button>
+                                    )}
                                 </div>
                                 )}
 
@@ -1005,56 +1149,68 @@ export default function ValidatorReviewPage() {
                 </aside>
             </div>
 
-            {/* Bottom Number Navigation Bar */}
-            <footer className="h-16 bg-white dark:bg-[#0d1221] border-t border-slate-200 dark:border-slate-800 px-4 flex items-center justify-between shrink-0 gap-3">
-                <button
-                    onClick={() => changeQuestion(currentIndex - 1)}
-                    disabled={isSavingNote || currentIndex === 0}
-                    className="px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold disabled:opacity-30 hover:bg-slate-200 flex items-center gap-1"
-                >
-                    <ChevronLeft size={16} /> Sebelumnya
-                </button>
+            {/* Navigasi nomor: satu warna = satu arti, ada legenda dan lompatan ke butir yang belum dinilai */}
+            <footer className="bg-white dark:bg-[#0d1221] border-t border-slate-200 dark:border-slate-800 px-4 py-2 shrink-0 space-y-1.5">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-semibold text-slate-500">
+                    <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-emerald-200 border border-emerald-400" aria-hidden="true" />Layak</span>
+                    <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-amber-200 border border-amber-400" aria-hidden="true" />Perlu revisi</span>
+                    <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-rose-200 border border-rose-400" aria-hidden="true" />Tolak</span>
+                    <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-white border border-slate-300" aria-hidden="true" />Belum dinilai</span>
+                    {round > 1 && <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-violet-500" aria-hidden="true" />Perbaikan perlu dinilai</span>}
+                    {canEdit && unreviewedCount > 0 && (
+                        <button type="button" onClick={() => { const target = nextUnreviewedIndex(currentIndex); if (target >= 0) changeQuestion(target); }}
+                            disabled={isSavingNote}
+                            className="ml-auto px-2.5 py-1 rounded-lg border border-primary/30 text-primary hover:bg-primary/5 font-bold disabled:opacity-50">
+                            Ke yang belum dinilai ({unreviewedCount})
+                        </button>
+                    )}
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                    <button
+                        onClick={() => changeQuestion(currentIndex - 1)}
+                        disabled={isSavingNote || currentIndex === 0}
+                        className="px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold disabled:opacity-30 hover:bg-slate-200 flex items-center gap-1"
+                    >
+                        <ChevronLeft size={16} /> Sebelumnya
+                    </button>
 
-                {/* Grid Nomor Soal: warna mengikuti penilaian butir validator */}
-                <div className="flex items-center gap-1.5 overflow-x-auto py-1 px-2 max-w-xl">
-                    {questions.map((q, idx) => {
-                        const hasNotes = notes.some(n => n.question_id === q.id);
-                        const itemStatus = myItems.get(q.id);
-                        const needsCheck = pendingVerification.some(n => n.question_id === q.id);
-                        const isCurrent = idx === currentIndex;
-                        const tone = isCurrent
-                            ? 'bg-primary text-white shadow-md shadow-primary/30 ring-2 ring-primary/40'
-                            : itemStatus === 'valid'
+                    <div className="flex items-center gap-1.5 overflow-x-auto py-1 px-2 max-w-xl">
+                        {questions.map((q, idx) => {
+                            const itemStatus = statusOf(q.id);
+                            const needsCheck = pendingVerification.some(n => n.question_id === q.id);
+                            const isCurrent = idx === currentIndex;
+                            const tone = itemStatus === 'valid'
                                 ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300'
                                 : itemStatus === 'rejected'
                                     ? 'bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-300'
-                                    : itemStatus === 'revision' || hasNotes
+                                    : itemStatus === 'revision'
                                         ? 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-300'
-                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200';
-                        return (
-                            <button
-                                key={q.id || idx}
-                                onClick={() => changeQuestion(idx)}
-                                disabled={isSavingNote}
-                                title={needsCheck ? 'Ada perbaikan yang perlu dinilai' : itemStatus ? `Dinilai: ${ITEM_STATUS[itemStatus].label}` : undefined}
-                                className={`w-8 h-8 rounded-lg text-xs font-bold shrink-0 transition-all relative ${tone}`}
-                            >
-                                {idx + 1}
-                                {(needsCheck || (hasNotes && !isCurrent)) && (
-                                    <span className={`w-2 h-2 rounded-full absolute -top-0.5 -right-0.5 ${needsCheck ? 'bg-violet-500' : 'bg-amber-500'}`} />
-                                )}
-                            </button>
-                        );
-                    })}
-                </div>
+                                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-100';
+                            return (
+                                <button
+                                    key={q.id || idx}
+                                    onClick={() => changeQuestion(idx)}
+                                    disabled={isSavingNote}
+                                    aria-current={isCurrent ? 'true' : undefined}
+                                    aria-label={`Nomor ${idx + 1}: ${itemStatus ? ITEM_STATUS[itemStatus].label : 'belum dinilai'}${needsCheck ? ', ada perbaikan yang perlu dinilai' : ''}`}
+                                    title={needsCheck ? 'Ada perbaikan yang perlu dinilai' : itemStatus ? `Dinilai: ${ITEM_STATUS[itemStatus].label}` : 'Belum dinilai'}
+                                    className={`w-8 h-8 rounded-lg text-xs font-bold shrink-0 transition-all relative ${tone} ${isCurrent ? 'ring-2 ring-primary ring-offset-1 dark:ring-offset-slate-900' : ''}`}
+                                >
+                                    {idx + 1}
+                                    {needsCheck && <span className="w-2 h-2 rounded-full absolute -top-0.5 -right-0.5 bg-violet-500" />}
+                                </button>
+                            );
+                        })}
+                    </div>
 
-                <button
-                    onClick={() => changeQuestion(currentIndex + 1)}
-                    disabled={isSavingNote || currentIndex === questions.length - 1}
-                    className="px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold disabled:opacity-30 hover:bg-slate-200 flex items-center gap-1"
-                >
-                    Selanjutnya <ChevronRight size={16} />
-                </button>
+                    <button
+                        onClick={() => changeQuestion(currentIndex + 1)}
+                        disabled={isSavingNote || currentIndex === questions.length - 1}
+                        className="px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold disabled:opacity-30 hover:bg-slate-200 flex items-center gap-1"
+                    >
+                        Selanjutnya <ChevronRight size={16} />
+                    </button>
+                </div>
             </footer>
 
             {/* Modal Final Submit Kesimpulan Validator */}
@@ -1068,6 +1224,14 @@ export default function ValidatorReviewPage() {
                     icon={<ShieldCheck size={20} />}
                 >
                     <ModalBody className="space-y-4">
+                        <div className="grid grid-cols-4 gap-2 text-center" aria-label="Ringkasan penilaian butir">
+                            {summaryTiles.map(tile => (
+                                <div key={tile.label} className={`rounded-xl border px-2 py-2 ${tile.tone}`}>
+                                    <p className="text-lg font-bold leading-none">{tile.value}</p>
+                                    <p className="mt-1 text-[10px] font-semibold">{tile.label}</p>
+                                </div>
+                            ))}
+                        </div>
                         <div className="space-y-2">
                             <p className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                                 Rekomendasi Kelayakan Bank Soal:
@@ -1090,6 +1254,14 @@ export default function ValidatorReviewPage() {
                                     </button>
                                 ))}
                             </div>
+                            {suggestedRec && generalRec !== suggestedRec && (
+                                <p className="text-[11px] text-slate-500">
+                                    Saran dari penilaian butir Anda:{' '}
+                                    <button type="button" onClick={() => { setGeneralRec(suggestedRec); setSubmitError(null); }} className="font-bold text-primary hover:underline">
+                                        pakai &quot;{RECOMMENDATIONS.find(rec => rec.id === suggestedRec)?.label}&quot;
+                                    </button>
+                                </p>
+                            )}
                         </div>
 
                         {(unreviewedCount > 0 || contradiction || pendingVerification.length > 0) && (

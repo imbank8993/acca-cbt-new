@@ -42,6 +42,31 @@ function isReReview(task: ValidationTask): boolean {
     return (task.validation.round ?? 1) > 1 && task.status !== 'submitted';
 }
 
+type TaskGroup = 'action' | 'waiting' | 'done';
+
+const TASK_GROUPS: Array<{ id: TaskGroup; title: string; hint: string }> = [
+    { id: 'action', title: 'Perlu tindakan Anda', hint: 'Nilai butir soal lalu kirim rekomendasi.' },
+    { id: 'waiting', title: 'Menunggu pihak lain', hint: 'Hasil Anda sudah terkirim; tidak ada yang perlu dikerjakan sekarang.' },
+    { id: 'done', title: 'Selesai / ditutup', hint: 'Validasi sudah diputuskan atau batas waktunya lewat.' },
+];
+
+/** Tugas aktif = belum dikirim dan masih dalam batas waktu. */
+function taskGroup(task: ValidationTask): TaskGroup {
+    if (task.status !== 'submitted') return isDeadlinePassed(task.validation.deadline) ? 'done' : 'action';
+    return ['approved', 'rejected'].includes(task.validation.status) ? 'done' : 'waiting';
+}
+
+/** Kalimat langkah berikutnya untuk tugas yang sudah dikirim. */
+function submittedNextStep(task: ValidationTask): string {
+    switch (task.validation.status) {
+        case 'approved': return 'Bank soal disetujui.';
+        case 'rejected': return 'Bank soal ditolak.';
+        case 'revision_needed': return 'Menunggu pembuat soal memperbaiki; tugas akan kembali sebagai telaah ulang.';
+        case 'resubmitted': return 'Perbaikan sudah masuk; menunggu putaran telaah ulang dibuka.';
+        default: return 'Menunggu validator lain dan keputusan Proktor.';
+    }
+}
+
 export default function GuruValidationTasksPage() {
     const [tasks, setTasks] = useState<ValidationTask[]>([]);
     const [loading, setLoading] = useState(true);
@@ -127,44 +152,51 @@ export default function GuruValidationTasksPage() {
         }
     };
 
-    const getStatusBadge = (task: ValidationTask) => {
+    const getStatusInfo = (task: ValidationTask): { label: React.ReactNode; next: string } => {
         const status = task.status;
+        const badge = (className: string, icon: React.ReactNode, text: string) => (
+            <span className={`inline-flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap ${className}`}>{icon} {text}</span>
+        );
         if (status !== 'submitted' && isDeadlinePassed(task.validation.deadline)) {
-            return (
-                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400 whitespace-nowrap">
-                    <XCircle size={12} /> Batas Waktu Terlewat
-                </span>
-            );
+            return { label: badge('text-rose-600 dark:text-rose-400', <XCircle size={12} />, 'Batas Waktu Terlewat'), next: 'Lembar validasi hanya dapat dilihat.' };
         }
         if (isReReview(task)) {
-            return (
-                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-600 dark:text-violet-400 whitespace-nowrap">
-                    <RefreshCw size={12} /> Perlu Ditelaah Ulang
-                </span>
-            );
+            return { label: badge('text-violet-600 dark:text-violet-400', <RefreshCw size={12} />, 'Perlu Ditelaah Ulang'), next: 'Pembuat soal sudah memperbaiki; nilai perbaikannya.' };
         }
         if (status === 'submitted') {
-            return (
-                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                    <CheckCircle2 size={12} /> Validasi Selesai
-                </span>
-            );
+            const rec = getRecommendationInfo(task.general_recommendation);
+            return {
+                label: <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                    <CheckCircle2 size={12} /> Terkirim{rec && <span className={`inline-flex items-center gap-1 ${rec.className}`}>· {rec.label}</span>}
+                </span>,
+                next: submittedNextStep(task),
+            };
         }
         if (status === 'in_progress') {
-            return (
-                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 whitespace-nowrap">
-                    <Clock size={12} /> Sedang Dikerjakan
-                </span>
-            );
+            return { label: badge('text-blue-600 dark:text-blue-400', <Clock size={12} />, 'Sedang Dikerjakan'), next: 'Lanjutkan menilai, lalu kirim rekomendasi.' };
         }
-        return (
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600 dark:text-amber-400 whitespace-nowrap">
-                <AlertCircle size={12} /> Belum Dikerjakan
-            </span>
-        );
+        return { label: badge('text-amber-600 dark:text-amber-400', <AlertCircle size={12} />, 'Belum Dikerjakan'), next: 'Mulai menilai butir soal.' };
     };
 
     const renderTasks = (items: ValidationTask[]) => (
+        <div className="space-y-4">
+            {TASK_GROUPS.map(group => {
+                const rows = items.filter(task => taskGroup(task) === group.id);
+                if (!rows.length) return null;
+                return (
+                    <section key={group.id} aria-label={group.title} className="space-y-2">
+                        <div className="flex flex-wrap items-baseline gap-x-2 px-1">
+                            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100">{group.title} <span className="text-slate-400">({rows.length})</span></h3>
+                            <p className="text-[11px] text-slate-500">{group.hint}</p>
+                        </div>
+                        {renderTaskTable(rows)}
+                    </section>
+                );
+            })}
+        </div>
+    );
+
+    const renderTaskTable = (items: ValidationTask[]) => (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
@@ -172,8 +204,7 @@ export default function GuruValidationTasksPage() {
                         <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                             <th className="py-3 px-4">Bank Soal</th>
                             <th className="py-3 px-4">Arahan Proktor</th>
-                            <th className="py-3 px-4">Status Tugas</th>
-                            <th className="py-3 px-4">Rekomendasi Anda</th>
+                            <th className="py-3 px-4">Status</th>
                             <th className="py-3 px-4">Batas Waktu</th>
                             <th className="py-3 px-4 text-right">Aksi</th>
                         </tr>
@@ -185,7 +216,7 @@ export default function GuruValidationTasksPage() {
                             const overdue = !isSubmitted && isDeadlinePassed(val.deadline);
                             const reReview = isReReview(task);
                             const creatorName = val.bank?.creator_name || (val.bank as { creator?: { full_name?: string } } | null)?.creator?.full_name || 'Guru Mapel';
-                            const recInfo = getRecommendationInfo(task.general_recommendation);
+                            const statusInfo = getStatusInfo(task);
 
                             return (
                                 <tr key={task.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
@@ -211,20 +242,10 @@ export default function GuruValidationTasksPage() {
                                         )}
                                     </td>
 
-                                    {/* Status Tugas */}
-                                    <td className="py-3.5 px-4 whitespace-nowrap">
-                                        {getStatusBadge(task)}
-                                    </td>
-
-                                    {/* Rekomendasi Anda */}
-                                    <td className="py-3.5 px-4 whitespace-nowrap">
-                                        {recInfo ? (
-                                            <span className={`inline-flex items-center gap-1 text-[11px] font-bold ${recInfo.className}`}>
-                                                {recInfo.icon} {recInfo.label}
-                                            </span>
-                                        ) : (
-                                            <span className="text-slate-400 text-[11px]">-</span>
-                                        )}
+                                    {/* Status + langkah berikutnya */}
+                                    <td className="py-3.5 px-4 max-w-[260px]">
+                                        {statusInfo.label}
+                                        <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{statusInfo.next}</p>
                                     </td>
 
                                     {/* Batas Waktu */}
@@ -250,7 +271,7 @@ export default function GuruValidationTasksPage() {
                                             }`}
                                         >
                                             <Play size={12} className={isSubmitted || overdue ? '' : 'fill-white'} />
-                                            {isSubmitted ? 'Buka Hasil Validasi' : overdue ? 'Lihat Lembar Validasi' : reReview ? 'Mulai Telaah Ulang' : 'Mulai Validasi'}
+                                            {isSubmitted ? 'Lihat Hasil' : overdue ? 'Lihat Lembar Validasi' : reReview ? 'Mulai Telaah Ulang' : task.status === 'in_progress' ? 'Lanjutkan' : 'Mulai Validasi'}
                                         </Link>
                                     </td>
                                 </tr>
@@ -285,7 +306,7 @@ export default function GuruValidationTasksPage() {
                         { value: 're_review', label: 'Perlu Ditelaah Ulang' },
                         { value: 'overdue', label: 'Batas Waktu Terlewat' },
                         { value: 'in_progress', label: 'Sedang Dikerjakan' },
-                        { value: 'submitted', label: 'Validasi Selesai' },
+                        { value: 'submitted', label: 'Terkirim' },
                     ]}
                 />
                 <FilterActions className="flex items-center gap-2">
