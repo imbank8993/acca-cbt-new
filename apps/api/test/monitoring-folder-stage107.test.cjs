@@ -197,3 +197,32 @@ test('MF-10: route analisis meneruskan pilihan ujian gabungan ke backend', async
     assert.equal(url.searchParams.get('with'), 'second,third');
     assert.equal(url.searchParams.has('unused'), false);
 });
+
+test('MF-11: guru yang ditugaskan sebagai pengawas ruang mendapat "Ruang saya" dengan Berita Acara', () => {
+    const { folderViews } = loadFolderMonitor();
+    assert.deepEqual(folderViews('guru', true), ['bank', 'room']);
+    const monitor = web('app/components/monitoring/FolderExamMonitor.tsx');
+    assert.match(monitor, /userRole=\{userRole === 'guru' \? 'pengawas' : userRole\}/);
+    const page = web('app/dashboard/guru/monitoring/page.tsx');
+    assert.match(page, /listMyPASAssignments\(\)/);
+    assert.match(page, /invigilator=\{folderInvigilator\}/);
+});
+
+test('MF-12: Proktor pembuat folder boleh memulihkan ujian sistem (tanpa created_by) dari foldernya', async () => {
+    const db = fixtureDb({
+        cbt_exams: [
+            { id: 'sys', organization_id: 'school', created_by: null, exam_type: 'pas', metadata: { pas_period_id: 'p-mine' } },
+            { id: 'other', organization_id: 'school', created_by: null, exam_type: 'pas', metadata: { pas_period_id: 'p-other' } },
+        ],
+        cbt_pas_periods: [{ id: 'p-mine', created_by: 'proktor' }, { id: 'p-other', created_by: 'someone' }],
+        cbt_exam_collaborators: [],
+    });
+    const roles = { hasOrgRole: async (id, org, allowed) => org === 'school' && id === 'proktor' && allowed.includes('Proktor') };
+    const auth = new AuthorizationService(db, roles, scope);
+    const { metadata: _m, ...withoutMetadata } = db.tables.cbt_exams[0];
+    assert.deepEqual(await auth.getExamResetScope({ id: 'proktor' }, db.tables.cbt_exams[0]), { allParticipants: true, studentIds: [] });
+    assert.deepEqual(await auth.getExamResetScope({ id: 'proktor' }, withoutMetadata), { allParticipants: true, studentIds: [] });
+    assert.equal(await auth.getExamResetScope({ id: 'proktor' }, db.tables.cbt_exams[1]), null);
+    await auth.assertExamStaff({ id: 'proktor' }, 'sys', 'reset', 'student');
+    await assert.rejects(auth.assertExamStaff({ id: 'proktor' }, 'other', 'reset', 'student'), /pembuat ujian/);
+});

@@ -11,23 +11,28 @@ import { folderExamParts } from '@/lib/monitoring-exams';
 export type FolderMonitorRole = 'admin' | 'proktor' | 'guru';
 export type FolderMonitorView = 'bank' | 'room';
 
-/** Proktor mengawasi per ruang; Admin & guru mapel mulai dari bank soal. Guru hanya per bank soal. */
+/** Proktor mengawasi per ruang; Admin & guru mapel mulai dari bank soal. */
 export function defaultFolderView(role: FolderMonitorRole): FolderMonitorView {
     return role === 'proktor' ? 'room' : 'bank';
 }
 
-export function folderViews(role: FolderMonitorRole): FolderMonitorView[] {
-    return role === 'guru' ? ['bank'] : ['bank', 'room'];
+/**
+ * Guru hanya per bank soal, KECUALI ia ditugaskan Proktor sebagai pengawas ruang
+ * di folder itu: maka ada "Ruang saya" (ruang tugasnya + Berita Acara). Penugasan
+ * pengawas tidak mensyaratkan role Pengawas, jadi guru pengawas masuk lewat sini.
+ */
+export function folderViews(role: FolderMonitorRole, invigilator = false): FolderMonitorView[] {
+    return role === 'guru' && !invigilator ? ['bank'] : ['bank', 'room'];
 }
 
 /** Pilihan Per bank soal | Per ruang; dipasang di pojok kanan atas, sebaris dengan pemilih ujian. */
-export function FolderViewToggle({ role, value, onChange }: { role: FolderMonitorRole; value: FolderMonitorView; onChange: (view: FolderMonitorView) => void }) {
-    const views = folderViews(role);
+export function FolderViewToggle({ role, value, onChange, invigilator = false }: { role: FolderMonitorRole; value: FolderMonitorView; onChange: (view: FolderMonitorView) => void; invigilator?: boolean }) {
+    const views = folderViews(role, invigilator);
     if (views.length < 2) return null;
     return <div role="group" aria-label="Tampilan monitoring" className="monitoring-view-toggle inline-flex shrink-0 rounded-full border border-slate-200 bg-slate-100 p-0.5 text-xs font-semibold">
         {views.map(id => <button key={id} type="button" aria-pressed={value === id} onClick={() => onChange(id)}
             className={`whitespace-nowrap rounded-full px-3.5 py-1.5 transition-colors ${value === id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
-            {id === 'bank' ? 'Per bank soal' : 'Per ruang'}
+            {id === 'bank' ? 'Per bank soal' : role === 'guru' ? 'Ruang saya' : 'Per ruang'}
         </button>)}
     </div>;
 }
@@ -37,7 +42,7 @@ export function FolderViewToggle({ role, value, onChange }: { role: FolderMonito
  * - Per bank soal: semua siswa bank itu dari semua kelas & ruang.
  * - Per ruang: papan ruang folder, lalu isi ruang.
  */
-export function FolderExamMonitor({ group, userRole, attemptBasePath, refreshToken = 0, view }: {
+export function FolderExamMonitor({ group, userRole, attemptBasePath, refreshToken = 0, view, invigilator = false }: {
     group: FolderExamGroup;
     userRole: FolderMonitorRole;
     attemptBasePath?: string;
@@ -45,12 +50,14 @@ export function FolderExamMonitor({ group, userRole, attemptBasePath, refreshTok
     refreshToken?: number;
     /** Tampilan terpilih (dikendalikan halaman lewat FolderViewToggle). */
     view?: FolderMonitorView;
+    /** Guru yang ditugaskan sebagai pengawas ruang pada folder ini. */
+    invigilator?: boolean;
 }) {
-    const views = folderViews(userRole);
+    const views = folderViews(userRole, invigilator);
     const activeView = view && views.includes(view) ? view : defaultFolderView(userRole);
     return activeView === 'bank'
         ? <BankMonitor key={`${group.id}:${refreshToken}`} group={group} userRole={userRole} attemptBasePath={attemptBasePath} />
-        : <PASSlotMonitoring key={`${group.periodId}:${refreshToken}`} periodId={group.periodId} userRole={userRole === 'guru' ? 'admin' : userRole}
+        : <PASSlotMonitoring key={`${group.periodId}:${refreshToken}`} periodId={group.periodId} userRole={userRole === 'guru' ? 'pengawas' : userRole}
             attemptBasePath={attemptBasePath} embedded />;
 }
 

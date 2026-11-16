@@ -29,6 +29,7 @@ import type { IrtCalibration } from '@/lib/irt-calibration';
 import { Button } from '@/app/components/ui/button';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { calculateExamIRT } from '@/lib/api/grading';
+import { listMyPASAssignments } from '@/lib/api/pas';
 import { finishAttemptAction,getExamAnswersForAnalysisAction,getExamAttemptsAction,getProctorOrganization,listOrganizationExams } from '@/lib/api/proctor';
 import type { DetailedItemAnalysisResponse,ExamAttemptRecord,OrganizationExam } from '@/lib/api/proctor';
 import type { QuestionOptionRecord } from '@/lib/api/questions';
@@ -80,6 +81,16 @@ function MonitoringContent() {
     const folderGroup = groupedExams.groups.get(pickedExamId) ?? null;
     const [folderRefresh, setFolderRefresh] = useState(0);
     const [folderView, setFolderView] = useState<FolderMonitorView | null>(null);
+    // Folder tempat guru ini ditugaskan Proktor sebagai pengawas ruang (berhak Berita Acara).
+    const [invigilatedPeriods, setInvigilatedPeriods] = useState<Set<string>>(() => new Set());
+    useEffect(() => {
+        let active = true;
+        listMyPASAssignments()
+            .then(list => { if (active) setInvigilatedPeriods(new Set(list.map(item => item.period.id))); })
+            .catch(() => { /* Tanpa penugasan, guru tetap memantau per bank soal. */ });
+        return () => { active = false; };
+    }, []);
+    const folderInvigilator = Boolean(folderGroup && invigilatedPeriods.has(folderGroup.periodId));
     const activeFolderView = folderView ?? defaultFolderView('guru');
     // Data monitoring ujian biasa hanya dimuat bila yang dipilih bukan ujian folder.
     const selectedExamId = folderGroup ? '' : pickedExamId;
@@ -369,7 +380,7 @@ function MonitoringContent() {
                 activeTab={activeTab}
                 onTabChange={value => setActiveTab(value as typeof activeTab)}
                 hideDetails={Boolean(folderGroup)}
-                headerAction={folderGroup ? <FolderViewToggle role="guru" value={activeFolderView} onChange={setFolderView} /> : undefined}
+                headerAction={folderGroup ? <FolderViewToggle role="guru" invigilator={folderInvigilator} value={activeFolderView} onChange={setFolderView} /> : undefined}
                 tabs={[
                     { id: 'live', label: 'Peserta aktif' },
                     { id: 'answers', label: 'Jawaban' },
@@ -379,7 +390,7 @@ function MonitoringContent() {
                     ...(hasMonitoringAdministration(selectedExam) ? [{ id: 'administration', label: 'Administrasi' }] : []),
                 ]}
             >
-                {folderGroup ? <FolderExamMonitor key={folderGroup.id} group={folderGroup} userRole="guru"
+                {folderGroup ? <FolderExamMonitor key={folderGroup.id} group={folderGroup} userRole="guru" invigilator={folderInvigilator}
                     attemptBasePath="/dashboard/guru/monitoring" refreshToken={folderRefresh} view={activeFolderView} /> : <>
                 {selectedExamId && (activeTab === 'live' || activeTab === 'results' || activeTab === 'reset') && (
                     <MonitoringParticipantFilters

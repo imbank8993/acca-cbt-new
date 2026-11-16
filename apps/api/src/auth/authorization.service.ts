@@ -353,7 +353,7 @@ export class AuthorizationService {
 
     /** Ownership of a bank grants monitoring only, never recovery rights. */
     async getExamResetScope(user: AuthUser, record: {
-        id?: string; organization_id: string | null; created_by: string | null; exam_type: string | null;
+        id?: string; organization_id: string | null; created_by: string | null; exam_type: string | null; metadata?: unknown;
     }, _assignedStudents?: Map<string, string[]>, knownGrant?: CollaborationGrant | null): Promise<{ allParticipants: boolean; studentIds: string[] } | null> {
         const organizationId = await this.schoolScope.assertSchoolId(record.organization_id);
         const full = { allParticipants: true, studentIds: [] };
@@ -363,10 +363,27 @@ export class AuthorizationService {
                 const grant = knownGrant !== undefined ? knownGrant : await collaborationGrant(this.db, 'exam', record.id, user.id);
                 if (grant?.can_reset && ['editor', 'manager'].includes(grant.permission)) return full;
             }
+            // Ujian dari folder ASAS/ASAT/AM dibangkitkan sistem tanpa `created_by`;
+            // pembuatnya adalah Proktor yang membuat folder (periode) tersebut.
+            if (!record.created_by && await this.isPasFolderCreator(user, record)
+                && await this.roles.hasOrgRole(user.id, organizationId, ['Proktor'])) return full;
             return null;
         }
         if (await this.roles.hasOrgRole(user.id, organizationId, ['Proktor', 'Guru'])) return full;
         return null;
+    }
+
+    /** Apakah pengguna membuat folder ASAS/ASAT/AM asal ujian sistem ini. */
+    private async isPasFolderCreator(user: AuthUser, record: { id?: string; metadata?: unknown }): Promise<boolean> {
+        let metadata = record.metadata as { pas_period_id?: unknown } | null | undefined;
+        if (metadata === undefined && record.id) {
+            const { data } = await this.db.from('cbt_exams').select('metadata').eq('id', record.id).maybeSingle();
+            metadata = (data as { metadata?: { pas_period_id?: unknown } | null } | null)?.metadata;
+        }
+        const periodId = metadata?.pas_period_id;
+        if (typeof periodId !== 'string' || !periodId) return false;
+        const { data: period } = await this.db.from('cbt_pas_periods').select('created_by').eq('id', periodId).maybeSingle();
+        return (period as { created_by?: string | null } | null)?.created_by === user.id;
     }
 
     /** Same policy for write authorization and monitoring controls. */
