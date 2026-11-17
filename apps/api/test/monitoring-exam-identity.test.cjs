@@ -20,7 +20,9 @@ test('same PAS folder reveals bank and class without renaming exams or changing 
     // Ujian folder: bank soal lalu kelas; nama folder dan periode menjadi keterangan.
     assert.equal(helpers.monitoringExamLabel(a),'Matematika XI · Kelas XI A');
     assert.equal(helpers.monitoringExamLabel(c),'Matematika XI · Kelas XI B');
-    assert.equal(helpers.monitoringExamDetails(a),'PAS Ganjil · 2026/2027 · PAS 1');
+    assert.equal(helpers.monitoringExamDetails(a),'ASAS Ganjil · 2026/2027 · ASAS 1');
+    assert.equal(helpers.monitoringFolderName(a),'ASAS Ganjil');
+    assert.equal(helpers.monitoringAssessmentPeriod('2026/2027 · PAS ganjil'),'2026/2027 · ASAS Ganjil');
     assert.deepEqual(helpers.sortMonitoringExams([c,b,a],0).map(e=>e.id),['biology','math-a','math-b']);
     assert.equal(a.title,'PAS Ganjil'); assert.equal(a.id,'math-a');
     assert.equal(helpers.monitoringExamLabel(makeExam({title:'Harian',metadata:null,description:null})),'Harian');
@@ -28,7 +30,7 @@ test('same PAS folder reveals bank and class without renaming exams or changing 
     assert.equal(helpers.monitoringExamLabel(makeExam({metadata:{bank_title:42}})),'Matematika XI · Kelas XI A');
 });
 
-test('picker keeps class and schedule visible after selection and forwards distinct exam IDs', () => {
+test('picker shows the folder name and reveals normalized period details on demand', async () => {
     let props;
     const source=fs.readFileSync(path.resolve(__dirname,'../../web/app/components/monitoring/MonitoringExamPicker.tsx'),'utf8');
     const code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
@@ -37,6 +39,7 @@ test('picker keeps class and schedule visible after selection and forwards disti
         '@/app/components/ui/inlineselect':{InlineSelect:p=>React.createElement('select',{'aria-label':p['aria-label']},p.options.map(o=>React.createElement('option',{key:o.value},o.label)))},
         '@/components/ui/SearchableSelect':{__esModule:true,default:p=>{props=p;return React.createElement('div',null,'Selector')}},
         '@/lib/monitoring-exams':helpers,
+        'lucide-react':{Info:()=>React.createElement('svg'),X:()=>React.createElement('svg')},
         '@/lib/school-time':{formatSchoolDateTime:(value,zone)=>value+' '+zone},
         '@/lib/useSchoolTimeZone':{useSchoolTimeZone:()=>({timeZone:'Asia/Makassar',error:''})},
         './monitoring-exam-picker.css':{}, 'react/jsx-runtime':require('react/jsx-runtime'),
@@ -46,15 +49,45 @@ test('picker keeps class and schedule visible after selection and forwards disti
     const exams=[makeExam({}),makeExam({id:'math-b',description:'Matematika XI • Kelas XI B | 2026/2027 | PAS 1'})];
     let chosen;
     const html=renderToStaticMarkup(React.createElement(mod.exports.default,{exams,now:Date.parse('2026-10-17T00:01:00Z'),value:'math-b',onChange:v=>chosen=v}));
-    assert.match(html,/Kelas XI B/); assert.match(html,/Asia.Makassar/); assert.match(html,/90 menit/);
-    assert.equal(props.value,'math-b'); assert.match(props.options[0].label,/^Matematika XI · Kelas XI A$/);
-    assert.match(props.options[1].label,/^Matematika XI · Kelas XI B$/);
-    assert.match(props.options[0].subLabel,/PAS Ganjil · 2026\/2027 · PAS 1 · .*90 menit/);
+    assert.match(html,/Lihat detail folder ujian/);
+    assert.doesNotMatch(html,/PAS 1|2026\/2027|ASAS\/ASAT/);
+    assert.equal(props.value,'math-b');
+    assert.equal(props.options[0].label,'ASAS Ganjil');
+    assert.equal(props.options[1].label,'ASAS Ganjil');
+    assert.match(props.options[0].subLabel,/Matematika XI · Kelas XI A · .*90 menit/);
+    assert.match(props.options[1].subLabel,/Kelas XI B/);
+    assert.equal(props.options[0].badge,undefined);
     props.onChange('math-a'); assert.equal(chosen,'math-a');
     assert.match(props.searchPlaceholder,/kelas/);
     const unsafe=makeExam({description:'<img src=x onerror=alert(1)>'});
     const escaped=renderToStaticMarkup(React.createElement(mod.exports.default,{exams:[unsafe],now:0,value:unsafe.id,onChange:()=>{}}));
     assert.doesNotMatch(escaped,/<img/); assert.match(escaped,/&lt;img/);
+
+    const document=require('jsdom').jsdom('<div id="root"></div>');
+    const dom={window:document.defaultView};
+    const previousWindow=global.window,previousDocument=global.document,previousNavigator=global.navigator;
+    global.window=dom.window;global.document=dom.window.document;global.navigator=dom.window.navigator;
+    global.IS_REACT_ACT_ENVIRONMENT=true;
+    const {createRoot}=require('react-dom/client');
+    const root=createRoot(dom.window.document.getElementById('root'));
+    try {
+        await React.act(async()=>root.render(React.createElement(mod.exports.default,{exams,now:0,value:'math-b',onChange:()=>{}})));
+        const trigger=dom.window.document.querySelector('[aria-label="Lihat detail folder ujian"]');
+        assert.equal(trigger.getAttribute('aria-expanded'),'false');
+        await React.act(async()=>trigger.dispatchEvent(new dom.window.MouseEvent('click',{bubbles:true})));
+        const popup=dom.window.document.querySelector('[role="dialog"]');
+        assert.ok(popup);
+        assert.match(popup.textContent,/Tahun ajaran2026\/2027/);
+        assert.match(popup.textContent,/Jenis asesmenASAS 1/);
+        assert.doesNotMatch(popup.textContent,/PAS 1/);
+        await React.act(async()=>dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
+        assert.equal(dom.window.document.querySelector('[role="dialog"]'),null);
+    } finally {
+        await React.act(async()=>root.unmount());
+        global.window=previousWindow;global.document=previousDocument;global.navigator=previousNavigator;
+        delete global.IS_REACT_ACT_ENVIRONMENT;
+        dom.window.close();
+    }
 });
 
 

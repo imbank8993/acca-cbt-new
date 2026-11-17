@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Info, X } from 'lucide-react';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
 import type { OrganizationExam } from '@/lib/api/proctor';
-import { isMonitoringExamActive, monitoringExamLabel, monitoringExamDetails, sortMonitoringExams,
+import { folderExamParts, isMonitoringExamActive, monitoringAssessmentPeriod, monitoringExamLabel, monitoringExamDetails, monitoringFolderName, sortMonitoringExams,
     monitoringExamBadge, filterMonitoringExams, type MonitoringExamCategory } from '@/lib/monitoring-exams';
 import { formatSchoolDateTime } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
@@ -22,8 +23,31 @@ export default function MonitoringExamPicker({ exams, now, value, onChange, comp
 }) {
     const { timeZone, error } = useSchoolTimeZone();
     const [category, setCategory] = useState<MonitoringExamCategory>('all');
+    const [openDetailsFor, setOpenDetailsFor] = useState<string | null>(null);
+    const detailsRef = useRef<HTMLDivElement>(null);
     const visible = sortMonitoringExams(filterMonitoringExams(exams, category), now);
     const selected = exams.find(exam => exam.id === value);
+    const selectedFolder = selected ? folderExamParts(selected) : null;
+    const detailsOpen = Boolean(selectedFolder && openDetailsFor === value);
+    const periodParts = selectedFolder?.period.split(' · ').filter(Boolean) || [];
+    const schoolYear = periodParts.find(part => /^\d{4}\/\d{4}$/.test(part));
+    const assessment = monitoringAssessmentPeriod(periodParts.filter(part => part !== schoolYear).join(' · '));
+
+    useEffect(() => {
+        if (!detailsOpen) return;
+        const closeOutside = (event: PointerEvent) => {
+            if (!detailsRef.current?.contains(event.target as Node)) setOpenDetailsFor(null);
+        };
+        const closeEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setOpenDetailsFor(null);
+        };
+        document.addEventListener('pointerdown', closeOutside);
+        document.addEventListener('keydown', closeEscape);
+        return () => {
+            document.removeEventListener('pointerdown', closeOutside);
+            document.removeEventListener('keydown', closeEscape);
+        };
+    }, [detailsOpen]);
     const schedule = (exam: OrganizationExam) => {
         const duration = exam.duration_minutes ?? exam.duration;
         return [
@@ -34,6 +58,7 @@ export default function MonitoringExamPicker({ exams, now, value, onChange, comp
     const changeCategory = (next: string) => {
         const nextCategory = next as MonitoringExamCategory;
         setCategory(nextCategory);
+        setOpenDetailsFor(null);
         const filtered = sortMonitoringExams(filterMonitoringExams(exams, nextCategory), now);
         if (value && !filtered.some(exam => exam.id === value)) onChange(filtered[0]?.id || '');
     };
@@ -47,35 +72,64 @@ export default function MonitoringExamPicker({ exams, now, value, onChange, comp
                 className="w-full"
                 placeholder={visible.length ? 'Cari atau pilih ujian...' : 'Tidak ada ujian pada kategori ini'}
                 searchPlaceholder="Cari ujian, bank soal, kelas, atau periode..."
-                options={visible.map(exam => ({
-                    value: exam.id,
-                    label: monitoringExamLabel(exam),
-                    badge: monitoringExamBadge(exam) || undefined,
-                    subLabel: [monitoringExamDetails(exam), schedule(exam)].filter(Boolean).join(' · '),
-                    statusDot: isMonitoringExamActive(exam, now) ? 'Ujian aktif' : undefined,
-                }))}
+                options={visible.map(exam => {
+                    const folder = folderExamParts(exam);
+                    return {
+                        value: exam.id,
+                        label: folder ? monitoringFolderName(exam) : monitoringExamLabel(exam),
+                        subLabel: folder
+                            ? [folder.bank, `Kelas ${folder.className}`, schedule(exam)].filter(Boolean).join(' · ')
+                            : [monitoringExamDetails(exam), schedule(exam)].filter(Boolean).join(' · '),
+                        statusDot: isMonitoringExamActive(exam, now) ? 'Ujian aktif' : undefined,
+                    };
+                })}
                 value={value}
-                onChange={onChange}
+                onChange={next => { setOpenDetailsFor(null); onChange(next); }}
             />
             <InlineSelect aria-label="Kategori ujian" value={category} onChange={changeCategory} minWidth="0" height="42px"
                 options={[{ value: 'all', label: 'Semua ujian' }, { value: 'assessment', label: 'ASAS/AM' }, { value: 'other', label: 'Lainnya' }]} />
             {action}
         </div>
         {selected && !hideContext && <div className="monitoring-exam-picker__context" aria-live="polite">
-            <div className="monitoring-exam-picker__identity">
-                {badge && <span className="monitoring-exam-picker__kind">{badge}</span>}
-                <strong className={compactContext ? 'monitoring-exam-picker__mobile-title' : undefined}>{monitoringExamLabel(selected)}</strong>
-                {monitoringExamDetails(selected) && <span className="monitoring-exam-picker__description">{monitoringExamDetails(selected)}</span>}
-            </div>
-            <dl className="monitoring-exam-picker__metadata">
-                {[
-                    ['Jadwal', schedule(selected) || 'Belum tersedia'],
-                    ['Pembuat soal', questionCreators],
-                    ['Pembuat ujian', examCreator],
-                ].map(([label, detail]) => <div key={label}>
-                    <dt>{label}</dt><dd>{detail}</dd>
-                </div>)}
-            </dl>
+            {selectedFolder ? <div ref={detailsRef} className="monitoring-exam-picker__detail-anchor">
+                <button type="button" className="monitoring-exam-picker__detail-trigger"
+                    aria-label="Lihat detail folder ujian" title="Lihat detail folder ujian"
+                    aria-expanded={detailsOpen} aria-controls="monitoring-folder-detail-popover"
+                    onClick={() => setOpenDetailsFor(detailsOpen ? null : value)}>
+                    <Info size={16} aria-hidden="true" />
+                </button>
+                {detailsOpen && <div id="monitoring-folder-detail-popover" role="dialog" aria-labelledby="monitoring-folder-detail-title"
+                    className="monitoring-exam-picker__detail-popover">
+                    <div className="monitoring-exam-picker__detail-head">
+                        <strong id="monitoring-folder-detail-title">Detail folder ujian</strong>
+                        <button type="button" aria-label="Tutup detail folder" onClick={() => setOpenDetailsFor(null)}><X size={16} aria-hidden="true" /></button>
+                    </div>
+                    <dl>
+                        {[
+                            ['Nama folder', monitoringFolderName(selected)],
+                            ['Bank soal', selectedFolder.bank],
+                            ['Kelas', selectedFolder.className],
+                            ...(schoolYear ? [['Tahun ajaran', schoolYear]] : []),
+                            ...(assessment ? [['Jenis asesmen', assessment]] : []),
+                            ['Jadwal', schedule(selected) || 'Belum tersedia'],
+                        ].map(([label, detail]) => <div key={label}><dt>{label}</dt><dd>{detail}</dd></div>)}
+                    </dl>
+                </div>}
+            </div> : <>
+                <div className="monitoring-exam-picker__identity">
+                    <strong className={compactContext ? 'monitoring-exam-picker__mobile-title' : undefined}>{monitoringExamLabel(selected)}</strong>
+                    {monitoringExamDetails(selected) && <span className="monitoring-exam-picker__description">{monitoringExamDetails(selected)}</span>}
+                </div>
+                <dl className="monitoring-exam-picker__metadata">
+                    {[
+                        ['Jadwal', schedule(selected) || 'Belum tersedia'],
+                        ['Pembuat soal', questionCreators],
+                        ['Pembuat ujian', examCreator],
+                    ].map(([label, detail]) => <div key={label}>
+                        <dt>{label}</dt><dd>{detail}</dd>
+                    </div>)}
+                </dl>
+            </>}
         </div>}
     </div>;
 }

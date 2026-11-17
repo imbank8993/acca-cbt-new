@@ -140,10 +140,14 @@ export function TopScorersCard({
                                 </span>
                             </div>
 
-                            {isSemesterAssessmentType(exam.examType) && exam.subjectName && (
-                                <p className="mb-1 text-xs font-medium text-slate-700">{exam.subjectName}</p>
-                            )}
-                            <p className="mb-2 text-[10px] text-slate-500">{exam.scoreLabel || 'Klasikal'}{exam.scoredCount < exam.participantCount ? ` · ${exam.scoredCount}/${exam.participantCount} peserta dinilai` : ''}</p>
+                            <div className="mb-2 flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap">
+                                {isSemesterAssessmentType(exam.examType) && exam.subjectName && <>
+                                    <span className="min-w-0 truncate text-xs font-medium text-slate-700" title={exam.subjectName}>{exam.subjectName}</span>
+                                    <span className="shrink-0 text-slate-300" aria-hidden="true">·</span>
+                                </>}
+                                <span className="shrink-0 text-[10px] text-slate-500">{exam.scoreLabel || 'Klasikal'}</span>
+                            </div>
+                            {exam.scoredCount < exam.participantCount && <p className="mb-2 text-[10px] text-slate-500">{exam.scoredCount}/{exam.participantCount} peserta dinilai</p>}
                             {exam.topScorers.length === 0 && <p className="text-xs text-slate-500">{exam.scoreLabel?.startsWith('IRT') ? 'Menunggu perhitungan IRT' : 'Menunggu penilaian'}</p>}
 
                             {/* 3 siswa teratas (nama saja tanpa NISN) */}

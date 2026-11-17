@@ -302,6 +302,22 @@
 .monitoring-participant-name { text-align: left; overflow-wrap: anywhere; }
 .monitoring-participant-name:focus-visible { outline: 2px solid #3083ff; outline-offset: 3px; border-radius: 3px; }
 .monitoring-actions-trigger > svg:first-child { display: none; }
+.monitoring-page .monitoring-actions-trigger.ui-btn {
+  background: #eff6ff !important;
+  border-color: #bfdbfe !important;
+  color: #1d4ed8 !important;
+  box-shadow: none !important;
+}
+.monitoring-page .monitoring-actions-trigger.ui-btn:hover:not(:disabled),
+.monitoring-page .monitoring-actions-trigger.ui-btn[aria-expanded="true"] {
+  background: #dbeafe !important;
+  border-color: #93c5fd !important;
+}
+.dark .monitoring-page .monitoring-actions-trigger.ui-btn {
+  background: #172b4d !important;
+  border-color: #31578d !important;
+  color: #93c5fd !important;
+}
 
 /* Mobile hierarchy: context, navigation, filters, then the roster. */
 @media (max-width: 639px) {

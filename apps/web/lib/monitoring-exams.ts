@@ -29,6 +29,18 @@ export function folderExamParts(exam: Pick<OrganizationExam, 'title' | 'descript
     };
 }
 
+/** Istilah periode lama pada deskripsi ujian ditampilkan dengan nama asesmen yang berlaku. */
+export function monitoringAssessmentPeriod(period: string): string {
+    return period.replace(/\bPAS\s+ganjil\b/gi, 'ASAS Ganjil')
+        .replace(/\bPAT\s+genap\b/gi, 'ASAT Genap')
+        .replace(/\bPAS\b/gi, 'ASAS')
+        .replace(/\bPAT\b/gi, 'ASAT');
+}
+
+export function monitoringFolderName(exam: Pick<OrganizationExam, 'title'>): string {
+    return exam.title.trim().replace(/^PAS\b/i, 'ASAS').replace(/^PAT\b/i, 'ASAT');
+}
+
 export function monitoringExamLabel(exam: OrganizationExam): string {
     const folder = folderExamParts(exam);
     // Ujian folder digabung per bank soal: bank lebih dulu, lalu kelas pesertanya.
@@ -41,7 +53,7 @@ export function monitoringExamLabel(exam: OrganizationExam): string {
 /** Keterangan di bawah label: nama folder & periode untuk ujian folder, deskripsi/mapel untuk ujian biasa. */
 export function monitoringExamDetails(exam: OrganizationExam): string {
     const folder = folderExamParts(exam);
-    if (folder) return [exam.title.trim(), folder.period].filter(Boolean).join(' · ');
+    if (folder) return [monitoringFolderName(exam), monitoringAssessmentPeriod(folder.period)].filter(Boolean).join(' · ');
     const description = typeof exam.description === 'string' ? exam.description.trim() : '';
     const subject = typeof exam.subject === 'string' ? exam.subject.trim() : '';
     return description || subject;
