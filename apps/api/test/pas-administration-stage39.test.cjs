@@ -502,3 +502,19 @@ test('ADMIN-42: kolom kelas memakai kelas Reguler siswa, bukan kelas peminatan j
     assert.equal(slot.students.length, 3);
     assert.ok(slot.students.every(student => student.class_name === 'XI A'));
 });
+
+test('ADMIN-03b: daftar hadir memakai pengerjaan ujian milik siswa, bukan ujian lain di sesi yang sama', async () => {
+    const db = fixtureDb(createFixtures(), [], { now: '2026-10-17T01:00:00Z' });
+    // Ujian lain di ruang & sesi yang sama (kelas berbeda); siswa-1 sempat membukanya.
+    db.tables.cbt_pas_class_schedules.push({ ...db.tables.cbt_pas_class_schedules[1], id: 'sched-same-room', room: 'Lab Komputer 1',
+        exam_id: 'exam-econ-same-room' });
+    db.tables.cbt_exam_attempts.unshift({ id: 'att-other', exam_id: 'exam-econ-same-room', user_id: 'student-1', status: 'in_progress',
+        started_at: '2026-10-17T07:40:00.000Z', finished_at: null });
+    const service = new PasAdministrationService(db, createAuthzMock());
+    const slot = await service.getAdministrationSlot({ id: 'pengawas-1', isPlatformAdmin: false }, {
+        periodId: 'period-1', roomId: 'room-1', sessionId: 'session-1', examDate: '2026-10-17',
+    });
+    const student = slot.students.find(row => row.user_id === 'student-1');
+    assert.equal(student.attempt_status, 'finished');
+    assert.equal(student.finished_at, '2026-10-17T08:55:00.000Z');
+});

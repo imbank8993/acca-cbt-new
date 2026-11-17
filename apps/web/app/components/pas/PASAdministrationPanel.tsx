@@ -16,6 +16,7 @@ import {
     FileCheck2,
     FileText,
     Loader2,
+    Pencil,
     Printer,
     QrCode,
     Save,
@@ -445,6 +446,10 @@ export default function PASAdministrationPanel({
             },
         }));
     };
+
+    // Catatan per siswa diisi lewat modal (ikon pensil) agar tabel tidak perlu digeser ke samping.
+    const [remarkTarget, setRemarkTarget] = useState<{ userId: string; name: string; status: PASAttendanceStatus } | null>(null);
+    const [remarkDraft, setRemarkDraft] = useState('');
 
     const updateStudentRemark = (userId: string, remark: string) => {
         setAttendanceMap((prev) => ({
@@ -1823,7 +1828,7 @@ ${KOP_AND_A4_CSS}
                                         <th className="py-2.5 px-3">Peserta & Kelas</th>
                                         <th className="py-2.5 px-3">Waktu ujian</th>
                                         <th className="py-2.5 px-3">Status Kehadiran</th>
-                                        <th className="py-2.5 px-3">Keterangan</th>
+                                        <th className="py-2.5 px-2 w-12 text-center">Catatan</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 text-xs">
@@ -1902,21 +1907,24 @@ ${KOP_AND_A4_CSS}
                                                             </div>
                                                         )}
                                                     </td>
-                                                    <td data-label="Keterangan" className="py-2.5 px-3">
-                                                        <input
-                                                            type="text"
-                                                            value={currentRemark}
-                                                            aria-label={`Keterangan ${st.full_name}`}
-                                                            onChange={(e) => updateStudentRemark(st.user_id, e.target.value)}
-                                                            placeholder={
-                                                                currentStatus === 'sakit'
-                                                                    ? 'Ket. sakit...'
-                                                                    : currentStatus === 'izin'
-                                                                      ? 'Ket. izin...'
-                                                                      : 'Catatan...'
-                                                            }
-                                                            className="w-full min-w-[110px] px-2.5 py-1 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#3083FF]"
-                                                        />
+                                                    <td data-label="Catatan" className="py-2.5 px-2 text-center">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setRemarkTarget({ userId: st.user_id, name: st.full_name, status: currentStatus });
+                                                                setRemarkDraft(currentRemark);
+                                                            }}
+                                                            aria-label={currentRemark ? `Ubah catatan ${st.full_name}: ${currentRemark}` : `Tambah catatan ${st.full_name}`}
+                                                            title={currentRemark || 'Tambah catatan'}
+                                                            className={`relative inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-colors ${
+                                                                currentRemark
+                                                                    ? 'border-blue-200 bg-blue-50 text-[#3083FF] hover:bg-blue-100'
+                                                                    : 'border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600'
+                                                            }`}
+                                                        >
+                                                            <Pencil size={14} aria-hidden="true" />
+                                                            {currentRemark && <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[#3083FF]" />}
+                                                        </button>
                                                     </td>
                                                 </tr>
                                             );
@@ -2622,6 +2630,29 @@ ${KOP_AND_A4_CSS}
                 leftIcon={<AlertCircle size={15} />} onClick={() => void handleConfirmReject()}>Kembalikan ke Pengawas</Button>
         </ModalFooter>
     </Modal>
+
+            <Modal open={Boolean(remarkTarget)} onClose={() => setRemarkTarget(null)} size="md" variant="edit"
+                labelledBy="pas-remark-title" title="Catatan Peserta" icon={<Pencil size={18} />} subtitle={remarkTarget?.name}>
+                <form onSubmit={(e) => {
+                    e.preventDefault();
+                    if (remarkTarget) updateStudentRemark(remarkTarget.userId, remarkDraft.trim());
+                    setRemarkTarget(null);
+                }}>
+                    <ModalBody>
+                        <ModalField label="Catatan" hint="Catatan ikut tersimpan saat Anda menekan Simpan pada administrasi ruang.">
+                            <textarea rows={3} autoFocus maxLength={500} value={remarkDraft} onChange={(e) => setRemarkDraft(e.target.value)}
+                                placeholder={remarkTarget?.status === 'sakit' ? 'Contoh: Demam, surat dokter menyusul'
+                                    : remarkTarget?.status === 'izin' ? 'Contoh: Izin keluarga, surat dari orang tua'
+                                    : 'Contoh: Terlambat 10 menit'} />
+                        </ModalField>
+                    </ModalBody>
+                    <ModalFooter>
+                        {remarkDraft && <Button type="button" variant="cancel" onClick={() => setRemarkDraft('')}>Kosongkan</Button>}
+                        <Button type="button" variant="cancel" onClick={() => setRemarkTarget(null)}>Batal</Button>
+                        <Button type="submit" variant="primary" leftIcon={<Check size={15} />}>Simpan Catatan</Button>
+                    </ModalFooter>
+                </form>
+            </Modal>
 
             <Modal open={isChairModalOpen} onClose={() => setIsChairModalOpen(false)} size="md" variant="edit"
                 labelledBy="pas-chair-title" title="Atur Ketua Panitia Ujian" icon={<UserCheck size={18} />} subtitle={`Folder: ${period.name}`}>

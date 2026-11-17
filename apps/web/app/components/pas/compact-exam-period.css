@@ -98,7 +98,8 @@
 .bulk-schedule__table .bulk-schedule__search .ss__trigger { min-height: 36px; height: 36px; padding-top: 0; padding-bottom: 0; }
 .bulk-schedule__table .bulk-schedule__date .dpk-trigger { height: 36px; padding: 0 10px; font-size: 12px; }
 
-.pas-attendance-table { min-width: 780px; }
+/* Catatan kini ikon pensil (modal): tabel muat tanpa digeser ke samping. */
+.pas-attendance-table { min-width: 560px; }
 .pas-attendance-table th:nth-child(3) { min-width: 145px; }
 .pas-attendance-time { white-space: nowrap; }
 .pas-attendance-search .ftb-toolbar { position: static; z-index: auto; margin-bottom: 0 !important; padding: 0; border: 0; background: transparent; box-shadow: none; }

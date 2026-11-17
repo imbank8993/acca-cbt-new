@@ -608,12 +608,15 @@ export class PasAdministrationService {
             if (sc.exam_id) scheduleByExamId.set(sc.exam_id, sc);
         }
 
-        const attemptByStudent = new Map<string, any>();
+        // Satu ruang/sesi bisa memuat beberapa ujian (bank soal/kelas berbeda).
+        // Dulu baris pertama dari database yang dipakai, sehingga siswa yang sudah
+        // mengumpulkan ujiannya bisa tampil "Sedang mengerjakan" karena sempat
+        // membuka ujian lain di sesi yang sama. Pemilihannya kini di bawah.
+        const attemptsByStudent = new Map<string, any[]>();
         for (const att of ((attemptsRes.data as any[]) || [])) {
-            const existing = attemptByStudent.get(att.user_id);
-            if (!existing || (att.started_at && !existing.started_at)) {
-                attemptByStudent.set(att.user_id, att);
-            }
+            const list = attemptsByStudent.get(att.user_id) || [];
+            list.push(att);
+            attemptsByStudent.set(att.user_id, list);
         }
 
         const savedAttendanceByStudent = new Map<string, { status: AttendanceStatus; remark: string }>();
@@ -628,19 +631,29 @@ export class PasAdministrationService {
         // Jadwal yang benar-benar diikuti seorang siswa pada slot ini: lewat kelas
         // jadwal, kelas tambahan, atau pemetaan peserta ujian. Sama dengan monitoring.
         const participantRows = ((participantsRes.data as any[]) || []);
+        const ownSchedules = (userId: string) => activeSchedules.filter((sc) =>
+            (sc.class_id && memberClassIds.get(userId)?.has(sc.class_id)) ||
+            (sc.additional_class_id && memberAdditionalIds.get(userId)?.has(sc.additional_class_id)) ||
+            (sc.exam_id && participantRows.some((p) => p.user_id === userId && p.exam_id === sc.exam_id)));
         const ownSchedule = (userId: string, attemptExamId?: string) => {
-            const own = activeSchedules.filter((sc) =>
-                (sc.class_id && memberClassIds.get(userId)?.has(sc.class_id)) ||
-                (sc.additional_class_id && memberAdditionalIds.get(userId)?.has(sc.additional_class_id)) ||
-                (sc.exam_id && participantRows.some((p) => p.user_id === userId && p.exam_id === sc.exam_id)));
+            const own = ownSchedules(userId);
             return own.find((sc) => attemptExamId && sc.exam_id === attemptExamId) || own[0];
+        };
+        /** Pengerjaan ujian milik siswa sendiri lebih dulu, lalu yang aktivitasnya paling akhir. */
+        const pickAttempt = (userId: string) => {
+            const list = attemptsByStudent.get(userId) || [];
+            if (list.length <= 1) return list[0];
+            const ownExamIds = new Set(ownSchedules(userId).map((sc) => sc.exam_id).filter(Boolean));
+            const pool = list.some((att) => ownExamIds.has(att.exam_id)) ? list.filter((att) => ownExamIds.has(att.exam_id)) : list;
+            const activity = (att: any) => Date.parse(att.finished_at || att.started_at || '') || 0;
+            return [...pool].sort((a, b) => activity(b) - activity(a))[0];
         };
 
         const allStudents = ((roomStudentRows as any[]) || [])
             .map((row) => {
                 const userId = row.user_id as string;
                 const profile = row.profiles || profileById.get(userId) || {};
-                const attempt = attemptByStudent.get(userId);
+                const attempt = pickAttempt(userId);
                 const savedAtt = savedAttendanceByStudent.get(userId);
                 const matchedSchedule = (attempt?.exam_id ? scheduleByExamId.get(attempt.exam_id) : undefined)
                     || ownSchedule(userId, attempt?.exam_id);
