@@ -376,6 +376,7 @@ function MonitoringContent() {
                 activeTab={activeTab}
                 onTabChange={value => setActiveTab(value as typeof activeTab)}
                 hideDetails={Boolean(folderGroup)}
+                folderLevel={Boolean(folderGroup) && activeFolderView === 'room'}
                 headerAction={folderGroup ? <FolderViewToggle role="proktor" value={activeFolderView} onChange={setFolderView} /> : undefined}
                 tabs={[
                     { id: 'live', label: 'Peserta aktif' },

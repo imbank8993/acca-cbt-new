@@ -24,12 +24,14 @@ interface MonitoringWorkspaceHeaderProps {
     hideDetails?: boolean;
     /** Kontrol di pojok kanan atas, sebaris dengan pemilih ujian (mis. Per bank soal | Per ruang). */
     headerAction?: ReactNode;
+    /** Tampilan Per ruang: pemilih menampilkan folder, bukan satu bank soal. */
+    folderLevel?: boolean;
     children?: ReactNode;
 }
 
 export function MonitoringWorkspaceHeader({
     exams, now, value, onExamChange, onRefresh, refreshing, attempts,
-    activeTab, onTabChange, tabs, hideDetails = false, headerAction, children,
+    activeTab, onTabChange, tabs, hideDetails = false, headerAction, folderLevel = false, children,
 }: MonitoringWorkspaceHeaderProps) {
     const selectedAttempts = attempts.filter(attempt => attempt.exam_id === value);
     const sample = selectedAttempts[0]?.server_now;
@@ -76,6 +78,7 @@ export function MonitoringWorkspaceHeader({
                             onExamChange(nextId);
                         }}
                         compactContext
+                        folderLevel={folderLevel}
                         action={
                             <button type="button" className="monitoring-refresh" onClick={onRefresh}
                                 disabled={refreshing || !value} aria-label="Perbarui data monitoring" title="Perbarui data monitoring">

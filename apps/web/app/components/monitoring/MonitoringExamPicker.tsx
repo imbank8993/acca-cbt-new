@@ -11,8 +11,13 @@ import { formatSchoolDateTime } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import './monitoring-exam-picker.css';
 
-export default function MonitoringExamPicker({ exams, now, value, onChange, compactContext = false, detailsOnRight = false, hideContext = false, action }: {
+export default function MonitoringExamPicker({ exams, now, value, onChange, compactContext = false, detailsOnRight = false, hideContext = false, folderLevel = false, action }: {
     detailsOnRight?: boolean;
+    /**
+     * Tampilan Per ruang folder ASAS/AM: isinya seluruh folder, bukan satu bank soal.
+     * Folder diringkas menjadi satu pilihan dan baris mapel/kelas disembunyikan.
+     */
+    folderLevel?: boolean;
     hideContext?: boolean;
     action?: ReactNode;
     compactContext?: boolean;
@@ -27,6 +32,7 @@ export default function MonitoringExamPicker({ exams, now, value, onChange, comp
     const detailsRef = useRef<HTMLDivElement>(null);
     const visible = sortMonitoringExams(filterMonitoringExams(exams, category), now);
     const selected = exams.find(exam => exam.id === value);
+    const options = folderLevel ? folderOptions(visible, selected) : visible;
     const selectedFolder = selected ? folderExamParts(selected) : null;
     const detailsOpen = Boolean(selectedFolder && openDetailsFor === value);
     const periodParts = selectedFolder?.period.split(' · ').filter(Boolean) || [];
@@ -72,15 +78,19 @@ export default function MonitoringExamPicker({ exams, now, value, onChange, comp
                 className="w-full"
                 placeholder={visible.length ? 'Cari atau pilih ujian...' : 'Tidak ada ujian pada kategori ini'}
                 searchPlaceholder="Cari ujian, bank soal, kelas, atau periode..."
-                options={visible.map(exam => {
+                options={options.map(exam => {
                     const folder = folderExamParts(exam);
+                    const period = folderLevel ? folderPeriodId(exam) : '';
                     return {
                         value: exam.id,
                         label: folder ? monitoringFolderName(exam) : monitoringExamLabel(exam),
-                        subLabel: folder
+                        subLabel: period
+                            ? 'Semua mapel dan ruang'
+                            : folder
                             ? [folder.bank, `Kelas ${folder.className}`, schedule(exam)].filter(Boolean).join(' · ')
                             : [monitoringExamDetails(exam), schedule(exam)].filter(Boolean).join(' · '),
-                        statusDot: isMonitoringExamActive(exam, now) ? 'Ujian aktif' : undefined,
+                        statusDot: (period ? visible.some(item => folderPeriodId(item) === period && isMonitoringExamActive(item, now)) : isMonitoringExamActive(exam, now))
+                            ? 'Ujian aktif' : undefined,
                     };
                 })}
                 value={value}
@@ -90,7 +100,7 @@ export default function MonitoringExamPicker({ exams, now, value, onChange, comp
                 options={[{ value: 'all', label: 'Semua ujian' }, { value: 'assessment', label: 'ASAS/AM' }, { value: 'other', label: 'Lainnya' }]} />
             {action}
         </div>
-        {selected && !hideContext && <div className="monitoring-exam-picker__context" aria-live="polite">
+        {selected && !hideContext && !(folderLevel && selectedFolder) && <div className="monitoring-exam-picker__context" aria-live="polite">
             {selectedFolder ? <div ref={detailsRef} className="monitoring-exam-picker__detail-anchor">
                 <div className="monitoring-exam-picker__detail-summary">
                     <span>{selected.subject?.trim() || 'Mapel belum tercatat'}</span>
@@ -140,4 +150,24 @@ export default function MonitoringExamPicker({ exams, now, value, onChange, comp
             </>}
         </div>}
     </div>;
+}
+
+function folderPeriodId(exam: OrganizationExam): string {
+    const id = exam.metadata?.pas_period_id;
+    return typeof id === 'string' ? id : '';
+}
+
+/** Satu pilihan per folder; pilihan yang sedang aktif dipertahankan agar nilainya tetap cocok. */
+function folderOptions(exams: OrganizationExam[], selected?: OrganizationExam): OrganizationExam[] {
+    const selectedPeriod = selected ? folderPeriodId(selected) : '';
+    const seen = new Set<string>();
+    const result: OrganizationExam[] = [];
+    for (const exam of exams) {
+        const period = folderPeriodId(exam);
+        if (!period) { result.push(exam); continue; }
+        if (seen.has(period)) continue;
+        seen.add(period);
+        result.push(period === selectedPeriod && selected ? selected : exam);
+    }
+    return result;
 }
