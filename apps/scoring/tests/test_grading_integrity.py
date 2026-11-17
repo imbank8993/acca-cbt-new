@@ -26,11 +26,33 @@ def test_valid_complex_answer_remains_correct():
     assert calculate_single_answer_score(question("mcq_complex"), '["b","a"]').score == 10
 
 
-def test_valid_checklist_keeps_weight_including_zero():
+def test_valid_checklist_keeps_positive_weight_and_counts_zero_as_one():
     q = question("checklist")
     q.bank_question_options[0].weight = 0
     result = calculate_single_answer_score(q, '["a","b"]')
-    assert result.dimension_scores == {"d": 3}
+    assert result.dimension_scores == {"d": 4}
+
+
+def personality_choices(kind):
+    # Bobot bawaan editor: opsi A = 1, sisanya 0; tiap opsi punya dimensi sendiri.
+    return Question(id="q", type=kind, score_default=10, bank_question_options=[
+        QuestionOption(id="a", order=0, weight=1, metadata={"dimension_id": "da"}),
+        QuestionOption(id="b", order=1, weight=0, metadata={"dimension_id": "db"}),
+        QuestionOption(id="c", order=2, weight=None, metadata={"dimension_id": "dc"}),
+    ])
+
+
+@pytest.mark.parametrize("kind", ["forced_choice", "paired_comparison"])
+@pytest.mark.parametrize("choice,dimension", [("a", "da"), ("b", "db"), ("c", "dc")])
+def test_every_forced_choice_option_scores_its_dimension(kind, choice, dimension):
+    result = calculate_single_answer_score(personality_choices(kind), choice)
+    assert result.dimension_scores == {dimension: 1}
+    assert result.score == 0 and result.is_correct is None
+
+
+def test_every_checked_statement_scores_its_dimension():
+    result = calculate_single_answer_score(personality_choices("checklist"), '["b","c"]')
+    assert result.dimension_scores == {"db": 1, "dc": 1}
 
 
 def test_valid_ranking_keeps_rank_scores():

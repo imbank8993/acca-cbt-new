@@ -383,7 +383,12 @@ export default function QuestionEditorModal({
                 text: opt.text,
                 isCorrect: opt.isCorrect,
                 order: i,
-                weight: ['sjt', 'likert', 'forced_choice', 'checklist', 'ranking', 'paired_comparison'].includes(selectedType) ? (opt.weight ?? 0) : 1,
+                // Pilihan Paksa, Ceklis, Berpasangan tidak punya isian bobot: setiap
+                // pilihan bernilai 1 untuk dimensinya. Bobot 0 bawaan pilihan ganda
+                // dulu membuat hanya opsi A yang menambah skor dimensi.
+                weight: ['forced_choice', 'checklist', 'paired_comparison'].includes(selectedType)
+                    ? ((opt.weight ?? 0) > 0 ? opt.weight : 1)
+                    : ['sjt', 'likert', 'ranking'].includes(selectedType) ? (opt.weight ?? 0) : 1,
                 // Pertahankan metadata opsi lain (mis. dari impor/transfer bank);
                 // hanya tiga kunci yang dikelola editor ini yang ditulis ulang.
                 metadata: {

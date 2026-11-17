@@ -116,6 +116,20 @@ def _unique_strings(values: Any) -> bool:
     return isinstance(values, list) and all(isinstance(v, str) for v in values) and len(values) == len(set(values))
 
 
+def _choice_weight(option: Any) -> float:
+    """Bobot satu pilihan Ceklis, Pilihan Paksa, atau Perbandingan Berpasangan.
+
+    Editor ketiga tipe ini tidak punya isian bobot, tetapi soal baru dibuat
+    dengan bobot opsi [1, 0, 0, 0] (warisan pilihan ganda) dan impor Word
+    memberi 1 hanya pada opsi berkunci. Bobot 0 itu bukan pilihan guru: dulu
+    membuat hanya opsi A yang menambah skor dimensi, sehingga profil condong ke
+    dimensi opsi A. Bobot positif (mis. dari impor) tetap dipakai; 0 atau kosong
+    dihitung 1 poin.
+    """
+    weight = getattr(option, "weight", None)
+    return float(weight) if weight is not None and weight > 0 else 1.0
+
+
 def calculate_single_answer_score(question: Question, raw_answer: str | None) -> GradingResult:
     default_score = max(question.score_default, 0)
     options = _dedupe_options(question.bank_question_options or [])
@@ -165,8 +179,7 @@ def calculate_single_answer_score(question: Question, raw_answer: str | None) ->
             option = by_id.get(str(option_id))
             dimension_id = (option.metadata or {}).get("dimension_id") if option else None
             if dimension_id:
-                weight = option.weight if option.weight is not None else 1
-                dimension_scores[dimension_id] = dimension_scores.get(dimension_id, 0) + weight
+                dimension_scores[dimension_id] = dimension_scores.get(dimension_id, 0) + _choice_weight(option)
 
     elif qtype == "true_false":
         answers = _loads(raw_answer, {})
@@ -273,9 +286,7 @@ def calculate_single_answer_score(question: Question, raw_answer: str | None) ->
         score_earned = 0
         dimension_id = (selected.metadata or {}).get("dimension_id") if selected else None
         if dimension_id:
-            dimension_scores[dimension_id] = (
-                selected.weight if selected.weight is not None else 1
-            )
+            dimension_scores[dimension_id] = _choice_weight(selected)
 
     elif qtype in ("ordering", "ranking"):
         order = _loads(raw_answer, None)
