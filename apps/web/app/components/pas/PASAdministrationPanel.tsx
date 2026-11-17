@@ -1765,7 +1765,7 @@ ${KOP_AND_A4_CSS}
 
                             <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
                     {/* ── Left Column (7 cols): Daftar Hadir & Absensi Peserta ── */}
-                    <div className={`xl:col-span-7 bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col ${slot.students.length === 0 ? 'self-start' : ''}`}>
+                    <div className={`pas-attendance-panel xl:col-span-7 min-w-0 bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col ${slot.students.length === 0 ? 'self-start' : ''}`}>
                         <div className="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div>
                                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -1779,11 +1779,15 @@ ${KOP_AND_A4_CSS}
                                     </p>
                                 )}
                             </div>
-                            {slot.students.length > 0 && <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+                            {slot.students.length > 0 && <div className="pas-attendance-actions flex items-center gap-1.5 flex-wrap shrink-0">
                                 <Button type="button" variant="ghost" size="sm" onClick={syncFromExamActivity}
-                                    title="Set Hadir untuk peserta yang tercatat mulai ujian">Sinkron aktivitas</Button>
+                                    title="Set Hadir untuk peserta yang tercatat mulai ujian" aria-label="Sinkron aktivitas">
+                                    <span className="sm:hidden">Sinkron</span><span className="hidden sm:inline">Sinkron aktivitas</span>
+                                </Button>
                                 <Button type="button" variant="outline" size="sm" onClick={markAllHadir}
-                                    leftIcon={<Check size={14} />}>Tandai semua hadir</Button>
+                                    leftIcon={<Check size={14} />} aria-label="Tandai semua hadir">
+                                    <span className="sm:hidden">Semua hadir</span><span className="hidden sm:inline">Tandai semua hadir</span>
+                                </Button>
                             </div>}
                         </div>
 
@@ -1794,7 +1798,7 @@ ${KOP_AND_A4_CSS}
                                 {liveCounts.izin > 0 && <span>Izin <strong className="text-blue-700">{liveCounts.izin}</strong></span>}
                                 {liveCounts.alpha > 0 && <span>Alpha <strong className="text-red-700">{liveCounts.alpha}</strong></span>}
                             </div>
-                            {(slot.students.length > 8 || studentSearch.trim().length > 0) && <div className="w-full sm:w-64 sm:ml-auto">
+                            {(slot.students.length > 8 || studentSearch.trim().length > 0) && <div className="pas-attendance-search w-full sm:w-64 sm:ml-auto">
                                 <FilterToolbar alwaysExpanded>
                                     <FilterSearch value={studentSearch} onChange={setStudentSearch} placeholder="Cari nama, NISN, kelas…" width="100%" />
                                 </FilterToolbar>
@@ -1813,7 +1817,7 @@ ${KOP_AND_A4_CSS}
                                     <tr className="border-b border-slate-100 text-xs font-medium text-slate-500">
                                         <th className="py-2.5 px-3 w-10 text-center">No</th>
                                         <th className="py-2.5 px-3">Peserta & Kelas</th>
-                                        <th className="py-2.5 px-3">Waktu Mulai – Selesai</th>
+                                        <th className="py-2.5 px-3">Waktu ujian</th>
                                         <th className="py-2.5 px-3">Status Kehadiran</th>
                                         <th className="py-2.5 px-3">Keterangan</th>
                                     </tr>
@@ -1848,11 +1852,11 @@ ${KOP_AND_A4_CSS}
                                                         </div>
                                                     </td>
                                                     <td data-label="Waktu ujian" className="py-2.5 px-3">
-                                                        <div className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md">
-                                                            <Clock size={11} className="text-slate-500" />
-                                                            {startTime} – {endTime}
+                                                        <div className="pas-attendance-time inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 font-mono text-xs font-semibold text-slate-800">
+                                                            <Clock size={12} className="shrink-0 text-slate-500" aria-hidden="true" />
+                                                            <span>{startTime === '-' ? 'Belum mulai' : `${startTime} – ${endTime === '-' ? '…' : endTime}`}</span>
                                                         </div>
-                                                        <div className="text-[10px] text-slate-400 mt-0.5">
+                                                        <div className="pas-attendance-time-status mt-1 text-[10px] text-slate-500">
                                                             {st.attempt_status === 'finished' || st.attempt_status === 'selesai'
                                                                 ? 'Selesai mengerjakan'
                                                                 : st.attempt_status === 'in_progress' || st.attempt_status === 'sedang'
