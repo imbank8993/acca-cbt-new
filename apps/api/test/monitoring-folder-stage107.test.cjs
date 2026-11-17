@@ -145,7 +145,10 @@ test('MF-08: pilihan Per bank soal | Per ruang di pojok kanan atas; filter peser
     const workspace = web('app/components/monitoring/ParticipantsWorkspace.tsx');
     assert.match(workspace, /<FilterToolbar>\s*<FilterSearch/);
     assert.doesNotMatch(workspace, /ParticipantSummaryLine attempts=/);
-    assert.match(workspace, /<Button type="button" variant="outline" size="sm" aria-haspopup="menu"/);
+    assert.match(workspace, /<button type="button" aria-haspopup="menu" className="monitoring-actions-trigger"/);
+    assert.match(workspace, /aria-expanded=\{menuOpen\} onClick=\{\(\) => setMenuOpen\(open => !open\)\}/);
+    const styles = web('app/components/monitoring/monitoring.css');
+    assert.match(styles, /\.monitoring-actions-trigger \{[^}]*border: 0;[^}]*background: transparent;/);
 });
 
 test('MF-09: analisis bank soal menggabungkan ujian per kelas tanpa filter kelas', async () => {
