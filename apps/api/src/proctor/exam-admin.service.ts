@@ -130,15 +130,18 @@ export class ExamAdminService {
         ])];
         const bankIds = [...new Set(exams.flatMap(bankIdsForExam))];
         const periodIds = [...new Set(exams.map(exam => exam.metadata?.pas_period_id).filter((id): id is string => typeof id === 'string' && isUUID(id)))];
-        const [banks, periods] = await Promise.all([
-            bankIds.length ? this.db.from('cbt_question_banks').select('id, title, created_by').eq('organization_id', organizationId).in('id', bankIds) : Promise.resolve({ data: [], error: null }),
+        const subjectIds = [...new Set(exams.map(exam => exam.subject_id).filter((id): id is string => typeof id === 'string' && isUUID(id)))];
+        const [banks, periods, subjects] = await Promise.all([
+            bankIds.length ? this.db.from('cbt_question_banks').select('id, title, subject, created_by').eq('organization_id', organizationId).in('id', bankIds) : Promise.resolve({ data: [], error: null }),
             periodIds.length ? this.db.from('cbt_pas_periods').select('id, created_by').eq('organization_id', organizationId).in('id', periodIds) : Promise.resolve({ data: [], error: null }),
+            subjectIds.length ? this.db.from('cbt_subjects').select('id, name').eq('organization_id', organizationId).in('id', subjectIds) : Promise.resolve({ data: [], error: null }),
         ]);
-        if (banks.error || periods.error) throw new BadRequestException('Informasi pembuat soal dan ujian belum dapat dimuat.');
-        const bankRows = (banks.data || []) as Array<{ id: string; title?: string; created_by?: string | null }>;
+        if (banks.error || periods.error || subjects.error) throw new BadRequestException('Informasi mapel dan pembuat ujian belum dapat dimuat.');
+        const bankRows = (banks.data || []) as Array<{ id: string; title?: string; subject?: string | null; created_by?: string | null }>;
         const periodRows = (periods.data || []) as Array<{ id: string; created_by?: string | null }>;
         const banksById = new Map(bankRows.map(bank => [bank.id, bank]));
         const periodsById = new Map(periodRows.map(period => [period.id, period]));
+        const subjectsById = new Map(((subjects.data || []) as Array<{ id: string; name: string | null }>).map(subject => [subject.id, subject.name?.trim() || '']));
         const creatorIds = [...new Set([
             ...exams.map(exam => exam.created_by),
             ...bankRows.map(bank => bank.created_by),
@@ -178,6 +181,7 @@ export class ExamAdminService {
             examCreatorName: creatorNames.get(exam.created_by || periodsById.get(exam.metadata?.pas_period_id)?.created_by || '') || null,
             questionCreatorNames: [...new Set(bankIdsForExam(exam).map(bankId => creatorNames.get(banksById.get(bankId)?.created_by || '') || 'Belum tercatat'))],
             question_bank_title: exam.question_bank_title || banksById.get(exam.question_bank_id)?.title || null,
+            subject: subjectsById.get(exam.subject_id) || bankIdsForExam(exam).map(bankId => banksById.get(bankId)?.subject?.trim()).find(Boolean) || null,
             canManage: await this.authz.canManageExam(user, exam, 'manage', undefined, grant),
             canResetParticipants: await this.authz.canManageExam(user, exam, 'reset', assignedStudents, grant),
             canCorrectKeys: !restrictedProctor || (() => {

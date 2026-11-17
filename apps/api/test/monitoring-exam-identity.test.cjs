@@ -46,7 +46,7 @@ test('picker shows the folder name and reveals normalized period details on dema
     };
     const mod={exports:{}};
     new Function('require','module','exports',code)(name=>{assert.ok(name in dependencies,name);return dependencies[name]},mod,mod.exports);
-    const exams=[makeExam({}),makeExam({id:'math-b',description:'Matematika XI • Kelas XI B | 2026/2027 | PAS 1'})];
+    const exams=[makeExam({}),makeExam({id:'math-b',description:'Matematika XI • Kelas XI B | 2026/2027 | PAS 1',subject:'Matematika',questionCreatorNames:['Guru Bank'],examCreatorName:'Pembuat Folder'})];
     let chosen;
     const html=renderToStaticMarkup(React.createElement(mod.exports.default,{exams,now:Date.parse('2026-10-17T00:01:00Z'),value:'math-b',onChange:v=>chosen=v}));
     assert.match(html,/Lihat detail folder ujian/);
@@ -79,6 +79,11 @@ test('picker shows the folder name and reveals normalized period details on dema
         assert.ok(popup);
         assert.match(popup.textContent,/Tahun ajaran2026\/2027/);
         assert.match(popup.textContent,/Jenis asesmenASAS 1/);
+        assert.match(popup.textContent,/Mata pelajaranMatematika/);
+        assert.match(popup.textContent,/KelasXI B/);
+        assert.match(popup.textContent,/Pembuat bank soalGuru Bank/);
+        assert.match(popup.textContent,/Pembuat ujianPembuat Folder/);
+        assert.match(trigger.textContent,/Detail/);
         assert.doesNotMatch(popup.textContent,/PAS 1/);
         await React.act(async()=>dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
         assert.equal(dom.window.document.querySelector('[role="dialog"]'),null);
@@ -108,11 +113,12 @@ test('API attributes generated exams to their folder creator and includes every 
     const {groupFolderExams}=require('../../web/lib/monitoring-folder.ts');
     const db=fixtureDb({
         cbt_exams:[
-            {id:'generated',organization_id:'school',title:'ASAS',exam_type:'pas',created_by:null,question_bank_id:'bank-a',is_published:true,metadata:{is_pas_exam:true,pas_period_id:'00000000-0000-4000-8000-000000000001'}},
+            {id:'generated',organization_id:'school',title:'ASAS',exam_type:'pas',created_by:null,question_bank_id:'bank-a',subject_id:'00000000-0000-4000-8000-000000000002',is_published:true,metadata:{is_pas_exam:true,pas_period_id:'00000000-0000-4000-8000-000000000001'}},
             {id:'ordinary',organization_id:'school',title:'Harian',exam_type:'daily',created_by:'proctor',question_bank_id:'bank-a',is_published:true},
         ],
         cbt_exam_question_sources:[{exam_id:'ordinary',bank_id:'bank-b'}],
-        cbt_question_banks:[{id:'bank-a',organization_id:'school',title:'Matematika',created_by:'teacher-a'},{id:'bank-b',organization_id:'school',title:'Peluang',created_by:'teacher-b'}],
+        cbt_question_banks:[{id:'bank-a',organization_id:'school',title:'Matematika',subject:'Matematika Bank',created_by:'teacher-a'},{id:'bank-b',organization_id:'school',title:'Peluang',subject:'Peluang',created_by:'teacher-b'}],
+        cbt_subjects:[{id:'00000000-0000-4000-8000-000000000002',organization_id:'school',name:'Matematika'}],
         cbt_pas_periods:[{id:'00000000-0000-4000-8000-000000000001',organization_id:'school',created_by:'folder-owner'}],
         cbt_profiles:[{id:'teacher-a',full_name:'Guru A'},{id:'teacher-b',full_name:'Guru B'},{id:'proctor',full_name:'Proktor Ujian'},{id:'folder-owner',full_name:'Pembuat Folder'}],
     });
@@ -122,13 +128,16 @@ test('API attributes generated exams to their folder creator and includes every 
     const generated=listed.find(e=>e.id==='generated'),ordinary=listed.find(e=>e.id==='ordinary');
     assert.equal(generated.examCreatorName,'Pembuat Folder');
     assert.deepEqual(generated.questionCreatorNames,['Guru A']);
+    assert.equal(generated.subject,'Matematika');
     assert.equal(ordinary.examCreatorName,'Proktor Ujian');
     assert.deepEqual(ordinary.questionCreatorNames,['Guru A','Guru B']);
+    assert.equal(ordinary.subject,'Matematika Bank');
     assert.equal(generated.created_by,null);
     assert.equal(ordinary.question_bank_title,'Matematika');
     const grouped=groupFolderExams(listed).list.find(e=>e.id.startsWith('pas:'));
     assert.equal(grouped.examCreatorName,'Pembuat Folder');
     assert.deepEqual(grouped.questionCreatorNames,['Guru A']);
+    assert.equal(grouped.subject,'Matematika');
     assert.equal(db.writes.length,0);
     db.tables.cbt_pas_periods[0].organization_id='foreign';
     assert.equal((await new ExamAdminService(db,auth,roles).list({id:'proctor'},'school')).find(e=>e.id==='generated').examCreatorName,null);

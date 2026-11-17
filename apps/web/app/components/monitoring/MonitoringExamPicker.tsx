@@ -96,7 +96,7 @@ export default function MonitoringExamPicker({ exams, now, value, onChange, comp
                     aria-label="Lihat detail folder ujian" title="Lihat detail folder ujian"
                     aria-expanded={detailsOpen} aria-controls="monitoring-folder-detail-popover"
                     onClick={() => setOpenDetailsFor(detailsOpen ? null : value)}>
-                    <Info size={16} aria-hidden="true" />
+                    <Info size={15} aria-hidden="true" /> Detail
                 </button>
                 {detailsOpen && <div id="monitoring-folder-detail-popover" role="dialog" aria-labelledby="monitoring-folder-detail-title"
                     className="monitoring-exam-picker__detail-popover">
@@ -107,8 +107,11 @@ export default function MonitoringExamPicker({ exams, now, value, onChange, comp
                     <dl>
                         {[
                             ['Nama folder', monitoringFolderName(selected)],
-                            ['Bank soal', selectedFolder.bank],
+                            ['Mata pelajaran', selected.subject?.trim() || 'Belum tercatat'],
                             ['Kelas', selectedFolder.className],
+                            ['Bank soal', selectedFolder.bank],
+                            ['Pembuat bank soal', questionCreators],
+                            ['Pembuat ujian', examCreator],
                             ...(schoolYear ? [['Tahun ajaran', schoolYear]] : []),
                             ...(assessment ? [['Jenis asesmen', assessment]] : []),
                             ['Jadwal', schedule(selected) || 'Belum tersedia'],

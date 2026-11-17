@@ -43,12 +43,15 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
+    gap: 6px;
     height: 36px;
+    padding: 0 11px;
     border: 1px solid #bfdbfe;
-    border-radius: 9999px;
+    border-radius: 8px;
     background: #eff6ff;
     color: #2563eb;
+    font-size: 12px;
+    font-weight: 600;
     cursor: pointer;
 }
 .monitoring-exam-picker__detail-trigger:hover,
@@ -59,7 +62,7 @@
     z-index: 50;
     top: calc(100% + 8px);
     left: 0;
-    width: min(360px, calc(100vw - 32px));
+    width: min(420px, calc(100vw - 32px));
     box-sizing: border-box;
     max-height: min(420px, 65dvh);
     overflow-y: auto;
@@ -95,7 +98,7 @@
 .monitoring-exam-picker__metadata dd { color: #475569; font-size: 12px; line-height: 1.6; margin: 0; overflow-wrap: anywhere; }
 .dark .monitoring-exam-picker__metadata dd { color: #cbd5e1; }
 @media (max-width: 639px) {
-    .monitoring-exam-picker__detail-trigger { width: 44px; height: 44px; }
+    .monitoring-exam-picker__detail-trigger { height: 44px; }
     .monitoring-exam-picker__controls { grid-template-columns: minmax(0, 1fr) 120px; }
     .monitoring-exam-picker__controls.has-action { grid-template-columns: minmax(0, 1fr) 120px 44px; }
     .monitoring-exam-picker__controls .uisel { --uisel-h: 44px !important; }

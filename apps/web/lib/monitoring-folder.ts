@@ -77,6 +77,7 @@ export function groupFolderExams(exams: OrganizationExam[]): {
             id: group.id,
             questionCreatorNames: [...new Set(group.exams.flatMap(exam => exam.questionCreatorNames || []))],
             examCreatorName: [...new Set(group.exams.map(exam => exam.examCreatorName).filter(Boolean))].join(', ') || null,
+            subject: [...new Set(group.exams.map(exam => exam.subject?.trim()).filter(Boolean))].join(', ') || null,
             description: `${group.bankTitle} • Kelas ${group.classes.join(', ') || '-'}${period ? ` | ${period.split(' · ').join(' | ')}` : ''}`,
             start_time: earliest(group.exams.map(exam => exam.start_time)),
             end_time: latest(group.exams.map(exam => exam.end_time)),
