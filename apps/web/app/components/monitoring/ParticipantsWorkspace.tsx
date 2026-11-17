@@ -47,7 +47,7 @@ const FINISHED = ['submitted', 'auto_submitted', 'finished', 'completed', 'seles
 
 type StatusFilter = 'all' | 'working' | 'waiting' | 'finished' | 'attention';
 const STATUS_FILTERS: Array<[StatusFilter, string]> = [
-    ['all', 'Semua'], ['working', 'Mengerjakan'], ['waiting', 'Belum masuk'], ['finished', 'Selesai'], ['attention', 'Perlu perhatian'],
+    ['all', 'Semua'], ['working', 'Mengerjakan'], ['waiting', 'Belum mulai'], ['finished', 'Selesai'], ['attention', 'Perlu perhatian'],
 ];
 
 /** Status pengerjaan untuk filter Peserta. */
@@ -57,7 +57,7 @@ export function attemptState(attempt: Pick<ExamAttemptRecord, 'status'>): 'worki
     return 'waiting';
 }
 
-/** Ringkasan satu baris: total, mengerjakan, selesai, belum masuk, perlu perhatian. */
+/** Ringkasan satu baris: total, mengerjakan, selesai, belum mulai, perlu perhatian. */
 export function participantSummary(attempts: ExamAttemptRecord[]) {
     const working = attempts.filter(row => attemptState(row) === 'working').length;
     const finished = attempts.filter(row => attemptState(row) === 'finished').length;
@@ -78,7 +78,7 @@ export function ParticipantSummaryLine({ attempts, fallbackTotal }: { attempts: 
         <span className="text-slate-300" aria-hidden="true">·</span>
         <span><strong className="tabular-nums text-emerald-700">{summary.finished}</strong> selesai</span>
         <span className="text-slate-300" aria-hidden="true">·</span>
-        <span><strong className="tabular-nums text-slate-900">{Math.max(0, total - summary.working - summary.finished)}</strong> belum masuk</span>
+        <span><strong className="tabular-nums text-slate-900">{Math.max(0, total - summary.working - summary.finished)}</strong> belum mulai</span>
         <span className="text-slate-300" aria-hidden="true">·</span>
         <span className={summary.attention ? 'rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-800' : undefined}>
             <strong className="tabular-nums">{summary.attention}</strong> perlu perhatian
@@ -396,7 +396,7 @@ export function ParticipantsWorkspace({
                                 <td className="hidden px-4 py-2.5 text-slate-600 sm:table-cell">{row.kelas_name || '—'}</td>
                                 <td className="hidden px-4 py-2.5 text-slate-600 sm:table-cell">{showRoomFilter ? (row.pas_location?.room_name || 'Belum ditempatkan') : (examOptions.find(option => option.exam_id === row.exam_id)?.label || '—')}</td>
                                 <td className="p-3 sm:px-4"><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${state === 'finished' ? 'bg-emerald-50 text-emerald-700' : state === 'working' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
-                                    {state === 'finished' ? 'Selesai' : state === 'working' ? 'Mengerjakan' : 'Belum masuk'}</span></td>
+                                    {state === 'finished' ? 'Selesai' : state === 'working' ? 'Mengerjakan' : 'Belum mulai'}</span></td>
                                 <td className="hidden px-4 py-2.5 text-right tabular-nums text-slate-600 sm:table-cell">{row.saved_answer_count ?? '—'} / {row.total_questions ?? '—'}</td>
                                 <td className="hidden px-4 py-2.5 text-right tabular-nums text-slate-600 sm:table-cell">{row.warning_count || 0}</td>
                             </tr>;

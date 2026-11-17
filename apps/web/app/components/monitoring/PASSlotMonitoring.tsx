@@ -281,7 +281,7 @@ export default function PASSlotMonitoring({ periodId, userRole, attemptBasePath,
                             <th scope="col">Ruang</th><th scope="col">Kelas</th>
                             <th scope="col" className="monitoring-room-count">Mengerjakan</th>
                             <th scope="col" className="monitoring-room-count">Selesai</th>
-                            <th scope="col" className="monitoring-room-count">Belum masuk</th>
+                            <th scope="col" className="monitoring-room-count">Belum mulai</th>
                             <th scope="col">Pengawas</th><th scope="col"><span className="sr-only">Tindakan</span></th>
                         </tr></thead>
                         <tbody>{group.slots.map(slot => <SlotRow key={slot.key} slot={slot} onSelect={() => setSelectedKey(slot.key)} />)}</tbody>
