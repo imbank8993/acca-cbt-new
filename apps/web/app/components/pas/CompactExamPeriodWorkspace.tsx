@@ -42,21 +42,25 @@ export function CompactExamPeriodHeader({ period, schedules, activeTab, onTabCha
             <div className="cp-hero-main">
                 <span className="cp-hero-icon" aria-hidden="true"><FolderOpen size={22} /></span>
                 <div className="cp-title">
+                    {/* HP: jenis asesmen tampil sebagai label kecil di samping ikon, di atas judul. */}
+                    <span className="cp-eyebrow">{semesterAssessmentLabel(period.type, true)}</span>
                     <h1>{period.name}</h1>
                     <div className="cp-context">
                         <span className="cp-type">{semesterAssessmentLabel(period.type, true)}</span>
                         <span className="cp-chip"><CalendarDays size={13} aria-hidden="true" />{formatDate(period.start_date)}–{formatDate(period.end_date)}</span>
-                        <span className="cp-chip"><GraduationCap size={13} aria-hidden="true" />{period.school_year} · Semester {period.semester === 'genap' ? 'Genap' : 'Ganjil'}</span>
+                        <span className="cp-chip"><GraduationCap size={13} aria-hidden="true" />
+                            <span className="cp-label-full">{period.school_year} · Semester {period.semester === 'genap' ? 'Genap' : 'Ganjil'}</span>
+                            <span className="cp-label-short">{period.semester === 'genap' ? 'Genap' : 'Ganjil'} {period.school_year}</span></span>
                         {period.is_locked && <span className="cp-chip cp-locked"><Lock size={12} aria-hidden="true" />Terkunci</span>}
                     </div>
                 </div>
             </div>
             <div className="cp-heading-actions">
                 {period.canShare && <CollaborationButton type="period" resourceId={period.id} collaboratorCount={period.collaboratorCount} onChanged={onAccessChanged} />}
-                <Button variant="outline" size="sm" disabled={(period.is_locked || period.canManage === false)} onClick={onSettings} leftIcon={<Settings2 size={15} />}>Pengaturan periode</Button>
+                <Button variant="outline" size="sm" disabled={(period.is_locked || period.canManage === false)} onClick={onSettings} leftIcon={<Settings2 size={15} />}><span className="cp-label-full">Pengaturan periode</span><span className="cp-label-short">Pengaturan</span></Button>
                 {!(period.is_locked || period.canManage === false) && <>
-                    <Button variant="outline" size="sm" onClick={onBulkSchedule} leftIcon={<Layers size={15} />}>Jadwal massal</Button>
-                    <Button icon="add" size="sm" onClick={onAddSchedule}>Tambah jadwal</Button>
+                    <Button variant="outline" size="sm" onClick={onBulkSchedule} leftIcon={<Layers size={15} />}><span className="cp-label-full">Jadwal massal</span><span className="cp-label-short">Massal</span></Button>
+                    <Button icon="add" size="sm" className="cp-add-action" onClick={onAddSchedule}>Tambah jadwal</Button>
                 </>}
             </div>
         </header>

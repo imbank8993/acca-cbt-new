@@ -115,18 +115,38 @@
 }
 
 .cp-mobile-schedule-meta { display: none; }
+/* Label panjang di desktop, label pendek di HP. */
+.cp-eyebrow, .cp-label-short { display: none; }
 
 @media (max-width: 639px) {
   .exam-period-page { min-width: 0; }
+  /* Kartu judul folder di HP: label jenis + ikon kecil, judul lebar penuh, satu baris info. */
   .cp-heading { gap: 16px; margin-bottom: 14px; }
-  .cp-hero { padding: 16px; align-items: stretch; }
-  .cp-hero-icon { width: 40px; height: 40px; border-radius: 10px; }
-  .cp-hero-main { gap: 12px; }
-  .cp-title h1 { font-size: 20px; line-height: 1.4; letter-spacing: -.3px; }
-  .cp-context { gap: 8px; font-size: 12px; line-height: 1.5; }
-  .cp-heading-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; gap: 8px; }
-  .cp-heading-actions > .ui-btn { min-width: 0; min-height: 44px; padding: 8px 10px; font-size: 12px; white-space: normal; }
-  .cp-heading-actions > .ui-btn:last-child:not(:only-child) { grid-column: 1 / -1; }
+  .cp-hero { padding: 16px; align-items: stretch; background: var(--cp-panel); }
+  .cp-hero::after { display: none; }
+  .cp-hero-main { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px 10px; }
+  .cp-title { display: contents; }
+  .cp-hero-icon { grid-row: 1; grid-column: 1; width: 32px; height: 32px; border-radius: 9px; box-shadow: none; }
+  .cp-hero-icon > svg { width: 17px; height: 17px; }
+  .cp-eyebrow { display: block; grid-row: 1; grid-column: 2; color: var(--cp-blue); font-size: 11px; font-weight: 700; line-height: 1.2;
+    letter-spacing: .06em; text-transform: uppercase; }
+  .cp-title h1 { grid-column: 1 / -1; margin: 0; font-size: 22px; line-height: 1.2; font-weight: 700; letter-spacing: -.4px; }
+  .cp-context { grid-column: 1 / -1; gap: 2px 0; font-size: 13px; line-height: 1.4; font-variant-numeric: tabular-nums; }
+  .cp-context > .cp-type { display: none; }
+  .cp-chip { padding: 0; font-size: 13px; }
+  .cp-chip > svg { display: none; }
+  .cp-chip + .cp-chip::before { content: '·'; margin: 0 6px; color: var(--cp-muted); opacity: .6; }
+  .cp-label-full { display: none; }
+  .cp-label-short { display: inline; }
+
+  /* Tambah jadwal biru penuh di atas; aksi lain sama lebar, ikon di atas label. */
+  .cp-heading-actions { display: flex; flex-wrap: wrap; width: 100%; gap: 8px; }
+  .cp-heading-actions > .ui-btn { flex: 1 1 0; min-width: 0; min-height: 60px; flex-direction: column; gap: 4px !important;
+    padding: 8px 6px; border-radius: 12px !important; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .cp-heading-actions > .ui-btn > svg { width: 18px; height: 18px; margin: 0; }
+  .compact-period-header .cp-heading-actions > .cp-add-action { order: -1; flex: 1 1 100%; min-height: 48px; flex-direction: row; gap: 8px !important;
+    font-size: 14px; color: #fff; background: var(--cp-blue); border-color: var(--cp-blue); box-shadow: none; }
+  .compact-period-header .cp-heading-actions > .cp-add-action :is(i, svg) { color: #fff; }
   .cp-summary-card { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
   .cp-summary-card > div { padding: 14px 16px; }
   .cp-summary-card dt { font-size: 12px; }
