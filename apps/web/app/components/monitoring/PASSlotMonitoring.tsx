@@ -196,6 +196,8 @@ export default function PASSlotMonitoring({ periodId, userRole, attemptBasePath,
     const [date, setDate] = useState('');
     const [slots, setSlots] = useState<PASMonitoringSlot[]>([]);
     const [selectedKey, setSelectedKey] = useState<string | null>(null);
+    /** Pilihan sesi; null = otomatis (sesi berjalan/berikutnya bila hari ini, selain itu sesi pertama). */
+    const [sessionFilter, setSessionFilter] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const autoSelected = useRef(false);
@@ -238,17 +240,26 @@ export default function PASSlotMonitoring({ periodId, userRole, attemptBasePath,
 
     const selected = slots.find(slot => slot.key === selectedKey) || null;
     const sessions = useMemo(() => {
-        const groups = new Map<string, { label: string; slots: PASMonitoringSlot[] }>();
+        const groups = new Map<string, { key: string; label: string; start: string; end: string; slots: PASMonitoringSlot[] }>();
         for (const slot of slots) {
             const key = `${slot.period.id}:${slot.session.id}`;
-            if (!groups.has(key)) groups.set(key, { label: `${slot.session.name} · ${hm(slot.session.start_time)}–${hm(slot.session.end_time)}${periodId ? '' : ` · ${slot.period.name}`}`, slots: [] });
+            if (!groups.has(key)) groups.set(key, { key, label: `${slot.session.name} · ${hm(slot.session.start_time)}–${hm(slot.session.end_time)}${periodId ? '' : ` · ${slot.period.name}`}`,
+                start: hm(slot.session.start_time), end: hm(slot.session.end_time), slots: [] });
             groups.get(key)!.slots.push(slot);
         }
         return [...groups.values()];
     }, [slots, periodId]);
+    const activeSession = useMemo(() => {
+        if (sessionFilter === 'all' || (sessionFilter && sessions.some(group => group.key === sessionFilter))) return sessionFilter;
+        if (date !== schoolTodayDate(timeZone)) return sessions[0]?.key || 'all';
+        const nowTime = utcToSchoolLocalDateTime(new Date().toISOString(), timeZone).slice(11, 16);
+        return (sessions.find(group => group.start <= nowTime && nowTime < group.end)
+            || sessions.find(group => group.start > nowTime) || sessions[0])?.key || 'all';
+    }, [sessionFilter, sessions, date, timeZone]);
+    const visibleSessions = activeSession === 'all' ? sessions : sessions.filter(group => group.key === activeSession);
 
     return <div className="space-y-4">
-        {(!embedded || !selected) && <div className="flex flex-wrap items-center justify-between gap-3">
+        {(!embedded || !selected) && <div className="flex flex-wrap items-center gap-3">
             {!embedded && <div>
                 <h2 className="text-sm font-bold text-slate-900">{invigilatorView ? 'Ruang yang Saya Awasi' : 'Pelaksanaan per Ruang'}</h2>
                 <p className="mt-0.5 text-xs text-slate-500">{invigilatorView
@@ -256,8 +267,12 @@ export default function PASSlotMonitoring({ periodId, userRole, attemptBasePath,
                     : 'Pilih tanggal, lalu buka ruang untuk memantau seluruh siswanya sekaligus.'}</p>
             </div>}
             {!selected && <label className={`flex items-center gap-2 text-xs font-medium text-slate-600 ${embedded ? '' : 'ml-auto'}`}>Tanggal
-                <InlineSelect value={date} onChange={value => { setSelectedKey(null); void load(value); }} disabled={!dates.length || loading} minWidth="220px" aria-label="Tanggal ujian"
+                <InlineSelect value={date} onChange={value => { setSelectedKey(null); setSessionFilter(null); void load(value); }} disabled={!dates.length || loading} minWidth="220px" aria-label="Tanggal ujian"
                     options={dates.length ? dates.map(item => ({ value: item, label: formatSlotDate(item) })) : [{ value: '', label: 'Belum ada jadwal' }]} />
+            </label>}
+            {!selected && sessions.length > 0 && <label className="flex items-center gap-2 text-xs font-medium text-slate-600">Sesi
+                <InlineSelect value={activeSession} onChange={value => setSessionFilter(value)} disabled={loading} minWidth="200px" aria-label="Sesi ujian"
+                    options={[...(sessions.length > 1 ? [{ value: 'all', label: 'Semua sesi' }] : []), ...sessions.map(group => ({ value: group.key, label: group.label }))]} />
             </label>}
             {!selected && trailing && <div className="ml-auto">{trailing}</div>}
         </div>}
@@ -273,8 +288,9 @@ export default function PASSlotMonitoring({ periodId, userRole, attemptBasePath,
                 <p className="mt-2 text-sm font-semibold text-slate-700">{invigilatorView ? 'Tidak ada ruang yang Anda awasi pada tanggal ini' : 'Belum ada ruang terjadwal pada tanggal ini'}</p>
                 <p className="mt-1 text-xs text-slate-500">{invigilatorView ? 'Monitoring ruang hanya terbuka pada hari tugas Anda. Hubungi Proktor bila jadwal hari ini belum muncul.' : 'Pastikan jadwal sudah diaktifkan dan siswa sudah ditempatkan di ruang.'}</p>
             </div>
-            : <div className="space-y-5">{sessions.map(group => <section key={group.label} aria-label={group.label}>
-                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">{group.label}</h3>
+            : <div className="space-y-5">{visibleSessions.map(group => <section key={group.key} aria-label={group.label}>
+                {/* Judul sesi hanya saat "Semua sesi"; satu sesi sudah tertulis di filter. */}
+                {visibleSessions.length > 1 && <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">{group.label}</h3>}
                 <div className="monitoring-room-table-wrap" role="region" aria-label={`Daftar ruang ${group.label}`} tabIndex={0}>
                     <table className="mobile-data-cards monitoring-room-table">
                         <thead><tr>
