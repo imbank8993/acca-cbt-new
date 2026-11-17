@@ -98,9 +98,12 @@
 }
 
 .create-exam-modal .create-exam-modal__body {
-  gap: 10px !important;
-  padding: 12px 18px !important;
+  gap: 12px !important;
+  padding: 16px 18px !important;
+  /* Latar abu lembut agar kartu bagian bernomor (putih) terlihat terpisah. */
+  background: #f8fafc;
 }
+.dark .create-exam-modal .create-exam-modal__body { background: transparent; }
 
 /* Jenis modal ditandai warna garis tepi panel — tipis, mengelilingi semua sisi.
    Warnanya ikut dipakai ikon judul di header supaya keduanya senada. */

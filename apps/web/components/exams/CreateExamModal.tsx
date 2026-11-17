@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { availableStudentScoreTypes, studentScoreType, STUDENT_SCORE_LABELS, type StudentScoreType } from '@acca-cbt/shared';
 import {
     AlertCircle,
+    ChevronDown,
     FileText,
     FolderOpen,
     Globe,
@@ -160,6 +161,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
     const [timeZone, setTimeZone] = useState(DEFAULT_SCHOOL_TIME_ZONE);
     const [localClassStudents, setLocalClassStudents] = useState<Record<string, ClassStudent[]>>(classStudents);
     const [isAssignPickerOpen, setIsAssignPickerOpen] = useState(false);
+    const [advancedOpen, setAdvancedOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isLoadingAssignments, setIsLoadingAssignments] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -634,6 +636,17 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
         }
     };
 
+    const showBankFields = !isFolderExamCategory(formData.examType) && formData.examType !== 'assignment';
+    const advancedSummary = [
+        formData.scoringTypes.length === 1
+            ? SCORING_OPTIONS.find((opt) => opt.value === formData.scoringTypes[0])?.label || '1 sistem penilaian'
+            : formData.scoringTypes.length ? `${formData.scoringTypes.length} sistem penilaian` : 'Sistem penilaian belum dipilih',
+        formData.randomizeQuestions || formData.randomizeOptions ? 'Diacak' : 'Urut',
+        formData.showResults ? 'Nilai ditampilkan' : 'Nilai disembunyikan',
+        ...(formData.isSafeMode ? ['Mode aman'] : []),
+        ...(formData.screenshotEnabled ? ['Screenshot pelanggaran'] : []),
+    ];
+
     if (!isOpen) return null;
 
     return (
@@ -663,8 +676,9 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                         </div>
                     )}
 
-                    {/* Detail utama */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {isPasFolderCreate ? (
+                        <FormSection step={1} title="Folder ujian" description="Folder menampung jadwal bank soal; nama folder menjadi nama ujian di halaman siswa.">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <ModalField label="Jenis Ujian" required>
                             <InlineSelect
                                 options={examTypeOptions}
@@ -680,65 +694,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                 }}
                             />
                         </ModalField>
-                        {/* ASAS dan ASAT satu jenis ("ASAS/ASAT"), jadi tidak ada lagi
-                            pilihan kategori terpisah saat membuat folder. */}
-                        {isPasFolderCreate ? null : (
-                            <ModalField label="Sistem Penilaian" required>
-                                <MultiSelect
-                                    options={SCORING_OPTIONS.map((opt) => ({
-                                        value: opt.value,
-                                        label: opt.label,
-                                    }))}
-                                    value={formData.scoringTypes}
-                                    onChange={(selectedVals) => {
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            scoringTypes: selectedVals,
-                                            studentScoreType: !prev.scoringTypes.some(type => type.startsWith('irt_')) && selectedVals.some(type => type.startsWith('irt_'))
-                                                ? studentScoreType({ scoring_type: selectedVals.join(',') })
-                                                : availableStudentScoreTypes(selectedVals.join(',')).includes(prev.studentScoreType)
-                                                ? prev.studentScoreType : studentScoreType({ scoring_type: selectedVals.join(',') }),
-                                        }));
-                                    }}
-                                    placeholder="Pilih Sistem Penilaian..."
-                                    allSelectedText="Semua Terpilih"
-                                />
-                            </ModalField>
-                        )}
-                    </div>
-
-                    {!isPasFolderCreate && (
-                        <ModalField label="Skor Benar-Salah & Kategorisasi"
-                            hint={<>
-                                <strong className="font-semibold text-slate-700">{COMPLEX_SCORING_CHOICES.find(choice => choice.value === formData.complexScoringRule)?.label}:</strong>{' '}
-                                {COMPLEX_SCORING_CHOICES.find(choice => choice.value === formData.complexScoringRule)?.hint}{' '}
-                                Tidak dapat diubah lagi setelah ada siswa yang mengerjakan.
-                            </>}>
-                            <InlineSelect
-                                options={COMPLEX_SCORING_CHOICES.map(({ value, label }) => ({ value, label }))}
-                                value={formData.complexScoringRule}
-                                onChange={(value) => setFormData((prev) => ({ ...prev, complexScoringRule: value as PASComplexScoringRule }))}
-                            />
-                        </ModalField>
-                    )}
-
-                    {!isPasFolderCreate && (
-                        <ModalField label="Skor Menjodohkan"
-                            hint={<>
-                                <strong className="font-semibold text-slate-700">{MATCHING_SCORING_CHOICES.find(choice => choice.value === formData.matchingScoringRule)?.label}:</strong>{' '}
-                                {MATCHING_SCORING_CHOICES.find(choice => choice.value === formData.matchingScoringRule)?.hint}{' '}
-                                Tidak dapat diubah lagi setelah ada siswa yang mengerjakan.
-                            </>}>
-                            <InlineSelect
-                                options={MATCHING_SCORING_CHOICES.map(({ value, label }) => ({ value, label }))}
-                                value={formData.matchingScoringRule}
-                                onChange={(value) => setFormData((prev) => ({ ...prev, matchingScoringRule: value as PASComplexScoringRule }))}
-                            />
-                        </ModalField>
-                    )}
-
-                    {isPasFolderCreate ? (
-                        <>
+                            </div>
                             <div className="p-3.5 bg-blue-50/80 border border-blue-200 rounded-xl flex items-start gap-3">
                                 <FolderOpen size={18} className="text-[#3083FF] shrink-0 mt-0.5" />
                                 <div className="text-xs text-slate-700 leading-relaxed">
@@ -800,34 +756,28 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                     />
                                 </ModalField>
                             </div>
-                        </>
+                        </FormSection>
                     ) : (
                         <>
-                    {/* Identitas ujian */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <ModalField label={`Judul ${formData.examType === 'assignment' ? 'Tugas' : 'Ujian'}`} required>
-                            <input
-                                required
-                                type="text"
-                                placeholder={formData.examType === 'assignment' ? 'Contoh: Tugas Matematika' : 'Contoh: UTS Matematika'}
-                                maxLength={200}
-                                value={formData.title}
-                                onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
-                            />
-                        </ModalField>
-                        <ModalField label="Deskripsi">
-                            <input
-                                type="text"
-                                placeholder="Deskripsi singkat (opsional)..."
-                                value={formData.description}
-                                onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
-                            />
-                        </ModalField>
-                    </div>
-
-                    {/* Bank Soal & Durasi (Jika bukan PAS dan bukan Assignment) */}
-                    {!isFolderExamCategory(formData.examType) && formData.examType !== 'assignment' && (
+                    <FormSection step={1} title={formData.examType === 'assignment' ? 'Tugas & identitas' : 'Soal & identitas'}
+                        description={showBankFields ? 'Pilih jenis ujian dan bank soal, lalu beri nama ujian.' : 'Pilih jenis, lalu beri nama dan deskripsi singkat.'}>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <ModalField label="Jenis Ujian" required>
+                            <InlineSelect
+                                options={examTypeOptions}
+                                value={formData.examType}
+                                onChange={(val) => {
+                                    const nextType = val as ExamType;
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        examType: nextType,
+                                        isPublic: nextType === 'lainnya' ? prev.isPublic : false,
+                                        requireBank: nextType === 'assignment' ? prev.requireBank : true,
+                                    }));
+                                }}
+                            />
+                        </ModalField>
+                            {showBankFields && (
                             <ModalField
                                 label="Bank Soal"
                                 required={!isEdit}
@@ -870,98 +820,28 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                     />
                                 )}
                             </ModalField>
-                            <ModalField label="Durasi (Menit)" required>
-                                <input
-                                    required
-                                    type="number"
-                                    min="5"
-                                    max="300"
-                                    value={formData.duration}
-                                    onChange={(e) => handleDurationChange(e.target.value)}
-                                />
-                            </ModalField>
+                            )}
                         </div>
-                    )}
-
-                    {/* Waktu Pelaksanaan */}
-                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 flex flex-col gap-2.5">
-                        <label className="flex items-center gap-2 cursor-pointer w-max select-none">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <ModalField label={`Judul ${formData.examType === 'assignment' ? 'Tugas' : 'Ujian'}`} required>
                             <input
-                                type="checkbox"
-                                checked={formData.isForever}
-                                onChange={(e) =>
-                                    setFormData((prev) => ({
-                                        ...prev,
-                                        isForever: e.target.checked,
-                                        startTime: e.target.checked ? '' : prev.startTime,
-                                        endTime: e.target.checked ? '' : prev.endTime,
-                                    }))
-                                }
-                                className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20"
+                                required
+                                type="text"
+                                placeholder={formData.examType === 'assignment' ? 'Contoh: Tugas Matematika' : 'Contoh: UTS Matematika'}
+                                maxLength={200}
+                                value={formData.title}
+                                onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
                             />
-                            <span className="text-xs font-semibold text-slate-700">Berlaku Terus Tanpa Batas Waktu</span>
-                        </label>
-                        {!formData.isForever && (
-                            <>
-                                <div className={`grid ${formData.examType === 'assignment' ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'} gap-3 mt-1`}>
-                                    {formData.examType !== 'assignment' && (
-                                        <ModalField label={`Waktu Mulai (${getSchoolTimeZoneLabel(timeZone)})`} required={!formData.isForever}>
-                                            <DateTimePicker
-                                                timeInputMode="text"
-                                                value={formData.startTime}
-                                                onChange={handleStartTimeChange}
-                                                label="Waktu Mulai"
-                                                required={!formData.isForever}
-                                                defaultTime="08:00"
-                                                timeZone={timeZone}
-                                            />
-                                        </ModalField>
-                                    )}
-                                    <ModalField
-                                        label={`${formData.examType === 'assignment' ? 'Batas Waktu Pengumpulan' : 'Waktu Selesai'} (${getSchoolTimeZoneLabel(timeZone)})`}
-                                        required={!formData.isForever}
-                                    >
-                                        <DateTimePicker
-                                            timeInputMode="text"
-                                            value={formData.endTime}
-                                            onChange={(val) => setFormData((prev) => ({ ...prev, endTime: val }))}
-                                            label={formData.examType === 'assignment' ? 'Batas Waktu' : 'Waktu Selesai'}
-                                            required={!formData.isForever}
-                                            minDate={formData.startTime ? formData.startTime.slice(0, 10) : undefined}
-                                            defaultTime={
-                                                formData.startTime
-                                                    ? addMinutesToLocalDateTime(formData.startTime, Number(formData.duration) || 60).slice(11, 16) || '09:00'
-                                                    : '09:00'
-                                            }
-                                            timeZone={timeZone}
-                                        />
-                                    </ModalField>
-                                </div>
-                                {formData.examType !== 'assignment' && formData.startTime && formData.endTime && formData.startTime >= formData.endTime && (
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 mt-1">
-                                        <span className="flex items-center gap-1.5 font-medium">
-                                            <AlertCircle size={14} className="text-amber-600 shrink-0" />
-                                            Waktu Selesai harus lebih lambat dari Waktu Mulai.
-                                        </span>
-                                        <button
-                                            type="button"
-                                            className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 bg-white px-2.5 py-1 rounded border border-blue-200 shadow-xs cursor-pointer w-fit"
-                                            onClick={() => {
-                                                const dur = typeof formData.duration === 'number' ? formData.duration : (parseInt(String(formData.duration), 10) || 60);
-                                                setFormData((prev) => ({
-                                                    ...prev,
-                                                    endTime: addMinutesToLocalDateTime(prev.startTime, Math.max(5, dur)),
-                                                }));
-                                            }}
-                                        >
-                                            Sesuaikan Otomatis (+{formData.duration || 60} Menit)
-                                        </button>
-                                    </div>
-                                )}
-                            </>
-                        )}
+                        </ModalField>
+                        <ModalField label="Deskripsi">
+                            <input
+                                type="text"
+                                placeholder="Deskripsi singkat (opsional)..."
+                                value={formData.description}
+                                onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+                            />
+                        </ModalField>
                     </div>
-
                     {/* Panel Pengaturan Tugas */}
                     {formData.examType === 'assignment' && (
                         <div className="bg-amber-50/60 p-3.5 rounded-xl border border-amber-200/80 flex flex-col gap-3.5">
@@ -1113,17 +993,116 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                             </div>
                         </div>
                     )}
+                    </FormSection>
 
-                    {/* ─── Peserta & Kelas Sasaran ─── */}
-                    <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 flex flex-col gap-3">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <Users size={16} className="text-[#3083FF]" />
-                                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                                    Peserta & Kelas Sasaran
-                                </h4>
-                            </div>
-                            {formData.examType === 'lainnya' && (
+                    <FormSection step={2} title="Jadwal" description={showBankFields ? 'Atur durasi pengerjaan dan rentang waktu ujian dapat dibuka.' : 'Atur rentang waktu pelaksanaan.'}>
+                        {showBankFields && (
+                            <ModalField label="Durasi (Menit)" required>
+                                <div className="flex flex-col gap-2 sm:max-w-[50%]">
+                                <input
+                                    required
+                                    type="number"
+                                    min="5"
+                                    max="300"
+                                    value={formData.duration}
+                                    onChange={(e) => handleDurationChange(e.target.value)}
+                                />
+                                    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Pilihan durasi cepat">
+                                        {DURATION_PRESETS.map((minutes) => {
+                                            const active = Number(formData.duration) === minutes;
+                                            return (
+                                                <button key={minutes} type="button" aria-pressed={active} onClick={() => handleDurationChange(minutes)}
+                                                    className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${active ? 'border-[#1E40AF] bg-[#1E40AF] text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'}`}>
+                                                    {minutes} mnt
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </ModalField>
+                        )}
+                    {/* Waktu Pelaksanaan */}
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 flex flex-col gap-2.5">
+                        <label className="flex items-center gap-2 cursor-pointer w-max select-none">
+                            <input
+                                type="checkbox"
+                                checked={formData.isForever}
+                                onChange={(e) =>
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        isForever: e.target.checked,
+                                        startTime: e.target.checked ? '' : prev.startTime,
+                                        endTime: e.target.checked ? '' : prev.endTime,
+                                    }))
+                                }
+                                className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20"
+                            />
+                            <span className="text-xs font-semibold text-slate-700">Berlaku Terus Tanpa Batas Waktu</span>
+                        </label>
+                        {!formData.isForever && (
+                            <>
+                                <div className={`grid ${formData.examType === 'assignment' ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'} gap-3 mt-1`}>
+                                    {formData.examType !== 'assignment' && (
+                                        <ModalField label={`Waktu Mulai (${getSchoolTimeZoneLabel(timeZone)})`} required={!formData.isForever}>
+                                            <DateTimePicker
+                                                timeInputMode="text"
+                                                value={formData.startTime}
+                                                onChange={handleStartTimeChange}
+                                                label="Waktu Mulai"
+                                                required={!formData.isForever}
+                                                defaultTime="08:00"
+                                                timeZone={timeZone}
+                                            />
+                                        </ModalField>
+                                    )}
+                                    <ModalField
+                                        label={`${formData.examType === 'assignment' ? 'Batas Waktu Pengumpulan' : 'Waktu Selesai'} (${getSchoolTimeZoneLabel(timeZone)})`}
+                                        required={!formData.isForever}
+                                    >
+                                        <DateTimePicker
+                                            timeInputMode="text"
+                                            value={formData.endTime}
+                                            onChange={(val) => setFormData((prev) => ({ ...prev, endTime: val }))}
+                                            label={formData.examType === 'assignment' ? 'Batas Waktu' : 'Waktu Selesai'}
+                                            required={!formData.isForever}
+                                            minDate={formData.startTime ? formData.startTime.slice(0, 10) : undefined}
+                                            defaultTime={
+                                                formData.startTime
+                                                    ? addMinutesToLocalDateTime(formData.startTime, Number(formData.duration) || 60).slice(11, 16) || '09:00'
+                                                    : '09:00'
+                                            }
+                                            timeZone={timeZone}
+                                        />
+                                    </ModalField>
+                                </div>
+                                {formData.examType !== 'assignment' && formData.startTime && formData.endTime && formData.startTime >= formData.endTime && (
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 mt-1">
+                                        <span className="flex items-center gap-1.5 font-medium">
+                                            <AlertCircle size={14} className="text-amber-600 shrink-0" />
+                                            Waktu Selesai harus lebih lambat dari Waktu Mulai.
+                                        </span>
+                                        <button
+                                            type="button"
+                                            className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 bg-white px-2.5 py-1 rounded border border-blue-200 shadow-xs cursor-pointer w-fit"
+                                            onClick={() => {
+                                                const dur = typeof formData.duration === 'number' ? formData.duration : (parseInt(String(formData.duration), 10) || 60);
+                                                setFormData((prev) => ({
+                                                    ...prev,
+                                                    endTime: addMinutesToLocalDateTime(prev.startTime, Math.max(5, dur)),
+                                                }));
+                                            }}
+                                        >
+                                            Sesuaikan Otomatis (+{formData.duration || 60} Menit)
+                                        </button>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+                    </FormSection>
+
+                    <FormSection step={3} title="Peserta" description={`Tentukan kelas atau siswa yang mengikuti ${formData.examType === 'assignment' ? 'tugas' : 'ujian'} ini.`}
+                        aside={formData.examType === 'lainnya' ? (
                                 <label className="flex items-center gap-2 cursor-pointer select-none">
                                     <input
                                         type="checkbox"
@@ -1141,9 +1120,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                         Ujian Umum (Semua Siswa)
                                     </span>
                                 </label>
-                            )}
-                        </div>
-
+                        ) : undefined}>
                         {formData.isPublic ? (
                             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 flex items-center gap-2">
                                 <Globe size={16} className="shrink-0" />
@@ -1219,10 +1196,75 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                 </Button>
                             </div>
                         )}
-                    </div>
+                    </FormSection>
 
+                    {/* Pengaturan yang jarang diubah: tertutup, ringkasannya tampil sebagai label. */}
+                    <details className="cem-advanced group rounded-xl border border-slate-200 bg-white"
+                        open={advancedOpen || formData.scoringTypes.length === 0}
+                        onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}>
+                        <summary className="flex cursor-pointer list-none items-start gap-3 p-4 sm:px-5 [&::-webkit-details-marker]:hidden">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Settings size={17} aria-hidden="true" /></span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-semibold text-slate-900">Pengaturan lanjutan</span>
+                                <span className="mt-1.5 flex flex-wrap gap-1.5">
+                                    {advancedSummary.map((item) => <span key={item} className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">{item}</span>)}
+                                </span>
+                            </span>
+                            <ChevronDown size={18} aria-hidden="true" className="mt-2 shrink-0 text-slate-400 transition-transform group-open:rotate-180" />
+                        </summary>
+                        <div className="flex flex-col gap-4 border-t border-slate-100 p-4 sm:px-5">
+                            <ModalField label="Sistem Penilaian" required>
+                                <MultiSelect
+                                    options={SCORING_OPTIONS.map((opt) => ({
+                                        value: opt.value,
+                                        label: opt.label,
+                                    }))}
+                                    value={formData.scoringTypes}
+                                    onChange={(selectedVals) => {
+                                        setFormData((prev) => ({
+                                            ...prev,
+                                            scoringTypes: selectedVals,
+                                            studentScoreType: !prev.scoringTypes.some(type => type.startsWith('irt_')) && selectedVals.some(type => type.startsWith('irt_'))
+                                                ? studentScoreType({ scoring_type: selectedVals.join(',') })
+                                                : availableStudentScoreTypes(selectedVals.join(',')).includes(prev.studentScoreType)
+                                                ? prev.studentScoreType : studentScoreType({ scoring_type: selectedVals.join(',') }),
+                                        }));
+                                    }}
+                                    placeholder="Pilih Sistem Penilaian..."
+                                    allSelectedText="Semua Terpilih"
+                                />
+                            </ModalField>
+                    {!isPasFolderCreate && (
+                        <ModalField label="Skor Benar-Salah & Kategorisasi"
+                            hint={<>
+                                <strong className="font-semibold text-slate-700">{COMPLEX_SCORING_CHOICES.find(choice => choice.value === formData.complexScoringRule)?.label}:</strong>{' '}
+                                {COMPLEX_SCORING_CHOICES.find(choice => choice.value === formData.complexScoringRule)?.hint}{' '}
+                                Tidak dapat diubah lagi setelah ada siswa yang mengerjakan.
+                            </>}>
+                            <InlineSelect
+                                options={COMPLEX_SCORING_CHOICES.map(({ value, label }) => ({ value, label }))}
+                                value={formData.complexScoringRule}
+                                onChange={(value) => setFormData((prev) => ({ ...prev, complexScoringRule: value as PASComplexScoringRule }))}
+                            />
+                        </ModalField>
+                    )}
+
+                    {!isPasFolderCreate && (
+                        <ModalField label="Skor Menjodohkan"
+                            hint={<>
+                                <strong className="font-semibold text-slate-700">{MATCHING_SCORING_CHOICES.find(choice => choice.value === formData.matchingScoringRule)?.label}:</strong>{' '}
+                                {MATCHING_SCORING_CHOICES.find(choice => choice.value === formData.matchingScoringRule)?.hint}{' '}
+                                Tidak dapat diubah lagi setelah ada siswa yang mengerjakan.
+                            </>}>
+                            <InlineSelect
+                                options={MATCHING_SCORING_CHOICES.map(({ value, label }) => ({ value, label }))}
+                                value={formData.matchingScoringRule}
+                                onChange={(value) => setFormData((prev) => ({ ...prev, matchingScoringRule: value as PASComplexScoringRule }))}
+                            />
+                        </ModalField>
+                    )}
                     {/* Opsi Pengaturan Tambahan */}
-                    <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-4">
+                    <div className="space-y-4">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                             <fieldset className="space-y-2.5">
                                 <legend className="mb-2 text-xs font-semibold text-slate-500">Pengacakan</legend>
@@ -1336,9 +1378,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                         )}
                         </div>
                     </div>
-                        </>
-                    )}
-                    {!isPasFolderCreate && <div className="border-t border-slate-100 pt-4">
+                    <div className="border-t border-slate-100 pt-4">
                         <label className="flex items-start gap-2 cursor-pointer text-sm text-slate-700">
                             <input type="checkbox" checked={formData.screenshotEnabled}
                                 onChange={e => setFormData(prev => ({ ...prev, screenshotEnabled: e.target.checked }))}
@@ -1347,9 +1387,19 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                 <span className="mt-1 block text-xs text-slate-500">Siswa wajib berbagi layar penuh. Hanya kejadian tertentu yang disimpan, maksimal 10 gambar per peserta; gambar dihapus setelah 7 hari.</span>
                             </span>
                         </label>
-                    </div>}
+                    </div>
+                        </div>
+                    </details>
+                        </>
+                    )}
                 </ModalBody>
-                <ModalFooter>
+                <ModalFooter align={!isEdit && !isPasFolderCreate ? 'between' : 'end'}>
+                    {!isEdit && !isPasFolderCreate && (
+                        <p className="hidden text-xs text-slate-500 sm:block">
+                            {formData.examType === 'assignment' ? 'Tugas' : 'Ujian'} disimpan sebagai draf dan bisa diterbitkan dari daftar ujian.
+                        </p>
+                    )}
+                    <div className="ml-auto flex items-center gap-2">
                     <Button
                         type="button"
                         variant="cancel"
@@ -1372,6 +1422,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                             ? 'Simpan Perubahan'
                             : 'Simpan sebagai Draft'}
                     </Button>
+                    </div>
                 </ModalFooter>
             </form>
         </Modal>
@@ -1408,4 +1459,27 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
 };
 
 export const ExamFormModal = CreateExamModal;
+
+const DURATION_PRESETS = [30, 60, 90, 120];
+
+/** Kartu bagian bernomor di modal Buat/Edit Ujian. */
+function FormSection({ step, title, description, aside, children }: {
+    step: number; title: string; description?: string; aside?: React.ReactNode; children: React.ReactNode;
+}) {
+    return (
+        <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5" aria-labelledby={`exam-form-step-${step}`}>
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <div className="flex min-w-0 items-start gap-3">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1E40AF] text-sm font-bold text-white" aria-hidden="true">{step}</span>
+                    <div className="min-w-0">
+                        <h3 id={`exam-form-step-${step}`} className="text-[15px] font-semibold leading-tight text-slate-900">{title}</h3>
+                        {description && <p className="mt-1 text-xs leading-relaxed text-slate-500">{description}</p>}
+                    </div>
+                </div>
+                {aside && <div className="shrink-0">{aside}</div>}
+            </div>
+            <div className="flex flex-col gap-3">{children}</div>
+        </section>
+    );
+}
 export default CreateExamModal;
