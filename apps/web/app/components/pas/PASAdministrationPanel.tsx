@@ -48,9 +48,10 @@ import { formatKopParts, KOP_AND_A4_CSS, renderKopHTML, type ProfilSekolah } fro
 import { drawPdfKop } from '@/lib/pas/pdf-kop';
 import { loadKopLogo } from '@/lib/school-logo';
 import { useKopLogo } from '@/lib/useKopLogo';
-import { generateQrMatrix, generateQrSvgDataUrl } from '@/lib/pas/qr-svg';
+import { generateQrSvgDataUrl, renderQrPngDataUrl } from '@/lib/pas/qr-svg';
 import { schoolTodayDate } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 
 export interface PASAdministrationPanelProps {
     period: {
@@ -188,34 +189,6 @@ function statusLabel(status: PASAttendanceStatus): string {
         case 'alpha':
             return 'Alpha';
     }
-}
-
-function renderQrPngDataUrl(text: string, pixelSize = 240, margin = 2): string {
-    const matrix = generateQrMatrix(text);
-    const size = matrix.length;
-    const totalModules = size + margin * 2;
-    const canvas = document.createElement('canvas');
-    canvas.width = pixelSize;
-    canvas.height = pixelSize;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return '';
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, pixelSize, pixelSize);
-    ctx.fillStyle = '#0f172a';
-    const scale = pixelSize / totalModules;
-    for (let r = 0; r < size; r++) {
-        for (let c = 0; c < size; c++) {
-            if (matrix[r][c]) {
-                ctx.fillRect(
-                    Math.floor((c + margin) * scale),
-                    Math.floor((r + margin) * scale),
-                    Math.ceil(scale),
-                    Math.ceil(scale),
-                );
-            }
-        }
-    }
-    return canvas.toDataURL('image/png');
 }
 
 function escapeHtml(value: string | null | undefined): string {
@@ -374,6 +347,36 @@ export default function PASAdministrationPanel({
             loadRequestRef.current += 1;
         };
     }, [loadSlot]);
+
+    // Daftar hadir dibuka saat ujian masih berjalan: tanpa penyegaran, siswa yang
+    // selesai setelah panel dibuka tetap "Sedang mengerjakan" tanpa waktu selesai.
+    // Hanya waktu & status pengerjaan yang diperbarui; isian kehadiran, keterangan,
+    // dan catatan yang belum disimpan tidak ditimpa.
+    const refreshAttemptTimes = useCallback(async () => {
+        if (!period.id || !selectedRoomId || !selectedSessionId || isLoading) return;
+        const reqId = loadRequestRef.current;
+        try {
+            const data = await getPASAdministrationSlot({
+                periodId: period.id,
+                roomId: selectedRoomId,
+                sessionId: selectedSessionId,
+                examDate: selectedDate || undefined,
+            });
+            if (reqId !== loadRequestRef.current) return;
+            setSlot((prev) => prev && prev.room.id === data.room.id && prev.session.id === data.session.id
+                && prev.exam_date === data.exam_date ? { ...prev, students: data.students } : prev);
+            setAttendanceMap((prev) => {
+                const next = { ...prev };
+                for (const st of data.students) {
+                    if (!next[st.user_id]) next[st.user_id] = { status: st.attendance_status || 'hadir', remark: st.remark || '' };
+                }
+                return next;
+            });
+        } catch {
+            /* Penyegaran latar: kegagalan sesaat tidak perlu mengganggu pengawas. */
+        }
+    }, [isLoading, period.id, selectedDate, selectedRoomId, selectedSessionId]);
+    useAutoRefresh(() => void refreshAttemptTimes(), 30_000);
 
     const loadOverview = useCallback(async () => {
         if (!period.id) return;
@@ -1068,7 +1071,7 @@ ${KOP_AND_A4_CSS}
                 ? currentSlot.report.verification_code
                 : currentSlot.report.attendance_verification_code;
         const verifyUrl = getVerificationUrl(code);
-        const qrPngUrl = renderQrPngDataUrl(verifyUrl, 240, 1);
+        const qrPngUrl = renderQrPngDataUrl(verifyUrl, 480, 1);
         const dateLong = formatIndonesianLongDate(currentSlot.exam_date);
         const sessionTime = `${currentSlot.session.start_time.substring(0, 5)} - ${currentSlot.session.end_time.substring(0, 5)}`;
         const signedAtText = formatSignedTimestamp(currentSlot.report.signed_at || new Date().toISOString(), timeZone);
@@ -1314,7 +1317,8 @@ ${KOP_AND_A4_CSS}
         });
 
         // Right-side QR Verification Block (.verify-wrap)
-        const qrBoxSize = 18;
+        // QR level H berlogo lebih rapat dari sebelumnya: 20 mm menjaga modul ~0,33 mm.
+        const qrBoxSize = 20;
         const qrCenterX = pageW - marginRight - 22;
         if (qrPngUrl) {
             pdf.addImage(qrPngUrl, 'PNG', qrCenterX - qrBoxSize / 2, footerTopY - 3, qrBoxSize, qrBoxSize);
@@ -1847,9 +1851,8 @@ ${KOP_AND_A4_CSS}
                                                     </td>
                                                     <td className="py-2.5 px-3">
                                                         <div className="font-bold text-slate-800">{st.full_name}</div>
-                                                        <div className="text-[11px] text-slate-500">
-                                                            NISN: {st.identity_number || '-'} · <span className="font-medium text-slate-700">{st.class_name}</span>
-                                                        </div>
+                                                        <div className="text-[11px] text-slate-500">NISN: {st.identity_number || '-'}</div>
+                                                        <div className="text-[11px] font-medium text-slate-700">{st.class_name}</div>
                                                     </td>
                                                     <td data-label="Waktu ujian" className="py-2.5 px-3">
                                                         <div className="pas-attendance-time inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 font-mono text-xs font-semibold text-slate-800">
@@ -1857,7 +1860,8 @@ ${KOP_AND_A4_CSS}
                                                             <span>{startTime === '-' ? 'Belum mulai' : `${startTime} – ${endTime === '-' ? '…' : endTime}`}</span>
                                                         </div>
                                                         <div className="pas-attendance-time-status mt-1 text-[10px] text-slate-500">
-                                                            {st.attempt_status === 'finished' || st.attempt_status === 'selesai'
+                                                            {/* Status asli pengerjaan: submitted/auto_submitted = sudah dikumpulkan. */}
+                                                            {['submitted', 'auto_submitted', 'finished', 'selesai'].includes(st.attempt_status || '') || st.finished_at
                                                                 ? 'Selesai mengerjakan'
                                                                 : st.attempt_status === 'in_progress' || st.attempt_status === 'sedang'
                                                                   ? 'Sedang mengerjakan'
@@ -1868,24 +1872,27 @@ ${KOP_AND_A4_CSS}
                                                         <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50 gap-0.5">
                                                             {(
                                                                 [
-                                                                    { id: 'hadir', label: 'Hadir', activeCls: 'bg-emerald-600 text-white' },
-                                                                    { id: 'sakit', label: 'Sakit', activeCls: 'bg-amber-500 text-white' },
-                                                                    { id: 'izin', label: 'Izin', activeCls: 'bg-blue-600 text-white' },
-                                                                    { id: 'alpha', label: 'Alpha', activeCls: 'bg-red-600 text-white' },
+                                                                    { id: 'hadir', short: 'H', label: 'Hadir', activeCls: 'bg-emerald-600 text-white' },
+                                                                    { id: 'sakit', short: 'S', label: 'Sakit', activeCls: 'bg-amber-500 text-white' },
+                                                                    { id: 'izin', short: 'I', label: 'Izin', activeCls: 'bg-blue-600 text-white' },
+                                                                    { id: 'alpha', short: 'A', label: 'Alpha', activeCls: 'bg-red-600 text-white' },
                                                                 ] as const
                                                             ).map((opt) => (
+                                                                // Huruf saja agar ringkas; nama lengkap lewat title & aria-label.
                                                                 <button
                                                                     key={opt.id}
                                                                     type="button"
                                                                     aria-pressed={currentStatus === opt.id}
+                                                                    aria-label={opt.label}
+                                                                    title={opt.label}
                                                                     onClick={() => updateStudentStatus(st.user_id, opt.id)}
-                                                                    className={`px-2 py-1 rounded-md text-[11px] font-bold transition-all ${
+                                                                    className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-xs font-bold transition-all ${
                                                                         currentStatus === opt.id
                                                                             ? opt.activeCls
                                                                             : 'text-slate-600 hover:bg-slate-200/70'
                                                                     }`}
                                                                 >
-                                                                    {opt.label}
+                                                                    {opt.short}
                                                                 </button>
                                                             ))}
                                                         </div>

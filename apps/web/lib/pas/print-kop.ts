@@ -181,7 +181,8 @@ export const KOP_AND_A4_CSS = `
   .ttd-table td:last-child { overflow-wrap: anywhere; }
   .ttd-nip { font-size: 8.5pt; color: #555; }
   .verify-wrap { display: flex; flex-direction: column; align-items: center; text-align: center; margin-top: 0; margin-left: 20px; gap: 2px; flex-shrink: 0; }
-  .verify-qr { width: 64px; height: 64px; display: block; }
+  /* QR level H berlogo lebih rapat: 72px (~19 mm) menjaga modul tetap mudah dipindai. */
+  .verify-qr { width: 72px; height: 72px; display: block; }
   .verify-label { font-size: 7pt; color: #555; text-align: center; }
   .verify-id { font-family: 'Courier New', monospace; font-size: 6.5pt; color: #777; letter-spacing: 0.5px; text-align: center; }
   .pending-note { margin-top: 22px; padding: 10px 14px; border: 1px dashed #cbd5e1; border-radius: 6px; font-size: 9pt; color: #64748b; text-align: center; font-style: italic; }

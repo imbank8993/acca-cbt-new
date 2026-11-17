@@ -187,6 +187,26 @@ test('ADMIN-06: QR Code SVG generator menghasilkan matriks dan data URL SVG yang
     assert.match(dataUrl, /^data:image\/svg\+xml;utf8,/);
 });
 
+test('ADMIN-06b: QR dokumen memakai koreksi galat level H, logo ACCA di tengah, dan URL tidak pernah dipotong', () => {
+    const url = 'https://cbt.icgowa.sch.id/verify/BA-PAS-20261117-A1B2C3D4E5F60718293A4B5C6D7E8F90';
+    const matrix = generateQrMatrix(url);
+    const size = matrix.length;
+    // Bit format level H + mask 0 = 001011010001001 (0x1689), salinan kiri atas kolom 8 baris 0–5.
+    const formatBits = 0x1689;
+    for (let i = 0; i <= 5; i++) assert.equal(matrix[i][8], ((formatBits >>> i) & 1) === 1, `bit format ${i}`);
+    assert.equal(matrix[size - 8][8], true, 'modul gelap wajib');
+    // Panjang URL menentukan versi; dua URL panjang yang hanya beda di ujung tidak boleh menghasilkan QR sama.
+    const long = 'https://example.sch.id/verify/' + 'x'.repeat(200);
+    assert.notDeepEqual(generateQrMatrix(long + 'A'), generateQrMatrix(long + 'B'));
+    assert.ok(generateQrMatrix(long).length > size);
+    const svg = decodeURIComponent(generateQrSvgDataUrl(url).split(',')[1]);
+    assert.match(svg, /fill="#3083FF"/);
+    const { qrLogoBox } = require('../../web/lib/pas/qr-svg.ts');
+    const box = qrLogoBox(size);
+    assert.ok(box.span * box.span <= size * size * 0.07, 'logo menutup kurang dari 7% modul');
+    assert.equal(box.start * 2 + box.span, size, 'logo tepat di tengah');
+});
+
 test('ADMIN-07: KOP profil_sekolah identik dengan KOP Laporan Guru Asuh acca-new & jadwal difilter sesuai ruang', async () => {
     const db = fixtureDb(createFixtures(), [], { now: '2026-10-17T01:00:00Z' });
     const service = new PasAdministrationService(db, createAuthzMock());
