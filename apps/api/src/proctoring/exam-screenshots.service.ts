@@ -7,12 +7,21 @@ import { DbService } from '../prisma/prisma-db-adapter';
 import { StorageService } from '../storage/storage.service';
 import { advisoryTransactionLock } from '../common/transaction-lock';
 
-export const SCREENSHOT_LIMIT = 10;
+/**
+ * Kuota per peserta per sesi (reset/susulan memulai sesi baru): bukan jumlah
+ * gambar, melainkan total ukuran gambar yang masih tersimpan. Gambar yang
+ * dihapus Proktor/Admin tidak lagi memakai kuota.
+ */
+export const SCREENSHOT_TOTAL_BYTES = 20 * 1024 * 1024;
 export const SCREENSHOT_BYTES = 200 * 1024;
-export const SCREENSHOT_INTERVAL_MS = 30_000;
+/**
+ * Jarak minimum antar gambar. Klien mengambil gambar tiap 3 detik selama siswa
+ * belum kembali ke halaman ujian; 2,5 detik memberi ruang untuk selisih timer.
+ */
+export const SCREENSHOT_INTERVAL_MS = 2_500;
 export const SCREENSHOT_MAX_EVENT_AGE_MS = 6 * 60 * 60 * 1000;
 export const SCREENSHOT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
-export const SCREENSHOT_EVENTS = ['tab_switch', 'window_blur', 'blur', 'exit_fullscreen', 'restricted_shortcut', 'copy_paste_attempt', 'right_click_attempt'];
+export const SCREENSHOT_EVENTS = ['tab_switch', 'window_blur', 'blur', 'focus_interruption', 'still_away', 'exit_fullscreen', 'restricted_shortcut', 'copy_paste_attempt', 'right_click_attempt'];
 /**
  * Kejadian ringan (klik kanan, salin-tempel, tombol pintas) boleh memakai
  * paling banyak sebagian kuota, supaya bukti pindah tab/keluar fokus di akhir
@@ -144,11 +153,13 @@ export class ExamScreenshotsService implements OnModuleInit, OnModuleDestroy {
             // reset boundary even when the browser clock was behind.
             const capturedAt = new Date(generationStart
                 ? Math.max(captureTime, Date.parse(generationStart) + 1) : captureTime);
-            let quota = db.from('cbt_exam_screenshots').select('created_at, event_type').eq('attempt_id', attemptId);
+            let quota = db.from('cbt_exam_screenshots').select('created_at, event_type, byte_size, object_key').eq('attempt_id', attemptId);
             if (generationStart) quota = quota.gt('created_at', generationStart);
             const { data: rows, error: rowsError } = await quota;
             if (rowsError) throw new ServiceUnavailableException('Kuota screenshot belum dapat diperiksa.');
-            if ((rows || []).length >= SCREENSHOT_LIMIT) return { done: { saved: false, reason: 'limit' } };
+            const storedBytes = (rows || []).reduce((total: number, row: { byte_size?: number | null; object_key?: string | null }) =>
+                total + (row.object_key ? Number(row.byte_size) || 0 : 0), 0);
+            if (storedBytes + image.length > SCREENSHOT_TOTAL_BYTES) return { done: { saved: false, reason: 'limit' } };
             if (MINOR_SCREENSHOT_EVENTS.includes(event.event_type) && (rows || []).filter((row: { event_type?: string }) =>
                 MINOR_SCREENSHOT_EVENTS.includes(row.event_type || '')).length >= MINOR_SCREENSHOT_LIMIT) {
                 return { done: { saved: false, reason: 'minor_limit' } };
@@ -191,6 +202,31 @@ export class ExamScreenshotsService implements OnModuleInit, OnModuleDestroy {
             .eq('attempt_id', attemptId).order('created_at', { ascending: false });
         if (error) throw new ServiceUnavailableException('Daftar screenshot belum dapat dibaca.');
         return (data || []).map((row: { id: string; deleted_at?: string; expires_at: string }) => ({ ...row, available: !row.deleted_at && Date.parse(row.expires_at) > Date.now() }));
+    }
+    /** Hanya Proktor/Admin sekolah ujian ini; Guru pengawas boleh melihat, tidak menghapus. */
+    async canDelete(user: AuthUser, attemptId: string): Promise<boolean> {
+        const { data: attempt } = await this.db.from('cbt_exam_attempts').select('exam_id').eq('id', attemptId).maybeSingle();
+        if (!attempt) return false;
+        const { data: exam } = await this.db.from('cbt_exams').select('organization_id').eq('id', attempt.exam_id).maybeSingle();
+        if (!exam) return false;
+        return this.authz.assertProktor(user, exam.organization_id).then(() => true, () => false);
+    }
+    /**
+     * Hapus gambar (bukan catatan kejadiannya). Baris tetap ada dengan deleted_at
+     * sebagai jejak, objek terenkripsi dihapus, dan kuota 20 MB peserta pulih.
+     */
+    async remove(user: AuthUser, id: string) {
+        const { data: row } = await this.db.from('cbt_exam_screenshots').select('id, attempt_id, object_key, deleted_at').eq('id', id).maybeSingle();
+        if (!row) throw new NotFoundException('Screenshot tidak ditemukan.');
+        await this.assertViewer(user, row.attempt_id);
+        if (!await this.canDelete(user, row.attempt_id)) throw new ForbiddenException('Hanya Proktor atau Admin yang dapat menghapus screenshot.');
+        const objectKey = row.object_key as string | null;
+        if (!objectKey) return { deleted: true };
+        const { error } = await this.db.from('cbt_exam_screenshots').update({ object_key: null, deleted_at: new Date().toISOString() })
+            .eq('id', id).eq('object_key', objectKey);
+        if (error) throw new ServiceUnavailableException('Screenshot belum dapat dihapus.');
+        await this.storage.deleteObject(objectKey).catch(() => undefined);
+        return { deleted: true };
     }
     async read(user: AuthUser, id: string) {
         const { data: row } = await this.db.from('cbt_exam_screenshots').select('*').eq('id', id).maybeSingle();

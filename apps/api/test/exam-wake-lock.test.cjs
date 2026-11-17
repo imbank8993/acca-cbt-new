@@ -68,11 +68,14 @@ test('delayed blur after a screen lock cannot count a second violation', () => {
     const source = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/questions/ExamPage.tsx'), 'utf8');
     const body = source.match(/blurTimeout = setTimeout\(\(\) => \{([\s\S]*?)\}, 5000\);/)[1];
     const events = [];
-    const callback = new Function('document', 'handleSecurityViolation', body);
-    callback({ hidden: true }, type => events.push(type));
+    const callback = new Function('document', 'handleSecurityViolation', 'startAwayCapture', body);
+    const away = () => events.push('away-capture');
+    callback({ hidden: true }, type => events.push(type), away);
     assert.deepEqual(events, []);
-    callback({ hidden: false }, type => events.push(type));
-    assert.deepEqual(events, ['focus_interruption']);
+    callback({ hidden: false }, type => events.push(type), away);
+    // Fokus hilang tanpa halaman tersembunyi: tidak menambah pelanggaran, tetapi
+    // layar terus diambil tiap 3 detik selama siswa belum kembali.
+    assert.deepEqual(events, ['focus_interruption', 'away-capture']);
 });
 
 test('fullscreen loss with OS focus loss is technical; focused exit remains a violation', () => {

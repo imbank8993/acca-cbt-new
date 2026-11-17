@@ -55,7 +55,7 @@ import type { AuthUser } from '@acca-cbt/shared';
 import { ExamViewer } from './ExamViewer';
 import { ExamStartPreparation } from './ExamStartPreparation';
 import { useExamScreenshots } from '@/hooks/useExamScreenshots';
-import { SCREEN_SHARE_GRACE_MS,SCREEN_SHARE_LOST_EVENT,SCREEN_SHARE_RACE_MS,screenshotBase64 } from '@/lib/exam-screenshots';
+import { SCREEN_SHARE_GRACE_MS,SCREEN_SHARE_LOST_EVENT,SCREEN_SHARE_RACE_MS,SCREENSHOT_REPEAT_MS,screenshotBase64 } from '@/lib/exam-screenshots';
 import { retryExamEvidence } from '@/lib/exam-evidence-outbox';
 
 function resolveMaxViolations(exam: StudentExam | null): number | null {
@@ -108,7 +108,7 @@ export default function ExamPage() {
     const maxViolations = resolveMaxViolations(exam);
     const [isCompleted, setIsCompleted] = useState(false);
     const screenshots = useExamScreenshots(examId, isCompleted);
-    const { sharingRef: screenSharingRef, requesting: screenRequestingRef, capture: captureScreenshot, upload: uploadScreenshot } = screenshots;
+    const { sharingRef: screenSharingRef, requesting: screenRequestingRef, capture: captureScreenshot, canCapture: canCaptureScreenshot, upload: uploadScreenshot } = screenshots;
     const wasScreenSharing = useRef(false);
     /** Kapan berbagi layar terakhir terputus (0 = sedang aktif). */
     const shareLostAtRef = useRef(0);
@@ -1553,7 +1553,9 @@ export default function ExamPage() {
             // mengunci layar memutus berbagi layar dan fokus hampir bersamaan.
             if (exam?.metadata?.screenshot_enabled === true && !screenSharingRef.current && !shareLost &&
                 Date.now() - shareLostAtRef.current < SCREEN_SHARE_RACE_MS) return;
-            const focusOnly = type === 'focus_interruption';
+            // focus_interruption dan still_away: dicatat + screenshot, tanpa
+            // menambah pelanggaran dan tanpa jendela peringatan.
+            const focusOnly = type === 'focus_interruption' || type === 'still_away';
             // Cooldown GLOBAL lintas-jenis, bukan per-jenis: satu aksi pengguna
             // memicu beberapa event sekaligus (alt-tab = blur + visibilitychange,
             // pindah aplikasi bisa sekalian keluar fullscreen). Dedup per-jenis
@@ -1583,7 +1585,10 @@ export default function ExamPage() {
             };
             pendingSecurityEventsRef.current.set(eventId, event);
             try {
-                const captured = !focusOnly && exam?.metadata?.screenshot_enabled === true ? captureScreenshot() : Promise.resolve(null);
+                // Fokus hilang >5 detik (mis. Alt+Tab ke aplikasi lain tanpa halaman
+                // tersembunyi) tetap tidak dihitung pelanggaran, tetapi diberi
+                // screenshot: justru saat itu bukti layar paling dibutuhkan.
+                const captured = exam?.metadata?.screenshot_enabled === true ? captureScreenshot() : Promise.resolve(null);
                 let stored = await enqueueSecurityEvent(event);
                 const screenshotBlob = await captured;
                 let screenshotQueued = false;
@@ -1642,10 +1647,27 @@ export default function ExamPage() {
             }
         };
 
+        // Selama siswa belum kembali ke halaman ujian (tab lain, aplikasi lain),
+        // layar diambil ulang tiap 3 detik sebagai kejadian still_away. Berhenti
+        // begitu siswa kembali, berbagi layar putus, atau kuota 20 gambar habis.
+        let awayTimer: ReturnType<typeof setInterval> | undefined;
+        const isAway = () => document.hidden || !document.hasFocus();
+        const stopAwayCapture = () => { if (awayTimer) clearInterval(awayTimer); awayTimer = undefined; };
+        const startAwayCapture = () => {
+            if (awayTimer || exam?.metadata?.screenshot_enabled !== true) return;
+            awayTimer = setInterval(() => {
+                if (!isAway() || !canCaptureScreenshot()) { stopAwayCapture(); return; }
+                void handleSecurityViolation('still_away');
+            }, SCREENSHOT_REPEAT_MS);
+        };
+
         const onVisibilityChange = () => {
             if (document.hidden) {
                 if (blurTimeout) clearTimeout(blurTimeout);
                 handleSecurityViolation('tab_switch');
+                startAwayCapture();
+            } else if (document.hasFocus()) {
+                stopAwayCapture();
             }
         };
         
@@ -1658,11 +1680,13 @@ export default function ExamPage() {
                 // can keep it hidden long after the global cooldown expires.
                 if (document.hidden) return;
                 handleSecurityViolation('focus_interruption');
+                startAwayCapture();
             }, 5000);
         };
         const onFocus = () => {
             // Batalkan pelanggaran jika kursor/fokus kembali dalam kurun < 5 detik
             if (blurTimeout) clearTimeout(blurTimeout);
+            stopAwayCapture();
         };
 
         const onFullscreenChange = () => {
@@ -1699,11 +1723,12 @@ export default function ExamPage() {
             window.removeEventListener('blur', onBlur);
             window.removeEventListener('focus', onFocus);
             if (blurTimeout) clearTimeout(blurTimeout);
+            stopAwayCapture();
             unsubscribeFullscreen();
             document.removeEventListener('contextmenu', onContextMenu);
             window.removeEventListener('keydown', onKeyDown);
         };
-    }, [attempt, isCompleted, loading, user, profile, exam, accessDenied, submissionOnly, examId, flushSecurityEvents, requireTermination, maxViolations, retryFailedAnswers, beaconPendingAnswers, captureScreenshot, uploadScreenshot, screenSharingRef, screenRequestingRef]);
+    }, [attempt, isCompleted, loading, user, profile, exam, accessDenied, submissionOnly, examId, flushSecurityEvents, requireTermination, maxViolations, retryFailedAnswers, beaconPendingAnswers, captureScreenshot, canCaptureScreenshot, uploadScreenshot, screenSharingRef, screenRequestingRef]);
 
     useEffect(() => {
         if (!attempt || isCompleted || submissionOnly || exam?.metadata?.screenshot_enabled !== true) return;

@@ -22,6 +22,7 @@ export const monitoringEventLabels: Record<string, string> = {
     screen_share_lost: 'Berbagi layar terputus lebih dari 30 detik (pelanggaran)',
     tab_switch: 'Berpindah tab', window_blur: 'Jendela kehilangan fokus', tab_close: 'Halaman dibuka kembali',
     focus_interruption: 'Gangguan fokus perangkat (tidak menambah pelanggaran)',
+    still_away: 'Masih di luar halaman ujian (tidak menambah pelanggaran)',
 };
 export const storageLabels: Record<string, string> = {
     healthy: 'Tersedia', fallback: 'Penyimpanan cadangan', unavailable: 'Gagal', unknown: 'Belum dilaporkan',

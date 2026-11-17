@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { encodeScreenFrame, latestScreenFrame, SCREENSHOT_CAPTURE_DELAY_MS, SCREENSHOT_COOLDOWN_MS, SCREENSHOT_MAX_COUNT, screenshotBase64, sendScreenshotWithRetry } from '@/lib/exam-screenshots';
+import { encodeScreenFrame, latestScreenFrame, SCREENSHOT_CAPTURE_DELAY_MS, SCREENSHOT_COOLDOWN_MS, SCREENSHOT_TOTAL_BYTES, screenshotBase64, sendScreenshotWithRetry } from '@/lib/exam-screenshots';
 import { apiSend } from '@/lib/api/client';
 import {
     currentScreenShareEnvironment, isUnsupportedRejection, screenShareSupport,
@@ -16,7 +16,8 @@ export function useExamScreenshots(examId: string, completed: boolean) {
     const requestGeneration = useRef(0);
     const lastCapture = useRef(0);
     const muted = useRef(false);
-    const count = useRef(0);
+    /** Total ukuran gambar yang sudah diambil di sesi ini (kuota 20 MB). */
+    const bytes = useRef(0);
     const [sharing, setSharing] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
@@ -51,7 +52,7 @@ export function useExamScreenshots(examId: string, completed: boolean) {
         // Browser-only capability detection must follow hydration.
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setSupport(screenShareSupport(currentScreenShareEnvironment()));
-        count.current = 0; lastCapture.current = 0;
+        bytes.current = 0; lastCapture.current = 0;
         return () => { mounted.current = false; stop(); };
     }, [examId, stop]);
     useEffect(() => { if (completed) stop(); }, [completed, stop]);
@@ -139,13 +140,17 @@ export function useExamScreenshots(examId: string, completed: boolean) {
     }, [completed, releaseStream, stop]);
 
     const capture = useCallback(async (): Promise<Blob | null> => {
-        if (!sharingRef.current || !video.current || count.current >= SCREENSHOT_MAX_COUNT || Date.now() - lastCapture.current < SCREENSHOT_COOLDOWN_MS) return null;
+        if (!sharingRef.current || !video.current || bytes.current >= SCREENSHOT_TOTAL_BYTES || Date.now() - lastCapture.current < SCREENSHOT_COOLDOWN_MS) return null;
         lastCapture.current = Date.now();
         try {
             await new Promise(resolve => setTimeout(resolve, SCREENSHOT_CAPTURE_DELAY_MS));
             // Berbagi layar bisa terhenti selama jeda; jangan simpan frame dari stream mati.
             if (!sharingRef.current || !video.current || muted.current) return null;
-            return await encodeScreenFrame(await latestScreenFrame(video.current, stream.current?.getVideoTracks()[0]));
+            const blob = await encodeScreenFrame(await latestScreenFrame(video.current, stream.current?.getVideoTracks()[0]));
+            // Dihitung saat diambil, bukan saat terkirim: gambar yang antre offline
+            // juga memakai kuota, supaya pengambilan berkala berhenti di 20 MB.
+            bytes.current += blob.size;
+            return blob;
         }
         catch { if (mounted.current) setError('Screenshot kejadian ini belum berhasil diambil. Catatan kejadian tetap disimpan.'); return null; }
     }, []);
@@ -158,8 +163,7 @@ export function useExamScreenshots(examId: string, completed: boolean) {
             const result = await sendScreenshotWithRetry(() => apiSend<{ saved: boolean; reason?: string }>(`/api/proctoring/attempts/${encodeURIComponent(attemptId)}/screenshots`,
                 payload, 'POST', { timeoutMs: 20_000 }));
             if (result.success) {
-                if (result.saved) count.current++;
-                else if (result.reason === 'limit') count.current = SCREENSHOT_MAX_COUNT;
+                if (result.reason === 'limit') bytes.current = SCREENSHOT_TOTAL_BYTES;
                 // 'minor_limit': jatah kejadian ringan habis; kejadian lain tetap boleh mengambil gambar.
                 if (mounted.current) setError('');
                 return true;
@@ -173,5 +177,7 @@ export function useExamScreenshots(examId: string, completed: boolean) {
             return false;
         }
     }, []);
-    return { sharing, sharingRef, busy, requesting, error, supported, unsupportedMessage, requestShare, capture, upload, stop };
+    /** Masih boleh mengambil gambar: berbagi layar aktif dan kuota sesi belum habis. */
+    const canCapture = useCallback(() => sharingRef.current && bytes.current < SCREENSHOT_TOTAL_BYTES, []);
+    return { sharing, sharingRef, busy, requesting, error, supported, unsupportedMessage, requestShare, capture, canCapture, upload, stop };
 }

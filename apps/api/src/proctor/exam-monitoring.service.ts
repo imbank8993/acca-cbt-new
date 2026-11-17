@@ -19,7 +19,7 @@ import { examPasPeriods, loadScreenShareExceptions } from '../common/screen-shar
 const ID_BATCH = 300;
 
 /** Peristiwa administratif — bukan pelanggaran, tidak ikut dihitung. */
-const NON_VIOLATION_EVENTS = [...MONITORING_EVENTS, 'DEVICE_SWITCH_BLOCKED', 'LATE_ANSWER_SYNC', 'RESET_BY_PROCTOR', 'MAKEUP_EXAM_STARTED', 'FORCE_TERMINATED', 'focus_interruption'];
+const NON_VIOLATION_EVENTS = [...MONITORING_EVENTS, 'DEVICE_SWITCH_BLOCKED', 'LATE_ANSWER_SYNC', 'RESET_BY_PROCTOR', 'MAKEUP_EXAM_STARTED', 'FORCE_TERMINATED', 'focus_interruption', 'still_away'];
 
 /** Peristiwa yang dianggap "pindah tab" pada rincian pelanggaran. */
 const TAB_SWITCH_EVENTS = ['tab_switch', 'window_blur', 'blur'];

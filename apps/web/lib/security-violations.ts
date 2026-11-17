@@ -1,7 +1,8 @@
 const LABELS: Record<string, string> = {
     tab_switch: 'Halaman ujian tersembunyi (layar terkunci atau berpindah aplikasi)',
     window_blur: 'Jendela ujian kehilangan fokus',
-    focus_interruption: 'Gangguan fokus perangkat (misalnya notifikasi sistem)',
+    focus_interruption: 'Fokus keluar dari ujian lebih dari 5 detik (aplikasi lain atau notifikasi sistem)',
+    still_away: 'Masih di luar halaman ujian (gambar berkala tiap 3 detik)',
     blur: 'Jendela ujian kehilangan fokus',
     exit_fullscreen: 'Keluar dari layar penuh',
     restricted_shortcut: 'Menekan pintasan keyboard terlarang',

@@ -241,6 +241,75 @@ test('#6 minor events use at most 3 screenshots so serious violations keep evide
     assert.deepEqual(results.map(r => r.saved ? 'saved' : r.reason), ['saved', 'saved', 'saved', 'minor_limit', 'saved']);
 });
 
+test('focus loss gets screenshots; the number of images is not limited', async () => {
+    const { db, service } = screenshotFixture();
+    const now = Date.now();
+    db.tables.cbt_attempt_security_logs = [...Array(6).fill('focus_interruption'), 'tab_switch']
+        .map((type, i) => ({ id: `ev-${i}`, attempt_id: 'attempt', event_type: type, created_at: new Date(now).toISOString(),
+            metadata: { client_event_id: `c-${i}`, source: 'student', timestamp: new Date(now - (10 - i) * 60_000).toISOString() } }));
+    const results = [];
+    for (let i = 0; i < 7; i++) results.push(await service.upload({ id: 'student' }, 'attempt', `c-${i}`, device, jpeg.toString('base64')));
+    assert.deepEqual(results.map(r => r.saved ? 'saved' : r.reason), Array(7).fill('saved'));
+});
+
+test('while away, a screenshot every 3 seconds is accepted without a count limit; still_away is never a violation', async () => {
+    const { NON_WARNING_EVENTS, STUDENT_SECURITY_EVENTS } = require('../src/common/student-security-events.ts');
+    assert.ok(STUDENT_SECURITY_EVENTS.includes('still_away'));
+    assert.ok(NON_WARNING_EVENTS.includes('still_away'));
+    const { db, service } = screenshotFixture();
+    const start = Date.now() - 5 * 60_000;
+    db.tables.cbt_attempt_security_logs = ['tab_switch', ...Array(30).fill('still_away')]
+        .map((type, i) => ({ id: `ev-${i}`, attempt_id: 'attempt', event_type: type, created_at: new Date().toISOString(),
+            metadata: { client_event_id: `away-${i}`, source: 'student', timestamp: new Date(start + i * 3_000).toISOString() } }));
+    const results = [];
+    for (let i = 0; i < 31; i++) results.push(await service.upload({ id: 'student' }, 'attempt', `away-${i}`, device, jpeg.toString('base64')));
+    assert.deepEqual(results.map(r => r.saved), Array(31).fill(true));
+    // Kuota berupa total ukuran 20 MB per peserta per sesi.
+    db.tables.cbt_exam_screenshots.push({ id: 'big', attempt_id: 'attempt', event_type: 'tab_switch', created_at: new Date(start - 60_000).toISOString(),
+        object_key: 'big', byte_size: 20 * 1024 * 1024 });
+    db.tables.cbt_attempt_security_logs.push({ id: 'ev-last', attempt_id: 'attempt', event_type: 'still_away', created_at: new Date().toISOString(),
+        metadata: { client_event_id: 'away-last', source: 'student', timestamp: new Date(start + 200_000).toISOString() } });
+    assert.deepEqual(await service.upload({ id: 'student' }, 'attempt', 'away-last', device, jpeg.toString('base64')), { saved: false, reason: 'limit' });
+});
+
+test('only Proktor/Admin can delete a screenshot; the event stays and the quota is freed', async () => {
+    const { db, images, service } = screenshotFixture();
+    db.tables.cbt_exams[0].organization_id = 'school';
+    const saved = await service.upload({ id: 'student' }, 'attempt', 'c-4', device, jpeg.toString('base64'));
+    assert.equal(saved.saved, true);
+    const roles = { proktor: true, guru: false };
+    service.authz = { assertExamMonitoring: async () => undefined,
+        assertProktor: async user => { if (!roles[user.id]) throw new Error('forbidden'); } };
+    assert.equal(await service.canDelete({ id: 'guru' }, 'attempt'), false);
+    await assert.rejects(service.remove({ id: 'guru' }, saved.id), e => e.getStatus() === 403);
+    assert.equal(images.size, 1);
+    assert.equal(await service.canDelete({ id: 'proktor' }, 'attempt'), true);
+    assert.deepEqual(await service.remove({ id: 'proktor' }, saved.id), { deleted: true });
+    const row = db.tables.cbt_exam_screenshots.find(item => item.id === saved.id);
+    assert.equal(row.object_key, null);
+    assert.ok(row.deleted_at);
+    assert.equal(images.size, 0);
+    assert.ok(db.tables.cbt_attempt_security_logs.some(log => log.metadata.client_event_id === 'c-4'));
+    await assert.rejects(service.read({ id: 'proktor' }, saved.id), e => e.getStatus() === 404);
+});
+
+test('the exam page repeats capture every 3 seconds only while the student stays away', () => {
+    const source = require('node:fs').readFileSync(require('node:path').resolve(__dirname, '../../web/app/components/questions/ExamPage.tsx'), 'utf8');
+    assert.match(source, /const isAway = \(\) => document\.hidden \|\| !document\.hasFocus\(\);/);
+    assert.match(source, /if \(!isAway\(\) \|\| !canCaptureScreenshot\(\)\) \{ stopAwayCapture\(\); return; \}/);
+    assert.match(source, /void handleSecurityViolation\('still_away'\);\s*\}, SCREENSHOT_REPEAT_MS\);/);
+    assert.match(source, /const onFocus = \(\) => \{[\s\S]*?stopAwayCapture\(\);/);
+    const { SCREENSHOT_REPEAT_MS, SCREENSHOT_TOTAL_BYTES } = require('../../web/lib/exam-screenshots.ts');
+    assert.equal(SCREENSHOT_REPEAT_MS, 3_000);
+    assert.equal(SCREENSHOT_TOTAL_BYTES, 20 * 1024 * 1024);
+});
+
+test('focus-loss screenshots never add a violation on the client', () => {
+    const source = require('node:fs').readFileSync(require('node:path').resolve(__dirname, '../../web/app/components/questions/ExamPage.tsx'), 'utf8');
+    assert.match(source, /const captured = exam\?\.metadata\?\.screenshot_enabled === true \? captureScreenshot\(\)/);
+    assert.match(source, /const newCount = violationCountRef\.current \+ \(focusOnly \? 0 : 1\);/);
+});
+
 test('#3 production refuses evidence without a dedicated key; legacy evidence stays readable', async () => {
     const previous = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production';

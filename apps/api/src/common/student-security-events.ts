@@ -6,6 +6,9 @@ export const TAB_SWITCH_EVENTS = ['tab_switch', 'window_blur', 'blur'];
 export const STUDENT_SECURITY_EVENTS = [
     'SCREEN_SHARE_STOPPED', ...TAB_SWITCH_EVENTS, 'exit_fullscreen', 'restricted_shortcut',
     'copy_paste_attempt', 'right_click_attempt', 'tab_close', 'focus_interruption',
+    // Siswa belum kembali ke halaman ujian: penanda screenshot berkala tiap
+    // 3 detik. Bukan pelanggaran baru; pelanggarannya sudah dicatat saat pergi.
+    'still_away',
     // Berbagi layar tidak dipulihkan dalam masa toleransi. Berbeda dari
     // SCREEN_SHARE_STOPPED (catatan saja), ini DIHITUNG sebagai pelanggaran:
     // tanpa itu, menghentikan berbagi layar menjadi jeda bebas tanpa pengawasan.
@@ -15,7 +18,7 @@ export const STUDENT_SECURITY_EVENTS = [
 // terminate students for events that never displayed a violation warning.
 const LATE_EVENT = 'LATE_SECURITY_EVIDENCE';
 export const NON_WARNING_EVENTS = [...MONITORING_EVENTS, 'RESET_BY_PROCTOR', 'MAKEUP_EXAM_STARTED',
-    'FORCE_TERMINATED', 'DEVICE_SWITCH_BLOCKED', 'LATE_ANSWER_SYNC', 'tab_close', 'focus_interruption'];
+    'FORCE_TERMINATED', 'DEVICE_SWITCH_BLOCKED', 'LATE_ANSWER_SYNC', 'tab_close', 'focus_interruption', 'still_away'];
 export const SUBMISSION_SECURITY_EVENT_LIMIT = 100;
 /** Batas bukti susulan per pengerjaan, supaya klien tidak dapat membanjiri log. */
 export const LATE_SECURITY_EVIDENCE_LIMIT = 200;

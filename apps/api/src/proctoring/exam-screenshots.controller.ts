@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Res, UseGuards } from '@nestjs/common';
 import { IsString, IsUUID, Length, MaxLength } from 'class-validator';
 import type { AuthUser } from '@acca-cbt/shared';
 import type { Response } from 'express';
@@ -24,7 +24,13 @@ export class ExamScreenshotsController {
     }
     @Get('attempts/:attemptId/screenshots')
     async list(@CurrentUser() user: AuthUser, @Param('attemptId', ParseUUIDPipe) attemptId: string) {
-        return { screenshots: await this.screenshots.list(user, attemptId) };
+        const [screenshots, canDelete] = await Promise.all([
+            this.screenshots.list(user, attemptId), this.screenshots.canDelete(user, attemptId)]);
+        return { screenshots, canDelete };
+    }
+    @Delete('screenshots/:id')
+    remove(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+        return this.screenshots.remove(user, id);
     }
     @Get('screenshots/:id/image')
     async image(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Res() response: Response) {

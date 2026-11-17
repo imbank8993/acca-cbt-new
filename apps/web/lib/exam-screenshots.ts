@@ -1,6 +1,10 @@
 export const SCREENSHOT_MAX_BYTES = 200 * 1024;
-export const SCREENSHOT_MAX_COUNT = 10;
-export const SCREENSHOT_COOLDOWN_MS = 30_000;
+/** Tanpa batas jumlah: total ukuran gambar per peserta per sesi paling besar 20 MB (server memeriksa ulang). */
+export const SCREENSHOT_TOTAL_BYTES = 20 * 1024 * 1024;
+/** Jeda minimum antar gambar (server: 2,5 detik). */
+export const SCREENSHOT_COOLDOWN_MS = 2_500;
+/** Selama siswa belum kembali ke halaman ujian, gambar diambil ulang tiap 3 detik. */
+export const SCREENSHOT_REPEAT_MS = 3_000;
 /** Toleransi sebelum terputusnya berbagi layar dihitung sebagai pelanggaran. */
 export const SCREEN_SHARE_GRACE_MS = 30_000;
 /** Mengunci layar memutus berbagi layar dan fokus hampir bersamaan; jangan hitung dobel. */

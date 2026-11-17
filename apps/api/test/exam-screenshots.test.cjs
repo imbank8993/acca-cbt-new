@@ -51,7 +51,7 @@ test('upload requires the attempt owner, bound device, enabled feature and an ac
   f => { f.db.tables.cbt_exams[0].metadata.screenshot_enabled = false; },
   f => { f.db.tables.cbt_exam_attempts[0].user_id = 'other'; },
   f => { f.db.tables.cbt_exam_attempts[0].device_fingerprint = 'other-device'; },
-  f => { f.db.tables.cbt_attempt_security_logs[0].event_type = 'focus_interruption'; },
+  f => { f.db.tables.cbt_attempt_security_logs[0].event_type = 'SCREEN_SHARE_STOPPED'; },
   f => { f.db.tables.cbt_attempt_security_logs[0].created_at = '2020-01-01'; },
   f => { f.db.tables.cbt_attempt_security_logs[0].metadata.source = 'staff'; },
  ]) {
@@ -79,10 +79,14 @@ test('the last violation screenshot can still be saved after automatic submissio
  assert.equal(f.db.tables.cbt_exam_screenshots.length, 1);
 });
 
-test('quota and cooldown are enforced by the server even after browser reload; records survive image expiration', async () => {
+test('20 MB quota and cooldown are enforced by the server even after browser reload; deleted images free the quota', async () => {
  const f = fixture();
- f.db.tables.cbt_exam_screenshots = Array.from({ length: 10 }, (_, i) => ({ id: 'old-' + i, attempt_id: 'attempt', created_at: '2020-01-01', deleted_at: '2020-01-08' }));
+ f.db.tables.cbt_exam_screenshots = [{ id: 'big', attempt_id: 'attempt', created_at: '2020-01-01', object_key: 'k', byte_size: 20 * 1024 * 1024 - 4 }];
  assert.deepEqual(await upload(f), { saved: false, reason: 'limit' }); assert.equal(f.images.size, 0);
+ // Gambar yang sudah dihapus (object_key kosong) tidak lagi memakai kuota; jumlah gambar tidak dibatasi.
+ f.db.tables.cbt_exam_screenshots = Array.from({ length: 40 }, (_, i) => ({ id: 'old-' + i, attempt_id: 'attempt', created_at: '2020-01-01', deleted_at: '2020-01-08', object_key: null, byte_size: 200 * 1024 }));
+ assert.equal((await upload(f)).saved, true);
+ f.db.tables.cbt_exam_screenshots = f.db.tables.cbt_exam_screenshots.filter(row => row.id.startsWith('old-')); f.images.clear();
  f.db.tables.cbt_exam_screenshots = [{ id: 'recent', attempt_id: 'attempt', created_at: new Date().toISOString() }];
  assert.deepEqual(await upload(f), { saved: false, reason: 'cooldown' }); assert.equal(f.images.size, 0);
 });
@@ -101,21 +105,18 @@ test('reset and makeup start a fresh screenshot quota while rejecting delayed ev
    { id: 'new-event', attempt_id: 'attempt', event_type: 'tab_switch', created_at: after,
     metadata: { client_event_id: 'new', source: 'student', timestamp: before } },
   ];
-  f.db.tables.cbt_exam_screenshots = Array.from({ length: 10 }, (_, i) => ({
-   id: `old-${i}`, attempt_id: 'attempt', created_at: before, deleted_at: before,
-  }));
+  // Gambar sesi sebelumnya (sebelum reset) tidak memakai kuota sesi baru.
+  f.db.tables.cbt_exam_screenshots = [{ id: 'old-0', attempt_id: 'attempt', created_at: before, object_key: 'old', byte_size: 20 * 1024 * 1024 }];
   await assert.rejects(upload(f, { id: 'student' }, 'old'), /sesi ujian sebelumnya/);
   const current = await upload(f, { id: 'student' }, 'new');
   assert.equal(current.saved, true);
-  assert.equal(f.db.tables.cbt_exam_screenshots.length, 11);
-  assert.ok(Date.parse(f.db.tables.cbt_exam_screenshots[10].created_at) > Date.parse(resetAt));
+  assert.equal(f.db.tables.cbt_exam_screenshots.length, 2);
+  assert.ok(Date.parse(f.db.tables.cbt_exam_screenshots[1].created_at) > Date.parse(resetAt));
   f.db.tables.cbt_attempt_security_logs.push({ id: 'new-event-2', attempt_id: 'attempt',
    event_type: 'exit_fullscreen', created_at: new Date(now).toISOString(),
    metadata: { client_event_id: 'new-2', source: 'student', timestamp: before } });
   assert.deepEqual(await upload(f, { id: 'student' }, 'new-2'), { saved: false, reason: 'cooldown' });
-  f.db.tables.cbt_exam_screenshots.push(...Array.from({ length: 9 }, (_, i) => ({
-   id: `current-${i}`, attempt_id: 'attempt', created_at: after,
-  })));
+  f.db.tables.cbt_exam_screenshots.push({ id: 'current-big', attempt_id: 'attempt', created_at: after, object_key: 'now', byte_size: 20 * 1024 * 1024 });
   assert.deepEqual(await upload(f, { id: 'student' }, 'new-2'), { saved: false, reason: 'limit' });
  }
 });
@@ -194,12 +195,12 @@ test('enabled exams require screen-sharing readiness before starting or resuming
  assert.equal((await service.start({ id: 'student' }, 'exam', device)).started, true);
 });
 
-test('offline queued screenshots survive reconnect burst upload when captured >= 30s apart while enforcing cooldown for closer events', async () => {
+test('offline queued screenshots survive reconnect burst upload when captured >= 3s apart while enforcing cooldown for closer events', async () => {
  const f = fixture();
  const nowMs = Date.now();
  const t1 = new Date(nowMs - 5 * 60 * 1000).toISOString();
  const t2 = new Date(nowMs - 4 * 60 * 1000).toISOString();
- const tTooClose = new Date(nowMs - 4 * 60 * 1000 + 10_000).toISOString();
+ const tTooClose = new Date(nowMs - 4 * 60 * 1000 + 2_000).toISOString();
  f.db.tables.cbt_attempt_security_logs = [
   { id: 'ev-1', attempt_id: 'attempt', event_type: 'tab_switch', created_at: new Date(nowMs - 5 * 60 * 1000).toISOString(), metadata: { client_event_id: 'offline-1', source: 'student', timestamp: t1 } },
   { id: 'ev-2', attempt_id: 'attempt', event_type: 'exit_fullscreen', created_at: new Date(nowMs).toISOString(), metadata: { client_event_id: 'offline-2', source: 'student', timestamp: t2 } },
