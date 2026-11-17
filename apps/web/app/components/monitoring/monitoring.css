@@ -149,8 +149,8 @@
 @media (max-width: 767px) {
   .monitoring-results__toolbar { padding: 12px; gap: 12px; }
   .monitoring-results__scope { flex-basis: 100%; max-width: none; flex-direction: column; align-items: stretch; gap: 6px; }
-  .monitoring-results__actions { width: 100%; margin-left: 0; justify-content: flex-start; }
-  .monitoring-results__actions > .ui-btn { min-height: 40px; height: auto; white-space: normal; }
+  .monitoring-results__actions { width: 100%; margin-left: 0; justify-content: flex-start; flex-wrap: nowrap; }
+  .monitoring-results__actions > .ui-btn { min-height: 40px; height: auto; white-space: nowrap; }
 }
 
 .monitoring-room-table-wrap { overflow-x: auto; border: 1px solid var(--monitoring-line, #e7ecf2); border-radius: 12px; background: var(--monitoring-surface, #fff); }
@@ -345,10 +345,11 @@
   .monitoring-health__pagination, .monitoring-analysis__pagination { flex-wrap: wrap; gap: 12px; }
   .monitoring-health__pagination > div { width: 100%; justify-content: space-between; }
   .monitoring-health__pagination button, .monitoring-analysis__pagination button { min-height: 44px; }
-  .monitoring-results__actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .monitoring-results__actions > .ui-btn:first-child:not(:only-child) { grid-column: 1 / -1; }
-  .monitoring-results__actions > .ui-btn:only-child { grid-column: 1 / -1; }
-  .monitoring-results__actions > .ui-btn { min-height: 44px; padding: 8px 12px; }
+  .monitoring-results__actions { display: flex; flex-wrap: nowrap; align-items: stretch; gap: 8px; }
+  .monitoring-results__actions .ui-btn { gap: 4px !important; }
+  .monitoring-results__actions > .ui-btn { min-width: 0; min-height: 44px; padding: 8px 10px; font-size: 11px; white-space: nowrap; }
+  .monitoring-results__actions > div { flex: 0 0 auto; }
+  .monitoring-results__actions > div > .ui-btn { min-height: 44px; padding: 8px 10px; font-size: 11px; white-space: nowrap; }
   .monitoring-results__scope select.uisel-input { height: 44px; }
   .monitoring-results-table table { table-layout: fixed; }
   .monitoring-results-table td { vertical-align: top; }

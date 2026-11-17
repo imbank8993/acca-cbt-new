@@ -223,8 +223,8 @@ function ResetExamForm({
           {!participantSummary && (
             <div className="participant-detail-surface flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-xs">
               <div className="min-w-0 flex-1">
-                <p className="participant-detail-name font-bold text-slate-800 truncate">{studentName}</p>
-                <p className="mt-0.5 text-slate-500 truncate">
+                <p className="participant-detail-name break-words font-bold text-slate-800">{studentName}</p>
+                <p className="mt-0.5 break-words text-slate-500">
                   {nis !== '—' ? `${nis} · ` : ''}{className}
                 </p>
               </div>

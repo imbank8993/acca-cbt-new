@@ -23,7 +23,7 @@ interface CorrectionData {
 /** Tipe psikometri memang tidak dinilai, jadi tidak perlu (dan tidak bisa) dibatalkan. */
 const PERSONALITY_TYPES = ['likert', 'sjt', 'forced_choice', 'checklist', 'ranking', 'paired_comparison'];
 const isGraded = (question: { type: string }) => !PERSONALITY_TYPES.includes(question.type);
-export function ExamKeyCorrectionButton({ examId, onComplete }: { examId: string; onComplete: () => void }) {
+export function ExamKeyCorrectionButton({ examId, onComplete, compactOnMobile = false }: { examId: string; onComplete: () => void; compactOnMobile?: boolean }) {
     const [open, setOpen] = useState(false);
     const [data, setData] = useState<CorrectionData | null>(null);
     const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -83,7 +83,9 @@ export function ExamKeyCorrectionButton({ examId, onComplete }: { examId: string
     const pending = data?.correction && data.correction.state !== 'ready';
     const selected = data?.questions.find(q => q.id === selectedId);
     return <>
-        <Button variant="outline" onClick={() => void show()}>Koreksi Kunci / Batalkan Soal</Button>
+        <Button variant="outline" aria-label="Koreksi Kunci / Batalkan Soal" onClick={() => void show()}>
+            {compactOnMobile ? <><span className="sm:hidden">Koreksi / Batal</span><span className="hidden sm:inline">Koreksi Kunci / Batalkan Soal</span></> : 'Koreksi Kunci / Batalkan Soal'}
+        </Button>
         {open && <Modal title="Koreksi Kunci & Pembatalan Soal" size="xl" onClose={() => { if (!busy) setOpen(false); }} closeOnOverlayClick={!busy}>
             <ModalBody className="exam-key-correction__body">
                 <p className="text-sm text-slate-500">Koreksi kunci dan pembatalan soal berlaku untuk ujian ini. Nilai akan ditutup sementara, kemudian seluruh peserta dinilai ulang termasuk IRT.</p>

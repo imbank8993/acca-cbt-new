@@ -144,10 +144,10 @@ export function AttemptHistoryModal({
 
       <ModalBody className="space-y-4">
         {/* Student Info Bar */}
-        <div className="participant-detail-surface rounded-xl border border-slate-200 bg-slate-50/80 p-3 flex items-center justify-between gap-3 text-xs">
-          <div className="min-w-0 flex-1">
-            <p className="participant-detail-name font-bold text-slate-800 truncate">{studentName}</p>
-            <p className="mt-0.5 text-slate-500 truncate">
+        <div className="participant-detail-surface rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-xs">
+          <div className="min-w-0">
+            <p className="participant-detail-name break-words font-bold text-slate-800">{studentName}</p>
+            <p className="mt-0.5 break-words text-slate-500">
               {nis !== '—' ? `${nis} · ` : ''}{className}
             </p>
             <ParticipantRoomInfo attempt={attempt} />
@@ -160,7 +160,7 @@ export function AttemptHistoryModal({
                 onClose();
                 void onRecover(current);
               }}
-              className="participant-detail-recover ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+              className="participant-detail-recover mt-3 inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
             >
               <RotateCcw size={13} />
               {recoverLabel}

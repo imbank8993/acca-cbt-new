@@ -1,4 +1,8 @@
 /* These dialogs render in a portal, outside the monitoring page's styles. */
+.participant-detail-modal .participant-detail-name {
+  overflow-wrap: anywhere;
+}
+
 .dark .participant-detail-modal .participant-detail-surface {
   background-color: #172235 !important;
   color: #e8edf5 !important;

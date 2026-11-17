@@ -197,10 +197,10 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
             {selectedAttempt && selectedFacts && (
                 <>
                     <ModalBody className="space-y-3.5 text-xs">
-                        <div className="participant-detail-surface rounded-xl border border-slate-200 bg-slate-50/80 p-3 flex items-center justify-between gap-3 text-xs">
-                            <div className="min-w-0 flex-1">
-                                <p className="participant-detail-name font-bold text-slate-800 truncate">{formatStudentName(selectedAttempt.profiles?.full_name, 'Tanpa Nama')}</p>
-                                <p className="mt-0.5 text-slate-500 truncate">
+                        <div className="participant-detail-surface rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-xs">
+                            <div className="min-w-0">
+                                <p className="participant-detail-name break-words font-bold text-slate-800">{formatStudentName(selectedAttempt.profiles?.full_name, 'Tanpa Nama')}</p>
+                                <p className="mt-0.5 break-words text-slate-500">
                                     {selectedAttempt.profiles?.identity_number ? `${selectedAttempt.profiles.identity_number} · ` : ''}{selectedAttempt.kelas_name || 'Tanpa kelas'}
                                 </p>
                                 <ParticipantRoomInfo attempt={selectedAttempt} />
@@ -213,7 +213,7 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
                                         setSelectedId(null);
                                         void onRecover(target);
                                     }}
-                                    className="participant-detail-recover ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+                                    className="participant-detail-recover mt-3 inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
                                 >
                                     <RotateCcw size={13} />
                                     {selectedAttempt.status === 'in_progress' ? 'Reset sesi' : selectedAttempt.status === 'belum' ? 'Susulan' : 'Susulan / Pulihkan'}

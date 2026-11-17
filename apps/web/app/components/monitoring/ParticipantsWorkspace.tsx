@@ -425,8 +425,8 @@ export function ParticipantsWorkspace({
             <div className="monitoring-results__toolbar">
                 {!focusId && <p className="text-xs text-slate-500">Pilih kelas pada filter di atas untuk koreksi kunci, kalkulasi IRT, atau export.</p>}
                 <div className="monitoring-results__actions">
-                    {focusExam?.canManage === true && focusExam.canCorrectKeys !== false && focusId && <ExamKeyCorrectionButton key={focusId} examId={focusId} onComplete={() => void onReload()} />}
-                    {hasIrt && focusExam?.canManage === true && <Button variant="outline" size="sm" onClick={() => void calculateIrt()} disabled={busy} leftIcon={<Calculator size={14} />}>Kalkulasi IRT</Button>}
+                    {focusExam?.canManage === true && focusExam.canCorrectKeys !== false && focusId && <ExamKeyCorrectionButton key={focusId} examId={focusId} compactOnMobile onComplete={() => void onReload()} />}
+                    {hasIrt && focusExam?.canManage === true && <Button variant="outline" size="sm" mobileIconOnly aria-label="Kalkulasi IRT" onClick={() => void calculateIrt()} disabled={busy} leftIcon={<Calculator size={14} />}>Kalkulasi IRT</Button>}
                     <div ref={exportRef} className="relative">
                         <Button variant="outline" size="sm" icon="export" aria-haspopup="menu" aria-expanded={exportOpen} onClick={() => setExportOpen(open => !open)} disabled={busy || !focusId}
                             rightIcon={<ChevronDown size={14} className={`transition-transform ${exportOpen ? 'rotate-180' : ''}`} aria-hidden="true" />}>
