@@ -346,10 +346,10 @@
   .monitoring-participant-name { font-size: 13px; line-height: 1.5; font-weight: 600; }
   .monitoring-participant-meta { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; font-size: 11px; font-weight: 400; line-height: 1.5; color: var(--monitoring-muted, #64748b); }
   .monitoring-participants-table { table-layout: fixed; }
-  .monitoring-participants-table th:last-of-type { width: auto; }
-  .monitoring-participants-table th:nth-child(4) { width: 100px; }
-  .monitoring-participants-table td { vertical-align: top; padding: 14px 12px; }
-  .monitoring-participants-table td:nth-child(4) > span { display: inline-flex; font-size: 10px; padding: 4px 7px; white-space: nowrap; }
+  /* Daftar ringkas: satu baris per peserta, status & detail lain di modal. */
+  .monitoring-participants-table tbody tr:first-child { border-top: 0; }
+  .monitoring-participants-table td { padding: 12px 14px; }
+  .monitoring-participants-table tbody tr:active { background: rgba(148, 163, 184, .16); }
   .monitoring-health > div:first-child { padding: 12px; }
   .monitoring-health .ftb-toolbar { position: static; z-index: auto; }
   .monitoring-health table { table-layout: fixed; }
