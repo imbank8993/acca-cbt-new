@@ -415,6 +415,24 @@ export class StudentsService {
     }
 
     /**
+     * Nama dimensi dan teks interpretasi profil kepribadian, dibatasi ke bank soal
+     * ujian ini. Versi lama membaca SELURUH baris `cbt_question_dimensions` tanpa
+     * filter, yang pada basis data dengan banyak bank berarti mengirimkan dimensi
+     * milik bank lain ke browser siswa.
+     */
+    private async dimensionProfile(bankId?: string | null): Promise<{ dimensions: any[]; interpretations: any[] }> {
+        if (!bankId) return { dimensions: [], interpretations: [] };
+        const [{ data: dimensions }, { data: interpretations }] = await Promise.all([
+            this.db.from('cbt_question_dimensions').select('id, name').eq('bank_id', bankId),
+            this.db.from('cbt_dimension_interpretations')
+                .select('*, question_dimensions:cbt_question_dimensions!inner(bank_id)')
+                .eq('question_dimensions.bank_id', bankId)
+                .order('min_score', { ascending: true }),
+        ]);
+        return { dimensions: (dimensions as any[]) || [], interpretations: (interpretations as any[]) || [] };
+    }
+
+    /**
      * Rincian hasil satu pengerjaan, termasuk kunci jawaban.
      *
      * Nilai mengikuti show_results; rincian jawaban mengikuti izin pembahasan
@@ -459,10 +477,16 @@ export class StudentsService {
             await assertAnswerKeysReleased(this.db, row.exams);
         } catch (error) {
             if (!(error instanceof ForbiddenException)) throw error;
+            // Profil kepribadian adalah hasil, bukan kunci jawaban: ikut show_results,
+            // tidak menunggu pembahasan. Nama dimensi & teks interpretasi tidak
+            // membuka kunci soal pengetahuan.
+            const hasProfile = Object.keys(publicAttempt.metadata.dimension_scores).length > 0;
+            const profile = hasProfile ? await this.dimensionProfile(row.exams?.question_bank_id)
+                : { dimensions: [], interpretations: [] };
             return {
                 attempt: publicAttempt, answerKeysReleased: false,
                 answerKeysMessage: error.message,
-                dimensions: [], interpretations: [], answers: [],
+                ...profile, answers: [],
             };
         }
 
@@ -479,27 +503,7 @@ export class StudentsService {
         const questions = await withQuestionTopics(this.db, await readExamQuestionVersion(this.db, row.exams.id));
         const answersByQuestion = new Map(((answers as any[]) || []).map(answer => [answer.question_id, answer]));
 
-        const bankId = row.exams?.question_bank_id;
-
-        // Dimensi dibatasi ke bank soal ujian ini. Versi lama membaca SELURUH
-        // baris `cbt_question_dimensions` tanpa filter, yang pada basis data
-        // dengan banyak bank berarti mengirimkan dimensi milik bank lain ke
-        // browser siswa.
-        const [{ data: dimensions }, { data: interpretations }] = await Promise.all([
-            bankId
-                ? this.db
-                      .from('cbt_question_dimensions')
-                      .select('id, name')
-                      .eq('bank_id', bankId)
-                : Promise.resolve({ data: [] }),
-            bankId
-                ? this.db
-                      .from('cbt_dimension_interpretations')
-                      .select('*, question_dimensions:cbt_question_dimensions!inner(bank_id)')
-                      .eq('question_dimensions.bank_id', bankId)
-                      .order('min_score', { ascending: true })
-                : Promise.resolve({ data: [] }),
-        ]);
+        const { dimensions, interpretations } = await this.dimensionProfile(row.exams?.question_bank_id);
 
         return {
             attempt: publicAttempt,
@@ -509,8 +513,8 @@ export class StudentsService {
                 participantId: attemptId, questionId: answer.question_id,
                 answered: hasStoredAnswer(answer), isCorrect: answer.is_correct,
             }))),
-            dimensions: (dimensions as any[]) || [],
-            interpretations: (interpretations as any[]) || [],
+            dimensions,
+            interpretations,
             answers: questions.map(question => {
                 const answer = answersByQuestion.get(question.id);
                 return {

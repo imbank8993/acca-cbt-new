@@ -75,3 +75,19 @@ test('discussion lookup failure is reported as a server error, not a release dec
     exam.metadata.show_answer_keys = true;
     await assert.rejects(assertAnswerKeysReleased(fixtureDb({}, ['cbt_exam_attempts']), exam), e => e.getStatus() === 500);
 });
+test('personality profile follows show_results, not the discussion release', async () => {
+    const db = fixture();
+    db.tables.cbt_exam_attempts[0].exams.metadata.show_answer_keys = false;
+    db.tables.cbt_exam_attempts[0].metadata.dimension_scores = { dim: 12 };
+    db.tables.cbt_question_dimensions = [{ id: 'dim', name: 'Teliti', bank_id: 'bank' },
+        { id: 'other', name: 'Bank lain', bank_id: 'other-bank' }];
+    db.tables.cbt_dimension_interpretations = [{ id: 'i', dimension_id: 'dim', min_score: 10, max_score: 15,
+        title: 'Tinggi', interpretation: 'Sangat teliti.', 'question_dimensions.bank_id': 'bank' }];
+    const result = await new StudentsService(db).getAttemptDetails(user, 'attempt');
+    assert.equal(result.answerKeysReleased, false);
+    assert.deepEqual(result.attempt.metadata.dimension_scores, { dim: 12 });
+    assert.deepEqual(result.dimensions.map(d => d.id), ['dim']);
+    assert.equal(result.interpretations[0].title, 'Tinggi');
+    assert.deepEqual(result.answers, []);
+    assert.ok(!JSON.stringify(result).includes('SECRET'));
+});
