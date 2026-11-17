@@ -553,6 +553,7 @@ const ExamsPage = () => {
                                         </div>
                                     </div>
                                     <div className="exam-folder-actions flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                        {period.canShare && <CollaborationButton type="period" resourceId={period.id} collaboratorCount={period.collaboratorCount} onChanged={() => void loadData()} mobileIconOnly />}
                                         <button
                                             onClick={() => router.push('/dashboard/admin/exams/pas/' + period.id)}
                                             className="px-3.5 py-2 text-xs bg-[#3083FF] text-white hover:bg-[#2563EB] rounded-lg transition-all font-semibold flex items-center gap-1.5 shadow-sm shadow-[#3083FF]/20 cursor-pointer"

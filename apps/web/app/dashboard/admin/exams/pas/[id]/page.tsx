@@ -378,6 +378,7 @@ export default function AdminPASDetailPage() {
                     onSettings={() => { if (!period.is_locked) setIsEditModalOpen(true); }}
                     onAddSchedule={openAddSchedule}
                     onBulkSchedule={() => { if (!period.is_locked) setActiveTab('bulk'); }}
+                    onAccessChanged={() => void loadData()}
                 />
             )}
 
