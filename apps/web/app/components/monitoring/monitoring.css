@@ -120,9 +120,6 @@
 .monitoring-workspace__action { display: flex; align-items: center; justify-content: flex-end; flex-shrink: 0; min-height: 42px; }
 .monitoring-workspace__picker { flex: 1; width: 100%; min-width: 0; }
 .monitoring-workspace__picker .ss__trigger { border: 1px solid var(--monitoring-line); border-radius: 8px; background: var(--monitoring-surface); box-shadow: none; }
-.monitoring-refresh { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 42px; height: 42px; color: var(--monitoring-muted); background: var(--monitoring-surface); border: 1px solid var(--monitoring-line); border-radius: 8px; cursor: pointer; }
-.monitoring-refresh:hover { background: var(--monitoring-control); color: var(--primary, #3083ff); }
-.monitoring-refresh:disabled { cursor: not-allowed; opacity: .45; }
 .monitoring-summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0 0 22px; padding: 18px 0; border: 1px solid var(--monitoring-line); border-radius: 12px; background: var(--monitoring-surface); }
 .monitoring-summary > div { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 4px; padding: 0 22px; border-left: 1px solid var(--monitoring-line); }
 .monitoring-summary > div:first-child { border-left: 0; }
@@ -174,7 +171,6 @@
 .monitoring-room-open:hover { background: var(--monitoring-control, #f8fafc); }
 .monitoring-room-name button:focus-visible,
 .monitoring-room-open:focus-visible { outline: 2px solid #3083ff; outline-offset: 3px; }
-.monitoring-refresh:focus-visible,
 .monitoring-workspace__tabs button:focus-visible { outline: 2px solid var(--primary, #3083ff); outline-offset: 3px; }
 
 /* Dropdown menu titik tiga di toolbar monitoring */
@@ -296,7 +292,7 @@
 }
 
 @media (pointer: coarse) {
-  .monitoring-refresh, .monitoring-workspace__tabs button { min-height: 44px; }
+  .monitoring-workspace__tabs button { min-height: 44px; }
 }
 
 .monitoring-participant-name { text-align: left; overflow-wrap: anywhere; }
@@ -326,13 +322,12 @@
   .monitoring-workspace__schedule { margin-top: 8px; font-size: 12px; line-height: 1.5; }
   .monitoring-workspace__action, .monitoring-view-toggle { width: 100%; }
   .monitoring-view-toggle > button { flex: 1; min-height: 44px; }
-  .monitoring-refresh { width: 44px; height: 44px; }
   .monitoring-exam-picker .ss__trigger { min-height: 44px; }
   .monitoring-participants-workspace, .monitoring-participants-list { gap: 12px; }
-  .monitoring-section-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
-  .monitoring-section-tabs { min-width: 0; width: 100%; gap: 0; scrollbar-width: none; }
-  .monitoring-section-tabs > button { flex: 1 0 auto; min-height: 44px; padding: 10px 12px; font-size: 13px; }
-  .monitoring-section-bar > div { margin: 0; align-self: center; }
+  .monitoring-section-bar { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; }
+  .monitoring-section-tabs { min-width: 0; width: auto; flex: 0 1 auto; gap: 0; scrollbar-width: none; }
+  .monitoring-section-tabs > button { flex: 0 0 auto; min-height: 44px; padding: 10px 12px; font-size: 13px; }
+  .monitoring-section-bar > div { margin: 0; align-self: center; flex-shrink: 0; }
   .monitoring-section-bar .ui-btn:not(.monitoring-actions-trigger) { min-height: 44px; }
   /* Ikon ⋯ seukuran teks tab; area sentuh tetap 44px lewat ::after. */
   .monitoring-actions-trigger { position: relative; width: 32px; min-width: 32px; height: 32px; min-height: 32px; padding: 0 !important; overflow: visible; }

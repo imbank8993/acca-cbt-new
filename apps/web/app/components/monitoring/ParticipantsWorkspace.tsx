@@ -292,14 +292,14 @@ export function ParticipantsWorkspace({
         .sort((a, b) => String(a.profiles?.full_name || '').localeCompare(String(b.profiles?.full_name || ''), 'id'));
 
     return <div className="monitoring-participants-workspace">
-        <div className="monitoring-section-bar flex flex-wrap items-end justify-between gap-2 border-b border-slate-200">
+        <div className="monitoring-section-bar flex flex-wrap items-end gap-2 border-b border-slate-200">
             <nav className="monitoring-section-tabs -mb-px flex gap-1 overflow-x-auto" aria-label="Bagian monitoring">
                 {sections.map(id => <button key={id} type="button" aria-pressed={!action && activeSection === id} onClick={() => openSection(id)}
                     className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors ${!action && activeSection === id ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
                     {SECTION_LABELS[id]}
                 </button>)}
             </nav>
-            {(actions.length > 0 || trailing) && <div className="mb-1.5 ml-auto flex items-center gap-2">
+            {(actions.length > 0 || trailing) && <div className="mb-1.5 flex items-center gap-2">
             {actions.length > 0 && <div ref={menuRef} className="relative">
                 <Button type="button" variant="outline" size="sm" aria-haspopup="menu" className="monitoring-actions-trigger" aria-label="Tindakan" leftIcon={<MoreHorizontal size={18} className="sm:hidden" />} aria-expanded={menuOpen} onClick={() => setMenuOpen(open => !open)}
                     rightIcon={<ChevronDown size={14} className={`hidden sm:block transition-transform ${menuOpen ? 'rotate-180' : ''}`} aria-hidden="true" />}>

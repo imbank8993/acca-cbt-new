@@ -371,7 +371,6 @@ function MonitoringContent() {
                     if (activeTab === 'administration' && !hasMonitoringAdministration(exams.find(exam => exam.id === id))) setActiveTab('live');
                 }}
                 onRefresh={folderGroup ? () => setFolderRefresh(count => count + 1) : handleRefresh}
-                refreshing={isRefreshing}
                 attempts={attempts}
                 activeTab={activeTab}
                 onTabChange={value => setActiveTab(value as typeof activeTab)}

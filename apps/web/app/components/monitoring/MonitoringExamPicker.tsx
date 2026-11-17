@@ -1,17 +1,16 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Info, X } from 'lucide-react';
 import SearchableSelect from '@/components/ui/SearchableSelect';
-import { InlineSelect } from '@/app/components/ui/inlineselect';
 import type { OrganizationExam } from '@/lib/api/proctor';
 import { folderExamParts, isMonitoringExamActive, monitoringAssessmentPeriod, monitoringExamLabel, monitoringExamDetails, monitoringFolderName, sortMonitoringExams,
-    monitoringExamBadge, filterMonitoringExams, type MonitoringExamCategory } from '@/lib/monitoring-exams';
+    monitoringExamBadge } from '@/lib/monitoring-exams';
 import { formatSchoolDateTime } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import './monitoring-exam-picker.css';
 
-export default function MonitoringExamPicker({ exams, now, value, onChange, compactContext = false, detailsOnRight = false, hideContext = false, folderLevel = false, action }: {
+export default function MonitoringExamPicker({ exams, now, value, onChange, compactContext = false, detailsOnRight = false, hideContext = false, folderLevel = false }: {
     detailsOnRight?: boolean;
     /**
      * Tampilan Per ruang folder ASAS/AM: isinya seluruh folder, bukan satu bank soal.
@@ -19,7 +18,6 @@ export default function MonitoringExamPicker({ exams, now, value, onChange, comp
      */
     folderLevel?: boolean;
     hideContext?: boolean;
-    action?: ReactNode;
     compactContext?: boolean;
     exams: OrganizationExam[];
     now: number;
@@ -27,10 +25,9 @@ export default function MonitoringExamPicker({ exams, now, value, onChange, comp
     onChange: (value: unknown) => void;
 }) {
     const { timeZone, error } = useSchoolTimeZone();
-    const [category, setCategory] = useState<MonitoringExamCategory>('all');
     const [openDetailsFor, setOpenDetailsFor] = useState<string | null>(null);
     const detailsRef = useRef<HTMLDivElement>(null);
-    const visible = sortMonitoringExams(filterMonitoringExams(exams, category), now);
+    const visible = sortMonitoringExams(exams, now);
     const selected = exams.find(exam => exam.id === value);
     const options = folderLevel ? folderOptions(visible, selected) : visible;
     const selectedFolder = selected ? folderExamParts(selected) : null;
@@ -61,22 +58,15 @@ export default function MonitoringExamPicker({ exams, now, value, onChange, comp
             typeof duration === 'number' && duration > 0 ? `${duration} menit` : '',
         ].filter(Boolean).join(' · ');
     };
-    const changeCategory = (next: string) => {
-        const nextCategory = next as MonitoringExamCategory;
-        setCategory(nextCategory);
-        setOpenDetailsFor(null);
-        const filtered = sortMonitoringExams(filterMonitoringExams(exams, nextCategory), now);
-        if (value && !filtered.some(exam => exam.id === value)) onChange(filtered[0]?.id || '');
-    };
     const badge = selected ? monitoringExamBadge(selected) : null;
     const questionCreators = selected?.questionCreatorNames?.length ? selected.questionCreatorNames.join(', ') : 'Belum tercatat';
     const examCreator = selected?.examCreatorName || (!badge ? selected?.creatorName : null) || 'Belum tercatat';
 
     return <div className={`monitoring-exam-picker ${detailsOnRight ? 'monitoring-exam-picker--aside' : ''}`}>
-        <div className={`monitoring-exam-picker__controls ${action ? 'has-action' : ''}`}>
+        <div className="monitoring-exam-picker__controls">
             <SearchableSelect
                 className="w-full"
-                placeholder={visible.length ? 'Cari atau pilih ujian...' : 'Tidak ada ujian pada kategori ini'}
+                placeholder={visible.length ? 'Cari atau pilih ujian...' : 'Tidak ada ujian'}
                 searchPlaceholder="Cari ujian, bank soal, kelas, atau periode..."
                 options={options.map(exam => {
                     const folder = folderExamParts(exam);
@@ -96,9 +86,6 @@ export default function MonitoringExamPicker({ exams, now, value, onChange, comp
                 value={value}
                 onChange={next => { setOpenDetailsFor(null); onChange(next); }}
             />
-            <InlineSelect aria-label="Kategori ujian" value={category} onChange={changeCategory} minWidth="0" height="42px"
-                options={[{ value: 'all', label: 'Semua ujian' }, { value: 'assessment', label: 'ASAS/AM' }, { value: 'other', label: 'Lainnya' }]} />
-            {action}
         </div>
         {selected && !hideContext && !(folderLevel && selectedFolder) && <div className="monitoring-exam-picker__context" aria-live="polite">
             {selectedFolder ? <div ref={detailsRef} className="monitoring-exam-picker__detail-anchor">

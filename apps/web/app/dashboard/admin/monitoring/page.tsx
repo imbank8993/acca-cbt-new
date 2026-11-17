@@ -330,7 +330,7 @@ function MonitoringContent() {
         <div className="monitoring-page pb-24 max-w-7xl mx-auto">
             <MonitoringWorkspaceHeader
                 exams={groupedExams.list} now={monitoringNow} value={pickedExamId}
-                onExamChange={setSelectedExamId} onRefresh={folderGroup ? () => setFolderRefresh(count => count + 1) : handleRefresh} refreshing={isRefreshing}
+                onExamChange={setSelectedExamId} onRefresh={folderGroup ? () => setFolderRefresh(count => count + 1) : handleRefresh}
                 attempts={attempts} activeTab={activeTab}
                 onTabChange={tab => setActiveTab(tab as typeof activeTab)}
                 hideDetails={Boolean(folderGroup)}

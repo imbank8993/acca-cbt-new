@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { RefreshCw } from 'lucide-react';
 import type { ExamAttemptRecord, OrganizationExam } from '@/lib/api/proctor';
 import { activeMonitoringRows } from '@/lib/active-monitoring';
 import { hasMonitoringAdministration } from '@/lib/monitoring-tabs';
@@ -15,7 +14,6 @@ interface MonitoringWorkspaceHeaderProps {
     value: string;
     onExamChange: (value: string) => void;
     onRefresh: () => void;
-    refreshing: boolean;
     attempts: ExamAttemptRecord[];
     activeTab: string;
     onTabChange: (value: string) => void;
@@ -30,7 +28,7 @@ interface MonitoringWorkspaceHeaderProps {
 }
 
 export function MonitoringWorkspaceHeader({
-    exams, now, value, onExamChange, onRefresh, refreshing, attempts,
+    exams, now, value, onExamChange, onRefresh, attempts,
     activeTab, onTabChange, tabs, hideDetails = false, headerAction, folderLevel = false, children,
 }: MonitoringWorkspaceHeaderProps) {
     const selectedAttempts = attempts.filter(attempt => attempt.exam_id === value);
@@ -79,12 +77,6 @@ export function MonitoringWorkspaceHeader({
                         }}
                         compactContext
                         folderLevel={folderLevel}
-                        action={
-                            <button type="button" className="monitoring-refresh" onClick={onRefresh}
-                                disabled={refreshing || !value} aria-label="Perbarui data monitoring" title="Perbarui data monitoring">
-                                <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
-                            </button>
-                        }
                     />
                 </div>
                 {headerAction && <div className="monitoring-workspace__action">{headerAction}</div>}

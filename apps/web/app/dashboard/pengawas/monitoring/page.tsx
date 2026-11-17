@@ -40,7 +40,6 @@ function MonitoringContent() {
     const initialExamId = searchParams.get('exam') || '';
 
     const [isLoading, setIsLoading] = useState(true);
-    const [isRefreshing, setIsRefreshing] = useState(false);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [exams, setExams] = useState<OrganizationExam[]>([]);
     const [selectedExamId, setSelectedExamId] = useState<string>(initialExamId);
@@ -55,8 +54,7 @@ function MonitoringContent() {
     const [statusFilter, setStatusFilter] = useState('all');
     const [resetStatus, setResetStatus] = useState('all');
 
-    const loadData = useCallback(async (isSilent = false) => {
-        if (!isSilent) setIsRefreshing(true);
+    const loadData = useCallback(async () => {
         setLoadError(null);
         try {
             const user = await getSessionUser();
@@ -84,17 +82,16 @@ function MonitoringContent() {
             setLoadError(error instanceof Error ? error.message : 'Data monitoring belum dapat dimuat.');
         } finally {
             setIsLoading(false);
-            setIsRefreshing(false);
         }
     }, [selectedExamId, initialExamId]);
 
     useEffect(() => {
-        const initialLoad = window.setTimeout(() => { void loadData(false); }, 0);
+        const initialLoad = window.setTimeout(() => { void loadData(); }, 0);
         return () => window.clearTimeout(initialLoad);
     }, [loadData]);
 
     // Live refresh setiap 10 detik saat monitoring aktif
-    useAutoRefresh(() => loadData(true), REFRESH_INTERVAL.monitoring);
+    useAutoRefresh(() => loadData(), REFRESH_INTERVAL.monitoring);
 
     const handleExamChange = async (examId: string) => {
         if (activeTab === 'admin' && !hasMonitoringAdministration(exams.find(exam => exam.id === examId))) {
@@ -107,7 +104,6 @@ function MonitoringContent() {
         setAttentionOnly(false);
         setAttempts([]);
         setLoadError(null);
-        setIsRefreshing(true);
         try {
             const [attemptData, violationData] = await Promise.all([
                 getExamAttemptsAction(examId),
@@ -117,8 +113,6 @@ function MonitoringContent() {
             setLiveAlerts(violationData);
         } catch (error) {
             setLoadError(error instanceof Error ? error.message : 'Data monitoring belum dapat dimuat.');
-        } finally {
-            setIsRefreshing(false);
         }
     };
 
@@ -169,8 +163,7 @@ function MonitoringContent() {
                 now={monitoringNow}
                 value={selectedExamId}
                 onExamChange={(examId) => void handleExamChange(examId)}
-                onRefresh={() => void loadData(false)}
-                refreshing={isRefreshing}
+                onRefresh={() => void loadData()}
                 attempts={attempts}
                 activeTab={activeTab}
                 onTabChange={setActiveTab}
@@ -205,7 +198,7 @@ function MonitoringContent() {
             {loadError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                 <p className="font-semibold">Peserta monitoring gagal dimuat</p>
                 <p className="mt-1">{loadError}</p>
-                <button type="button" onClick={() => void loadData(false)} className="mt-2 font-semibold underline">Coba lagi</button>
+                <button type="button" onClick={() => void loadData()} className="mt-2 font-semibold underline">Coba lagi</button>
             </div>}
 
             {activeTab === 'live' && (isLoading ? (
@@ -373,7 +366,7 @@ function MonitoringContent() {
                     <BulkResetPanel key={selectedExamId}
                         attempts={filteredAttempts.filter(attempt => attempt.exam_id === selectedExamId && (resetStatus === 'all' || attempt.status === resetStatus))}
                         examDuration={exams.find(exam => exam.id === selectedExamId)?.duration_minutes}
-                        onRefresh={() => void loadData(false)}
+                        onRefresh={() => void loadData()}
                     />
                 )}
                 {selectedExamId && !canResetParticipants && <p className="rounded-xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">Mode lihat saja: reset hanya tersedia untuk pembuat ujian.</p>}
@@ -401,7 +394,7 @@ function MonitoringContent() {
                 }
                 onClose={() => setSelectedResetAttempt(null)}
                 onSuccess={() => {
-                    void loadData(true);
+                    void loadData();
                 }}
             />
         </div>

@@ -66,7 +66,7 @@
     z-index: 50;
     top: calc(100% + 8px);
     left: 0;
-    width: min(420px, calc(100vw - 32px));
+    width: min(420px, 100%, calc(100vw - 32px));
     box-sizing: border-box;
     max-height: min(420px, 65dvh);
     overflow-y: auto;
@@ -92,9 +92,7 @@
 .dark .monitoring-exam-picker__detail-popover dd { color: #e2e8f0; }
 
 
-.monitoring-exam-picker__controls { display: grid; grid-template-columns: minmax(0, 1fr) 180px; align-items: start; gap: 8px; width: 100%; }
-.monitoring-exam-picker__controls.has-action { grid-template-columns: minmax(0, 1fr) 180px 42px; }
-.monitoring-exam-picker__controls > .uisel { width: 100%; }
+.monitoring-exam-picker__controls { width: 100%; min-width: 0; }
 .monitoring-exam-picker__identity { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 .monitoring-exam-picker__identity:empty { display: none; }
 .monitoring-exam-picker__metadata { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 20px; margin: 10px 0 0; padding: 0; }
@@ -104,10 +102,6 @@
 .dark .monitoring-exam-picker__metadata dd { color: #cbd5e1; }
 @media (max-width: 639px) {
     .monitoring-exam-picker__detail-trigger { height: 44px; }
-    .monitoring-exam-picker__controls { grid-template-columns: minmax(0, 1fr) 120px; }
-    .monitoring-exam-picker__controls.has-action { grid-template-columns: minmax(0, 1fr) 120px 44px; }
-    .monitoring-exam-picker__controls .uisel { --uisel-h: 44px !important; }
-    .monitoring-exam-picker__controls .uisel-input { padding-left: 8px; font-size: 12px; }
     .monitoring-exam-picker__metadata { grid-template-columns: 1fr; gap: 6px; margin-top: 8px; }
     .monitoring-exam-picker__metadata > div { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 8px; align-items: baseline; }
     .monitoring-exam-picker__metadata dt { margin: 0; }
