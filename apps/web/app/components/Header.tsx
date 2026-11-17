@@ -239,7 +239,7 @@ export default function Header({
                         {showUserMenu && (
                             <div className="user-menu-dropdown">
                                 <div className="user-menu-info">
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '8px' }}>
                                         <div
                                             className="user-menu-profile-avatar shrink-0"
                                             style={{
@@ -294,7 +294,7 @@ export default function Header({
                                             </span>
                                         </div>
                                         <div style={{ minWidth: 0, flex: 1 }}>
-                                            <div className="user-menu-name" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayName}</div>
+                                            <div className="user-menu-name">{displayName}</div>
                                             <div className="user_menu_nip">
                                                 {idLabel}: {displayNip && displayNip !== 'N/A' ? displayNip : '-'}
                                             </div>

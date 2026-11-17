@@ -583,7 +583,8 @@ html.dark .header-collapse-toggle:hover {
   position: absolute;
   top: calc(100% + 12px);
   right: 0;
-  width: 240px;
+  width: min(300px, calc(100vw - 24px));
+  box-sizing: border-box;
   background: var(--n-card);
   border-radius: 20px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 4px 16px rgba(0, 0, 0, 0.3);
@@ -625,6 +626,8 @@ html.dark .header-collapse-toggle:hover {
   color: var(--header-text);
   font-size: 0.95rem;
   margin-bottom: 2px;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .user_menu_nip {
@@ -633,6 +636,7 @@ html.dark .header-collapse-toggle:hover {
   margin: 2px 0;
   font-weight: 500;
   line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 .dark .user_menu_nip,
@@ -644,6 +648,7 @@ html.dark .user_menu_nip {
   font-size: 0.75rem;
   color: var(--n-primary);
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .user-menu-item {
@@ -1087,7 +1092,7 @@ html.dark .user_menu_nip {
   }
 
   .user-menu-dropdown {
-    width: 210px !important;
+    width: min(300px, calc(100vw - 24px)) !important;
     border-radius: 18px !important;
     top: calc(100% + 8px) !important;
   }
@@ -1106,11 +1111,6 @@ html.dark .user_menu_nip {
   .dark .user-menu-name,
   html.dark .user-menu-name {
     color: #f1f5f9 !important;
-  }
-
-  .user-menu-role,
-  .user_menu_nip {
-    display: none !important;
   }
 
   .user-menu-item {
