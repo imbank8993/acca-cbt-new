@@ -15,7 +15,7 @@ export function MonitoringAnalysisView({ hasIrt, irt, topicAnalysis, children }:
     const [selected, setSelected] = useState(hasIrt ? 'irt' : 'classical');
     const active = selected === 'irt' && !hasIrt ? 'classical' : selected;
 
-    const analysisSelector = <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
+    const analysisSelector = <div className="monitoring-analysis-selector flex min-w-0 shrink-0 items-center gap-2 whitespace-nowrap">
         <span className="hidden lg:inline text-xs font-semibold text-slate-600">Jenis analisis</span>
         <InlineSelect aria-label="Jenis analisis" value={active} onChange={setSelected}
             minWidth="160px" height="38px" options={[

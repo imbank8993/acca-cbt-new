@@ -105,7 +105,19 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, exte
                 text={`Perlu perhatian${needingAttention.length > 0 ? ` (${needingAttention.length})` : ''}`}
                 checked={onlyAttention} onChange={value => { setOnlyAttention(value); setPage(1); }} />
         </FilterToolbar>}
-        <div className={`${externalFilters ? '' : 'mt-3 '}overflow-x-auto rounded-lg border border-slate-200`}><table className="mobile-data-cards w-full sm:min-w-[720px] text-left text-xs">
+        <div className={`${externalFilters ? '' : 'mt-3 '}overflow-hidden rounded-lg border border-slate-200`}>
+            <ul className="divide-y divide-slate-100 sm:hidden" aria-label="Daftar jawaban peserta">
+                {visibleRows.map(attempt => <li key={attempt.id}><button type="button"
+                    onClick={() => setSelectedAttemptId(attempt.id)}
+                    className="flex min-h-14 w-full items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-slate-50 active:bg-slate-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-500">
+                    <span className="min-w-0 flex-1">
+                        <span className="block break-words text-sm font-semibold text-slate-800">{formatStudentName(attempt.profiles?.full_name, 'Tanpa nama')}</span>
+                        <span className="mt-0.5 block text-xs text-slate-500">{attempt.kelas_name || 'Tanpa kelas'}</span>
+                    </span>
+                    <ChevronRight size={16} className="shrink-0 text-slate-400" aria-hidden="true" />
+                </button></li>)}
+            </ul>
+            <div className="hidden overflow-x-auto sm:block"><table className="w-full min-w-[720px] text-left text-xs">
             <thead><tr className="border-b bg-slate-50 text-slate-500"><th className="p-3 font-semibold">Peserta</th><th className="p-3 font-semibold" aria-sort={onlyIncomplete ? "descending" : "ascending"} title={onlyIncomplete ? "Soal belum dijawab, dari paling banyak" : "Jumlah soal dijawab, dari paling sedikit"}>Jawaban {onlyIncomplete ? "↓" : "↑"}</th><th className="hidden p-3 font-semibold sm:table-cell">Status</th><th className="hidden p-3 font-semibold sm:table-cell">Peringatan</th><th className="hidden p-3 font-semibold sm:table-cell">Aksi</th></tr></thead>
             <tbody>{visibleRows.map(attempt => {
                 const health = attempt.sync_health;
@@ -145,7 +157,7 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, exte
                     </td>
                 </tr>;
             })}</tbody>
-        </table></div>
+        </table></div></div>
         {pageCount > 1 && (
             <div className="monitoring-health__pagination mt-3 flex items-center justify-between text-xs text-slate-500">
                 <span>

@@ -129,6 +129,7 @@ test('monitoring results expose calculated IRT scores in their own column', () =
   attempts:[{...attempt,profiles:{full_name:'Peserta'},...overrides}],hasAnyAttempts:true,onViewDetails:()=>{},
  }));
  const irtCell=html=>{const cells=html.match(/<td\b[^>]*>[\s\S]*?<\/td>/g);return cells[4];};
+ assert.match(render({}), /<ul[^>]*aria-label="Daftar hasil peserta"[\s\S]*?>Peserta<\/span>/);
  assert.match(render({}),/>IRT \(200–800\)<\/th>/);
  assert.match(irtCell(render({})),/581\.33/);
  assert.match(irtCell(render({score_irt:0})),/500\.00/);

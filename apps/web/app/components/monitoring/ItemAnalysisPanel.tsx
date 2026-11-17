@@ -121,9 +121,6 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
                 options={[{ value: '', label: 'Semua' },
                     ...ITEM_DIFFICULTY_CATEGORIES.map(label => ({ value: label.toLocaleLowerCase('id'), label }))]} />
         </FilterToolbar>
-        <p className="text-[11px] leading-relaxed text-slate-500">
-            Kategori P: ≤0,10 Sangat Sulit; 0,10&lt;P≤0,30 Sulit; 0,30&lt;P≤0,70 Sedang; 0,70&lt;P≤0,90 Mudah; &gt;0,90 Sangat Mudah. P adalah proporsi benar dari respons ternilai; hasil sementara selama ujian atau koreksi berlangsung.
-        </p>
         <div className={`monitoring-analysis bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden ${className}`}>
             <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 text-xs">
                 <span className="font-semibold text-slate-700 truncate">Urut dari soal tersulit</span>

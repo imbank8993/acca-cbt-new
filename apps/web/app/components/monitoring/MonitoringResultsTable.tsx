@@ -2,7 +2,7 @@
 import './participant-detail.css';
 
 import { Fragment, useState } from 'react';
-import { ChevronDown, Eye, FileSpreadsheet, RotateCcw } from 'lucide-react';
+import { ChevronDown, ChevronRight, Eye, FileSpreadsheet, RotateCcw } from 'lucide-react';
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/app/components/ui/modal';
 import { Button } from '@/app/components/ui/button';
 import type { ExamAttemptRecord } from '@/lib/api/proctor';
@@ -75,8 +75,20 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
     const selectedAttempt = selectedId ? attempts.find(att => att.id === selectedId) ?? null : null;
     const selectedFacts = selectedAttempt ? getAttemptResultFacts(selectedAttempt) : null;
 
-    return <div className="monitoring-results-table overflow-x-auto">
-        <table className="mobile-data-cards w-full sm:min-w-[780px] text-left text-xs sm:text-sm">
+    return <div className="monitoring-results-table min-w-0">
+        <div className="rounded-xl border border-slate-200 bg-white sm:hidden">
+            {attempts.length === 0 ? <p className="px-4 py-10 text-center text-sm text-slate-500">
+                {hasAnyAttempts ? 'Belum ada peserta yang selesai atau cocok dengan filter.' : 'Belum ada data.'}
+            </p> : <ul className="divide-y divide-slate-100" aria-label="Daftar hasil peserta">{attempts.map(att => <li key={att.id}><button type="button" onClick={() => setSelectedId(att.id)}
+                className="flex min-h-14 w-full items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-slate-50 active:bg-slate-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-500">
+                <span className="min-w-0 flex-1">
+                    <span className="block break-words text-sm font-semibold text-slate-800">{formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}</span>
+                    <span className="mt-0.5 block text-xs text-slate-500">{att.kelas_name || 'Tanpa kelas'}</span>
+                </span>
+                <ChevronRight size={16} className="shrink-0 text-slate-400" aria-hidden="true" />
+            </button></li>)}</ul>}
+        </div>
+        <div className="hidden overflow-x-auto sm:block"><table className="w-full min-w-[780px] text-left text-xs sm:text-sm">
             <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
                     <th scope="col" className="p-3 sm:px-4 sm:py-3">Peserta</th>
@@ -166,7 +178,7 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
                     </Fragment>;
                 })}
             </tbody>
-        </table>
+        </table></div>
 
         <Modal
             open={Boolean(selectedAttempt && selectedFacts)}

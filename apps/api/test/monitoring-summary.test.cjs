@@ -49,6 +49,10 @@ test('summary retains recovery and opens live details without navigating away', 
     assert.match(text(table), /15 \/ 15 terjawab/);
     assert.match(text(table), /Ditutup otomatis · sudah dinilai/);
     assert.doesNotMatch(text(table), /Penyimpanan|Antrean|Kontak server terakhir|Waktu sesi/);
+    const mobileList = nodes(tree).find(n => n.type === 'ul' && n.props['aria-label'] === 'Daftar jawaban peserta');
+    assert.ok(mobileList);
+    nodes(mobileList).find(n => n.type === 'button').props.onClick();
+    assert.equal(nodes(render()).find(n => n.type === 'AttemptHistoryModal').props.open, true);
     nodes(tree).find(n => n.type === 'button' && text(n) === 'Susulan / Pulihkan').props.onClick();
     assert.equal(recovered, 'a');
     nodes(tree).find(n => n.type === 'button' && text(n) === 'Detail').props.onClick();

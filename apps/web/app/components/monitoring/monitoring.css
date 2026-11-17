@@ -352,6 +352,10 @@
   .monitoring-results__scope select.uisel-input { height: 44px; }
   .monitoring-results-table table { table-layout: fixed; }
   .monitoring-results-table td { vertical-align: top; }
+  .monitoring-analysis-panel .ftb-mobile-topbar { flex-wrap: wrap; }
+  .monitoring-analysis-panel .monitoring-analysis-selector,
+  .monitoring-analysis-panel .ftb-mobile-search-wrap { flex: 1 1 100% !important; width: 100%; min-width: 0; }
+  .monitoring-analysis-panel .monitoring-analysis-selector .uisel { width: 100%; }
   .monitoring-analysis__mobile > button { padding: 16px 12px; gap: 12px; }
   .monitoring-analysis__mobile > button > div:first-child { width: 58px; }
   .monitoring-analysis__mobile .line-clamp-2 { -webkit-line-clamp: 3; font-size: 13px !important; line-height: 1.6 !important; }

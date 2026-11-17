@@ -225,6 +225,7 @@ export function ParticipantsWorkspace({
 
     const openSection = (next: WorkspaceSection) => {
         setAction(null);
+        setMenuOpen(false);
         setSection(next);
         if (next === 'analisis' && analysis?.examId !== analysisKey) void loadAnalysis(analysisKey);
     };
@@ -288,10 +289,17 @@ export function ParticipantsWorkspace({
         ...(screenExams.length ? [['screen', 'Pengecualian layar'] as const] : []),
         ...(cancellableExams.length ? [['cancel', 'Batalkan ujian'] as const] : []),
     ];
+    const actionMenuItems = () => actions.map(([id, label]) => <button key={id} type="button" role="menuitem" onClick={() => {
+        if (id === 'cancel') setCancelTargets(cancellableExams); else setAction(id);
+        setMenuOpen(false);
+    }} className={`flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm font-medium ${id === 'cancel' ? 'text-red-700 hover:bg-red-50' : 'text-slate-800 hover:bg-slate-50'}`}>
+        {label}
+    </button>);
     const peopleRows = [...scoped].filter(row => effectiveStatus === 'all' || attemptState(row) === effectiveStatus)
         .sort((a, b) => String(a.profiles?.full_name || '').localeCompare(String(b.profiles?.full_name || ''), 'id'));
 
     return <div className="monitoring-participants-workspace">
+        <div ref={menuRef} className="min-w-0">
         <div className="monitoring-section-bar flex flex-wrap items-end gap-2 border-b border-slate-200">
             <nav className="monitoring-section-tabs -mb-px flex gap-1 overflow-x-auto" aria-label="Bagian monitoring">
                 {sections.map(id => <button key={id} type="button" aria-pressed={!action && activeSection === id} onClick={() => openSection(id)}
@@ -300,27 +308,22 @@ export function ParticipantsWorkspace({
                 </button>)}
             </nav>
             {(actions.length > 0 || trailing) && <div className="flex items-center gap-2">
-            {actions.length > 0 && <div ref={menuRef} className="relative">
+            {actions.length > 0 && <div className="relative">
                 <button type="button" aria-haspopup="menu" className="monitoring-actions-trigger" aria-label="Tindakan" aria-expanded={menuOpen} onClick={() => setMenuOpen(open => !open)}>
                     <MoreHorizontal size={18} aria-hidden="true" />
                     <span>Tindakan</span>
                     <ChevronDown size={14} className={menuOpen ? 'rotate-180' : ''} aria-hidden="true" />
                 </button>
-                {menuOpen && <div role="menu" aria-label="Tindakan" className="absolute right-0 z-20 mt-1.5 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
-                    {actions.map(([id, label]) => <button key={id} type="button" role="menuitem" onClick={() => {
-                        if (id === 'cancel') setCancelTargets(cancellableExams); else setAction(id);
-                        setMenuOpen(false);
-                    }}
-                        className={`flex w-full flex-col items-start rounded-lg px-3 py-2 text-left ${id === 'cancel' ? 'mt-1 border-t border-slate-100 hover:bg-red-50' : 'hover:bg-slate-50'}`}>
-                        <span className={`text-sm font-medium ${id === 'cancel' ? 'text-red-700' : 'text-slate-800'}`}>{label}</span>
-                        <span className="text-[11px] text-slate-500">{id === 'reset' ? 'Buka ulang pengerjaan beberapa peserta'
-                            : id === 'screen' ? 'Izinkan peserta tanpa berbagi layar'
-                            : 'Salah jadwal: hentikan semua, siswa mengulang dari awal'}</span>
-                    </button>)}
+                {menuOpen && <div role="menu" aria-label="Tindakan" className="absolute right-0 z-20 mt-1.5 hidden w-56 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-lg sm:block">
+                    {actionMenuItems()}
                 </div>}
             </div>}
             {trailing}
             </div>}
+        </div>
+        {menuOpen && <div role="menu" aria-label="Tindakan" className="mt-2 rounded-xl border border-slate-200 bg-white p-1 shadow-sm sm:hidden">
+            {actionMenuItems()}
+        </div>}
         </div>
 
         {showFilters && <FilterToolbar>
@@ -351,7 +354,6 @@ export function ParticipantsWorkspace({
         </div>
         : activeSection === 'berita' ? administration
         : activeSection === 'analisis' ? <div className="space-y-3">
-            <p className="text-right text-[11px] text-slate-500">Mencakup seluruh peserta {examOptions.length > 1 ? 'semua kelas pada bank soal ini' : focusLabel || 'ujian ini'}.</p>
             {analysisLoading && analysis?.examId !== analysisKey ? <Placeholder text="Memuat analisis…" />
                 : analysis?.examId === analysisKey && analysis.error ? <ErrorLine text={analysis.error} onRetry={() => void loadAnalysis(analysisKey)} />
                 : <MonitoringAnalysisView topicAnalysis={analysis?.examId === analysisKey ? analysis.topicAnalysis : null} key={analysisKey}
