@@ -56,7 +56,6 @@
     font-size: 12px;
     font-weight: 600;
     flex-shrink: 0;
-    margin-left: auto;
     cursor: pointer;
 }
 .monitoring-exam-picker__detail-trigger:hover,
@@ -66,7 +65,7 @@
     position: absolute;
     z-index: 50;
     top: calc(100% + 8px);
-    right: 0;
+    left: 0;
     width: min(420px, calc(100vw - 32px));
     box-sizing: border-box;
     max-height: min(420px, 65dvh);
