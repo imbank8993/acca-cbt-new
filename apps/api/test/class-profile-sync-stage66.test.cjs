@@ -100,3 +100,42 @@ test('CLASS-PROFILE-02: anggota kelas tidak ditulis jika profil baru gagal dibua
     assert.equal(db.tables.cbt_class_members.length, 0);
     assert.equal(db.writes.some((write) => write.table === 'cbt_class_members'), false);
 });
+
+test('kelas yang eksplisit nonaktif dibersihkan tanpa menghapus kelas semester lain atau anggota manual', async () => {
+    const { db, service } = createService({
+        siswa_kelas: [
+            { nisn: '1001', kelas: 'XI Kimia 3', tahun_ajaran: '2026/2027', semester: 'Genap', aktif: false },
+            { nisn: '1001', kelas: 'XI Sejarah Tingkat Lanjut 1', tahun_ajaran: '2026/2027', semester: 'Ganjil', aktif: true },
+            { nisn: '1002', kelas: 'XI Kimia 3', tahun_ajaran: '2026/2027', semester: 'Ganjil', aktif: false },
+            { nisn: '1002', kelas: 'XI Kimia 3', tahun_ajaran: '2026/2027', semester: 'Genap', aktif: true },
+        ],
+        users: [
+            { auth_id: 'student-1', nip: '1001' },
+            { auth_id: 'student-2', nip: '1002' },
+            { auth_id: 'manual-student', nip: '1003' },
+        ],
+        cbt_profiles: [
+            { id: 'student-1' }, { id: 'student-2' }, { id: 'manual-student' },
+        ],
+        cbt_class_members: [
+            { class_id: 'kimia', user_id: 'student-1' },
+            { class_id: 'sejarah', user_id: 'student-1' },
+            { class_id: 'kimia', user_id: 'student-2' },
+            { class_id: 'kimia', user_id: 'manual-student' },
+        ],
+    });
+
+    await service.syncMembers(new Map([
+        ['XI Kimia 3-2026/2027', 'kimia'],
+        ['XI Sejarah Tingkat Lanjut 1-2026/2027', 'sejarah'],
+    ]), ['2026/2027']);
+
+    assert.deepEqual(db.tables.cbt_class_members.map(({ class_id, user_id }) => `${class_id}:${user_id}`).sort(), [
+        'kimia:manual-student', 'kimia:student-2', 'sejarah:student-1',
+    ]);
+    const deletions = db.writes.filter(write => write.table === 'cbt_class_members' && write.mutation === 'delete');
+    assert.equal(deletions.length, 1);
+    assert.deepEqual(deletions[0].calls.filter(([method]) => method === 'eq'), [
+        ['eq', 'class_id', 'kimia'], ['eq', 'user_id', 'student-1'],
+    ]);
+});

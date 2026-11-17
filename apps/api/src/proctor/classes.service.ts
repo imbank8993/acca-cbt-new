@@ -428,9 +428,9 @@ export class ClassesService {
      * induknya berubah kapan saja (siswa pindah kelas, kelas baru dibuka), dan
      * daftar yang basi berarti guru menjadwalkan ujian untuk kelas yang salah.
      *
-     * Bersifat menambah saja. Kelas dan keanggotaan yang sudah ada tidak
-     * disentuh, dan tidak ada yang dihapus — menghapus di sini berarti
-     * kehilangan kelas yang dibuat manual.
+     * Keanggotaan tanpa catatan induk tetap dipertahankan. Hanya keanggotaan
+     * yang secara eksplisit nonaktif di siswa_kelas, tanpa baris aktif untuk
+     * kelas dan tahun yang sama, yang dibersihkan dari CBT.
      */
     private async syncFromMasterData(organizationId: string): Promise<void> {
         try {
@@ -510,7 +510,7 @@ export class ClassesService {
         activeYears: string[],
     ): Promise<void> {
         const [enrolmentResult, userResult, memberResult, profileResult] = await Promise.all([
-            this.db.from('siswa_kelas').select('*').eq('aktif', true).in('tahun_ajaran', activeYears),
+            this.db.from('siswa_kelas').select('*').in('tahun_ajaran', activeYears),
             // Siswa dipetakan lewat NISN → `users.nip` → `auth_id`; hanya akun
             // yang sudah punya identitas yang bisa disinkronkan.
             this.db.from('users').select('auth_id, nip, nama').not('auth_id', 'is', null),
@@ -554,6 +554,8 @@ export class ClassesService {
 
         const profiles = new Map<string, Record<string, unknown>>();
         const newMembers: Record<string, unknown>[] = [];
+        const activeSourceMembers = new Set<string>();
+        const inactiveSourceMembers = new Map<string, { classId: string; userId: string }>();
 
         for (const enrolment of (enrolments as any[]) || []) {
             const authId = authIdByNip.get(enrolment.nisn);
@@ -561,6 +563,14 @@ export class ClassesService {
 
             const classId = classIdByKey.get(`${enrolment.kelas}-${enrolment.tahun_ajaran}`);
             if (!classId) continue;
+
+            const key = `${classId}-${authId}`;
+            if (enrolment.aktif === false) {
+                inactiveSourceMembers.set(key, { classId, userId: authId });
+                continue;
+            }
+            if (enrolment.aktif !== true) continue;
+            activeSourceMembers.add(key);
 
             // Peta, bukan array: satu siswa bisa muncul di beberapa baris
             // pendaftaran, dan upsert dengan id kembar akan gagal.
@@ -570,7 +580,6 @@ export class ClassesService {
                 identity_number: enrolment.nisn,
             });
 
-            const key = `${classId}-${authId}`;
             if (existingMembers.has(key)) continue;
 
             newMembers.push({ class_id: classId, user_id: authId });
@@ -604,6 +613,15 @@ export class ClassesService {
             if (error) {
                 throw new Error(`Gagal menyimpan anggota kelas: ${error.message}`);
             }
+        }
+
+        for (const [key, member] of inactiveSourceMembers) {
+            // Kelas yang aktif pada semester lain tetap berlaku; kelas tanpa
+            // baris sumber mungkin ditambahkan secara manual di CBT.
+            if (activeSourceMembers.has(key) || !existingMembers.has(key)) continue;
+            const { error } = await this.db.from('cbt_class_members').delete()
+                .eq('class_id', member.classId).eq('user_id', member.userId);
+            if (error) throw new Error(`Gagal membersihkan anggota kelas nonaktif: ${error.message}`);
         }
     }
 }
