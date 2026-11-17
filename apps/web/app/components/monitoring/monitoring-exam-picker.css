@@ -38,7 +38,10 @@
 .monitoring-exam-picker__context p { margin: 0; }
 .dark .monitoring-exam-picker__context { color: #94a3b8; }
 
-.monitoring-exam-picker__detail-anchor { position: relative; display: inline-flex; }
+.monitoring-exam-picker__detail-anchor { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; }
+.monitoring-exam-picker__detail-summary { display: flex; align-items: baseline; flex: 0 1 auto; gap: 8px; min-width: 0; color: #334155; font-size: 13px; font-weight: 600; line-height: 1.5; }
+.monitoring-exam-picker__detail-summary > span { min-width: 0; overflow-wrap: anywhere; }
+.monitoring-exam-picker__detail-separator { flex-shrink: 0; color: #94a3b8; font-weight: 400; }
 .monitoring-exam-picker__detail-trigger {
     display: inline-flex;
     align-items: center;
@@ -52,6 +55,8 @@
     color: #2563eb;
     font-size: 12px;
     font-weight: 600;
+    flex-shrink: 0;
+    margin-left: auto;
     cursor: pointer;
 }
 .monitoring-exam-picker__detail-trigger:hover,
@@ -61,7 +66,7 @@
     position: absolute;
     z-index: 50;
     top: calc(100% + 8px);
-    left: 0;
+    right: 0;
     width: min(420px, calc(100vw - 32px));
     box-sizing: border-box;
     max-height: min(420px, 65dvh);
@@ -82,6 +87,7 @@
 .monitoring-exam-picker__detail-popover dt { margin: 0; color: #64748b; font-size: 11px; }
 .monitoring-exam-picker__detail-popover dd { margin: 0; color: #334155; font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
 .dark .monitoring-exam-picker__detail-trigger { background: #172b4d; border-color: #31578d; color: #93c5fd; }
+.dark .monitoring-exam-picker__detail-summary { color: #e2e8f0; }
 .dark .monitoring-exam-picker__detail-popover { background: #172033; border-color: #334155; color: #e2e8f0; }
 .dark .monitoring-exam-picker__detail-head strong,
 .dark .monitoring-exam-picker__detail-popover dd { color: #e2e8f0; }

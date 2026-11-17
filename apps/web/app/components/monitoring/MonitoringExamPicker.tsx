@@ -92,6 +92,11 @@ export default function MonitoringExamPicker({ exams, now, value, onChange, comp
         </div>
         {selected && !hideContext && <div className="monitoring-exam-picker__context" aria-live="polite">
             {selectedFolder ? <div ref={detailsRef} className="monitoring-exam-picker__detail-anchor">
+                <div className="monitoring-exam-picker__detail-summary">
+                    <span>{selected.subject?.trim() || 'Mapel belum tercatat'}</span>
+                    <span aria-hidden="true" className="monitoring-exam-picker__detail-separator">|</span>
+                    <span>{selectedFolder.className}</span>
+                </div>
                 <button type="button" className="monitoring-exam-picker__detail-trigger"
                     aria-label="Lihat detail folder ujian" title="Lihat detail folder ujian"
                     aria-expanded={detailsOpen} aria-controls="monitoring-folder-detail-popover"
