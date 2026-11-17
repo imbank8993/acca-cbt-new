@@ -18,6 +18,7 @@ import { normalizeSqlTime } from '../common/school-time';
 import type { CreatePASPeriodDto, UpdatePASCommitteeChairDto, UpdatePASExamSettingsDto, UpdatePASPeriodDto } from './dto/pas.dto';
 import { writablePasPeriod, pasDateRange, storedPasDate } from '../common/pas-period-policy';
 import { loadPasReadiness } from './pas-readiness';
+import { inactiveAccaAccountIds, listAccaInvigilatorAccounts, staffAccountView } from './pas-staff-accounts';
 import {
     normalizePasExamSettings,
     pasExamLabel,
@@ -440,7 +441,7 @@ export class PasService {
         const { data, error } = await this.db
             .from('cbt_organization_members')
             .select(
-                `user_id,
+                `user_id, is_active,
                  profiles:cbt_profiles(full_name, identity_number),
                  member_roles:cbt_member_roles(roles:cbt_roles(name))`,
             )
@@ -451,7 +452,10 @@ export class PasService {
             return [];
         }
 
-        return ((data as any[]) || [])
+        const allMembers = ((data as any[]) || []);
+        const inactiveAccountIds = await inactiveAccaAccountIds(this.db, allMembers.map(member => member.user_id));
+        const members = allMembers
+            .filter(member => member.is_active !== false && !inactiveAccountIds.has(member.user_id))
             .map((member) => ({
                 id: member.user_id,
                 name: member.profiles?.full_name || 'Tanpa nama',
@@ -464,5 +468,17 @@ export class PasService {
                 (member) => member.roles.length === 0 || ['Guru', 'Pengawas', 'Proktor', 'Admin']
                     .some((role) => member.roles.includes(role)),
             );
+
+        const allMemberIds = new Set(allMembers.map(member => member.user_id));
+        const accounts = await listAccaInvigilatorAccounts(this.db);
+        const accountById = new Map(accounts.map(account => [account.auth_id!, staffAccountView(account)]));
+        return [
+            ...members.map(member => accountById.has(member.id)
+                ? { ...member, name: accountById.get(member.id)!.name, nip: accountById.get(member.id)!.nip,
+                    roles: [...new Set([...member.roles, ...accountById.get(member.id)!.roles])] }
+                : member),
+            ...accounts.filter(account => !allMemberIds.has(account.auth_id))
+                .map(staffAccountView),
+        ].sort((left, right) => left.name.localeCompare(right.name, 'id'));
     }
 }

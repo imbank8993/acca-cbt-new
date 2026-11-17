@@ -385,9 +385,13 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
 
     // ── Tambah pengawas (modal) ──
     const [assignTarget, setAssignTarget] = useState<{ roomId: string; teacherId: string } | null>(null);
+    const [staffSearch, setStaffSearch] = useState('');
     const canShowProctors = Boolean(selectedProctorSessionId && selectedProctorDate);
     const canAssignProctor = canShowProctors && rooms.length > 0 && !period.is_locked && !readOnly && !isSaving;
-    const openAssignProctor = (roomId: string) => setAssignTarget({ roomId, teacherId: '' });
+    const openAssignProctor = (roomId: string) => {
+        setStaffSearch('');
+        setAssignTarget({ roomId, teacherId: '' });
+    };
     const assignRoom = rooms.find(room => room.id === assignTarget?.roomId) || null;
     const assignableTeachers = assignRoom ? (() => {
         const assignedIds = getRoomSessionInvigilators(assignRoom, selectedProctorSessionId, selectedProctorDate).map(inv => inv.user_id);
@@ -395,6 +399,9 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
         return teachers.filter(t => !assignedIds.includes(t.id)
             && !(teacherAssignmentMap.get(t.id) || []).some(rName => rName.toLowerCase() !== assignRoom.name.toLowerCase()));
     })() : [];
+    const visibleInvigilators = assignableTeachers.filter(member =>
+        `${member.name} ${member.nip || ''}`.toLocaleLowerCase('id-ID').includes(staffSearch.trim().toLocaleLowerCase('id-ID')),
+    );
 
     const handleLoadClassStudents = async (classId: string) => {
         const request = ++classRequest.current;
@@ -787,23 +794,36 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                         </div>
                     )}
 
-                    <Modal open={Boolean(assignTarget)} onClose={() => setAssignTarget(null)} size="md" variant="add" title="Tambah pengawas"
+                    <Modal open={Boolean(assignTarget)} onClose={() => setAssignTarget(null)} size="lg" variant="add" title="Tambah pengawas"
                         icon={<UserPlus size={18} />} labelledBy="pas-assign-proctor"
+                        className="pas-invigilator-modal"
                         subtitle={`${selectedProctorDate ? formatProctorDate(selectedProctorDate) : ''}${selectedProctorSession ? ` · ${selectedProctorSession.name} (${selectedProctorSession.start_time.slice(0, 5)}–${selectedProctorSession.end_time.slice(0, 5)})` : ''}`}>
-                        <ModalBody>
-                            <div className="space-y-4">
-                                <ModalField label="Ruang" required>
-                                    <InlineSelect value={assignTarget?.roomId || ''} minWidth="100%" height="40px" aria-label="Ruang"
-                                        onChange={roomId => setAssignTarget(target => target ? { roomId, teacherId: '' } : target)}
-                                        options={[{ value: '', label: 'Pilih ruang…' }, ...rooms.map(r => ({ value: r.id, label: r.name }))]} />
-                                </ModalField>
-                                <ModalField label="Pengawas" required hint="Satu pengawas hanya bertugas di satu ruang pada sesi yang sama.">
-                                    <SearchableSelect value={assignTarget?.teacherId || ''} disabled={!assignRoom}
-                                        onChange={value => setAssignTarget(target => target ? { ...target, teacherId: String(value || '') } : target)}
-                                        placeholder={assignRoom ? 'Pilih pengawas…' : 'Pilih ruang terlebih dahulu'}
-                                        searchPlaceholder="Ketik nama pengawas..."
-                                        options={[{ value: '', label: assignRoom ? 'Pilih pengawas…' : 'Pilih ruang terlebih dahulu' }, ...assignableTeachers.map(t => ({ value: t.id, label: t.name }))]} />
-                                </ModalField>
+                        <ModalBody className="pas-invigilator-body">
+                            <ModalField label="Ruang" required>
+                                <InlineSelect value={assignTarget?.roomId || ''} minWidth="100%" height="40px" aria-label="Ruang"
+                                    onChange={roomId => { setStaffSearch(''); setAssignTarget(target => target ? { roomId, teacherId: '' } : target); }}
+                                    options={[{ value: '', label: 'Pilih ruang…' }, ...rooms.map(r => ({ value: r.id, label: r.name }))]} />
+                            </ModalField>
+                            <div className="pas-invigilator-picker">
+                                <label className="mdl-field__label" htmlFor="pas-invigilator-search">Pengawas <span className="mdl-field__req" aria-hidden="true">*</span></label>
+                                <div className="pas-invigilator-search">
+                                    <Search size={17} aria-hidden="true" />
+                                    <input id="pas-invigilator-search" type="search" value={staffSearch}
+                                        onChange={event => setStaffSearch(event.target.value)} disabled={!assignRoom}
+                                        placeholder="Cari guru atau staf/tendik…" autoComplete="off" />
+                                </div>
+                                <div className="pas-invigilator-list" role="listbox" aria-label="Pilih pengawas">
+                                    {visibleInvigilators.length ? visibleInvigilators.map(member => (
+                                        <button key={member.id} type="button" role="option" aria-selected={assignTarget?.teacherId === member.id}
+                                            className={`pas-invigilator-option${assignTarget?.teacherId === member.id ? ' is-selected' : ''}`}
+                                            onClick={() => setAssignTarget(target => target ? { ...target, teacherId: member.id } : target)}>
+                                            <span className="pas-invigilator-option__name">{member.name}</span>
+                                            <span className="pas-invigilator-option__role">{member.roles.includes('Tendik') ? 'Staf / Tendik' : member.roles.includes('Guru') ? 'Guru' : 'Staf sekolah'}</span>
+                                            {assignTarget?.teacherId === member.id && <Check size={16} aria-hidden="true" />}
+                                        </button>
+                                    )) : <p className="pas-invigilator-empty">{assignRoom ? 'Tidak ada guru atau staf yang cocok.' : 'Pilih ruang terlebih dahulu.'}</p>}
+                                </div>
+                                <small className="mdl-field__hint">Satu pengawas hanya bertugas di satu ruang pada sesi yang sama.</small>
                             </div>
                         </ModalBody>
                         <ModalFooter>

@@ -14,6 +14,7 @@ import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 import { pasDate, storedPasDate, writablePasPeriod } from '../common/pas-period-policy';
 import { assertExamsHaveNoHistory, lockExamsForDeletion } from '../common/exam-deletion';
 import type { CreatePASRoomDto } from './dto/pas.dto';
+import { ensureAccaInvigilatorMembers } from './pas-staff-accounts';
 
 /**
  * Ruang ujian PAS beserta pengawas dan peserta yang ditugaskan padanya.
@@ -204,6 +205,7 @@ export class PasRoomsService {
             if (sessionError) throw new BadRequestException('Sesi ujian belum dapat diperiksa.');
             if (!session) throw new BadRequestException('Sesi ujian harus berasal dari periode ruang yang sama.');
 
+            await ensureAccaInvigilatorMembers(db, period.organization_id as string, uniqueUserIds);
             await this.assertOrganizationUsers(
                 db,
                 period.organization_id as string,
