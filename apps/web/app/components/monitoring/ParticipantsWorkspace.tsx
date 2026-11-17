@@ -299,12 +299,13 @@ export function ParticipantsWorkspace({
                     {SECTION_LABELS[id]}
                 </button>)}
             </nav>
-            {(actions.length > 0 || trailing) && <div className="mb-1.5 flex items-center gap-2">
+            {(actions.length > 0 || trailing) && <div className="flex items-center gap-2">
             {actions.length > 0 && <div ref={menuRef} className="relative">
-                <Button type="button" variant="outline" size="sm" aria-haspopup="menu" className="monitoring-actions-trigger" aria-label="Tindakan" leftIcon={<MoreHorizontal size={18} className="sm:hidden" />} aria-expanded={menuOpen} onClick={() => setMenuOpen(open => !open)}
-                    rightIcon={<ChevronDown size={14} className={`hidden sm:block transition-transform ${menuOpen ? 'rotate-180' : ''}`} aria-hidden="true" />}>
-                    Tindakan
-                </Button>
+                <button type="button" aria-haspopup="menu" className="monitoring-actions-trigger" aria-label="Tindakan" aria-expanded={menuOpen} onClick={() => setMenuOpen(open => !open)}>
+                    <MoreHorizontal size={18} aria-hidden="true" />
+                    <span>Tindakan</span>
+                    <ChevronDown size={14} className={menuOpen ? 'rotate-180' : ''} aria-hidden="true" />
+                </button>
                 {menuOpen && <div role="menu" aria-label="Tindakan" className="absolute right-0 z-20 mt-1.5 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
                     {actions.map(([id, label]) => <button key={id} type="button" role="menuitem" onClick={() => {
                         if (id === 'cancel') setCancelTargets(cancellableExams); else setAction(id);
