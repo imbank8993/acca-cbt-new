@@ -30,3 +30,16 @@ test('equal scores prioritize elapsed working time before submission time, with 
  assert.match(query,/CASE WHEN a\.started_at IS NOT NULL AND a\.finished_at >= a\.started_at\s+THEN a\.finished_at - a\.started_at END AS working_duration/);
  assert.match(query,/ORDER BY c\.ranking_score DESC, c\.working_duration ASC NULLS LAST,\s+c\.finished_at ASC NULLS LAST, c\.user_id/);
 });
+
+test('semester assessment top scorers include the subject from the subject catalog or question bank',async()=>{
+ const rows=['pas','am'].map((exam_type,index)=>({exam_id:`exam-${index}`,exam_title:'ASAS Ganjil 2026/2027',exam_type,
+  subject_name:index===0?'Matematika':'Bahasa Indonesia',score_label:'Klasikal',scored_count:1,participant_count:1,
+  rank:1,user_id:`student-${index}`,full_name:'Student',total_score:90,last_finished_at:null,finished_at:null}));
+ let query;
+ const service=new ProctorService({}, {isRestrictedProctor:async()=>false,assertOrgStaff:async()=>{}}, {},{$queryRawUnsafe:async sql=>{query=sql;return rows;}});
+ const result=await service.getTopScorers({id:'staff'},'school',{examLimit:12,perExam:3});
+ assert.deepEqual(result.map(exam=>exam.subjectName),['Matematika','Bahasa Indonesia']);
+ assert.match(query,/LEFT JOIN public\.cbt_subjects s ON s\.id = x\.subject_id/);
+ assert.match(query,/LEFT JOIN public\.cbt_question_banks b ON b\.id = x\.question_bank_id/);
+ assert.match(query,/COALESCE\(NULLIF\(BTRIM\(s\.name\), ''\), NULLIF\(BTRIM\(b\.subject\), ''\)\) AS subject_name/);
+});

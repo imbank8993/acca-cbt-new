@@ -418,6 +418,7 @@ export interface ExamTopScorers {
     examId: string;
     title: string;
     examType: string | null;
+    subjectName: string | null;
     participantCount: number;
     lastFinishedAt: string | null;
     topScorers: TopScorer[];

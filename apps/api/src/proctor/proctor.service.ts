@@ -84,6 +84,7 @@ export class ProctorService {
                 exam_id: string;
                 exam_title: string;
                 exam_type: string | null;
+                subject_name: string | null;
                 last_finished_at: Date | null;
                 participant_count: number;
                 rank: number | null;
@@ -139,10 +140,13 @@ export class ProctorService {
                  WHERE c.ranking_score IS NOT NULL
              )
              SELECT e.exam_id, x.title AS exam_title, x.exam_type,
+                    COALESCE(NULLIF(BTRIM(s.name), ''), NULLIF(BTRIM(b.subject), '')) AS subject_name,
                     e.score_label, e.scored_count, e.last_finished_at, e.participant_count,
                     r.rank::int AS rank, r.user_id, p.full_name, p.identity_number,
                     r.ranking_score AS total_score, r.finished_at
                FROM recent_exams e JOIN public.cbt_exams x ON x.id = e.exam_id
+               LEFT JOIN public.cbt_subjects s ON s.id = x.subject_id
+               LEFT JOIN public.cbt_question_banks b ON b.id = x.question_bank_id
                LEFT JOIN ranked r ON r.exam_id = e.exam_id AND r.rank <= $3
                LEFT JOIN public.cbt_profiles p ON p.id = r.user_id
               ORDER BY e.last_finished_at DESC NULLS LAST, e.exam_id, r.rank`,
@@ -158,6 +162,7 @@ export class ProctorService {
             examId: string;
             title: string;
             examType: string | null;
+            subjectName: string | null;
             participantCount: number;
             scoreLabel: string;
             scoredCount: number;
@@ -179,6 +184,7 @@ export class ProctorService {
                     examId: r.exam_id,
                     title: r.exam_title,
                     examType: r.exam_type,
+                    subjectName: r.subject_name,
                     participantCount: Number(r.participant_count) || 0,
                     scoreLabel: r.score_label,
                     scoredCount: Number(r.scored_count) || 0,

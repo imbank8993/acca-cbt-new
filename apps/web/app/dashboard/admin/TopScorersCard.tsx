@@ -3,6 +3,7 @@
 import './top-scorers-card.css';
 
 import { getTopScorers, type ExamTopScorers } from '@/lib/api/proctor';
+import { isSemesterAssessmentType } from '@/lib/exam-types';
 import { formatStudentName, getScoreColorClass } from '@/lib/monitoring-health';
 import { ChevronLeft, ChevronRight, Medal, Trophy, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -139,6 +140,9 @@ export function TopScorersCard({
                                 </span>
                             </div>
 
+                            {isSemesterAssessmentType(exam.examType) && exam.subjectName && (
+                                <p className="mb-1 text-xs font-medium text-slate-700">{exam.subjectName}</p>
+                            )}
                             <p className="mb-2 text-[10px] text-slate-500">{exam.scoreLabel || 'Klasikal'}{exam.scoredCount < exam.participantCount ? ` · ${exam.scoredCount}/${exam.participantCount} peserta dinilai` : ''}</p>
                             {exam.topScorers.length === 0 && <p className="text-xs text-slate-500">{exam.scoreLabel?.startsWith('IRT') ? 'Menunggu perhitungan IRT' : 'Menunggu penilaian'}</p>}
 
