@@ -138,7 +138,7 @@ function LearningLibraryContent({ manage, setManage }: { manage: boolean; setMan
         {error && <div className="learn-error" role="alert">{error}<button type="button" onClick={() => void load()}>Coba lagi</button></div>}
         {loading ? <div className="learn-loading" role="status">Memuat ruang belajar…</div> : visible.length ? gradeGroups.map(group => <section key={group} className="lc-section" aria-label={learningGradeLabel(group)}>
             <header className="lc-section-heading"><h2>{learningGradeLabel(group)}</h2><span>{visible.filter(chapter => chapter.grade === group).length} BAB</span></header>
-            <div className="lc-grid">{visible.filter(chapter => chapter.grade === group).map(chapter => {
+            <div className="lc-grid">{visible.filter(chapter => chapter.grade === group).map((chapter, index) => {
                 const isOpen = expanded.has(chapter.key) || !!query.trim();
                 const percent = Math.round(chapter.completed / chapter.items.length * 100);
                 const next = chapter.items.find(item => !item.completed) || chapter.items[0];
@@ -146,21 +146,23 @@ function LearningLibraryContent({ manage, setManage }: { manage: boolean; setMan
                 const mark = subjectMark(chapter.subject);
                 const listId = `subchapters-${chapter.items[0].id}`;
                 const toggle = () => setExpanded(previous => { const copy = new Set(previous); if (copy.has(chapter.key)) copy.delete(chapter.key); else copy.add(chapter.key); return copy; });
-                return <article className={`lc-card${isOpen ? ' is-open' : ''}`} key={chapter.key}>
-                    <div className="lc-card-main">
-                        <span className="lc-mark" style={mark.style} aria-hidden="true">{mark.abbr}</span>
-                        <div className="lc-card-body">
-                            <span className="lc-card-subject">{chapter.subject}</span>
-                            <h3>{manage
-                                ? <button type="button" className="lc-card-title" aria-expanded={isOpen} aria-controls={listId} onClick={toggle}>{chapter.title}</button>
-                                : <Link className="lc-card-title" href={`/dashboard/learning/${next.id}`}>{chapter.title}</Link>}</h3>
-                            <div className="lc-card-meta">
-                                <span className={`lc-status is-${status.tone}`}>{status.tone === 'done' && <CheckCircle2 size={12} aria-hidden="true" />}{status.label}</span>
-                                <span>{chapter.items.length} subbab</span>
+                return <article className={`lc-card lc-tone-${index % 4}${isOpen ? ' is-open' : ''}`} key={chapter.key}>
+                    <div className="lc-card-banner">
+                        <div className="lc-card-main">
+                            <span className="lc-mark" style={mark.style} aria-hidden="true">{mark.abbr}</span>
+                            <div className="lc-card-body">
+                                <span className="lc-card-subject">{chapter.subject}</span>
+                                <h3>{manage
+                                    ? <button type="button" className="lc-card-title" aria-expanded={isOpen} aria-controls={listId} onClick={toggle}>{chapter.title}</button>
+                                    : <Link className="lc-card-title" href={`/dashboard/learning/${next.id}`}>{chapter.title}</Link>}</h3>
+                                <div className="lc-card-meta">
+                                    <span className={`lc-status is-${status.tone}`}>{status.tone === 'done' && <CheckCircle2 size={12} aria-hidden="true" />}{status.label}</span>
+                                    <span>{chapter.items.length} subbab</span>
+                                </div>
                             </div>
                         </div>
+                        {!manage && <div className="lc-progress" role="progressbar" aria-label={`Progres BAB ${chapter.title}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}><span style={{ width: `${percent}%` }} /></div>}
                     </div>
-                    {!manage && <div className="lc-progress" role="progressbar" aria-label={`Progres BAB ${chapter.title}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}><span style={{ width: `${percent}%` }} /></div>}
                     <div className="lc-card-footer">
                         <button type="button" className="lc-toggle" aria-expanded={isOpen} aria-controls={listId} onClick={toggle}>Daftar subbab<ChevronDown size={15} className={isOpen ? 'learn-chevron-open' : ''} /></button>
                         {manage
