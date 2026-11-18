@@ -13,6 +13,10 @@ export const STUDENT_SECURITY_EVENTS = [
     // SCREEN_SHARE_STOPPED (catatan saja), ini DIHITUNG sebagai pelanggaran:
     // tanpa itu, menghentikan berbagi layar menjadi jeda bebas tanpa pengawasan.
     'screen_share_lost',
+    // Halaman ujian diterjemahkan otomatis (fitur terjemahan browser atau
+    // ekstensi penerjemah). Dihitung pelanggaran: soal bahasa Arab/Inggris
+    // menjadi berbahasa Indonesia.
+    'page_translated',
 ];
 // tab_close/focus_interruption are silent recovery signals; counting them would
 // terminate students for events that never displayed a violation warning.

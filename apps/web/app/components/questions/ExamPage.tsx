@@ -61,6 +61,7 @@ import { ExamStartPreparation } from './ExamStartPreparation';
 import { useExamScreenshots } from '@/hooks/useExamScreenshots';
 import { SCREEN_SHARE_GRACE_MS,SCREEN_SHARE_LOST_EVENT,SCREEN_SHARE_RACE_MS,awayCaptureDelay,screenshotBase64 } from '@/lib/exam-screenshots';
 import { retryExamEvidence } from '@/lib/exam-evidence-outbox';
+import { watchPageTranslation } from '@/lib/translation-guard';
 
 function resolveMaxViolations(exam: StudentExam | null): number | null {
     if (exam?.metadata?.is_safe_mode === false) return null;
@@ -196,6 +197,10 @@ export default function ExamPage() {
     const schoolZoneLabel = getSchoolTimeZoneLabel(schoolTimeZone);
     const storageStateRef = useRef<'healthy' | 'fallback' | 'unavailable' | 'unknown'>('unknown');
     const [storageWarning, setStorageWarning] = useState<string | null>(null);
+    // Penerjemah otomatis yang sedang aktif (Chrome/Edge/ekstensi). Selama ada,
+    // soal disembunyikan: soal bahasa Arab/Inggris tidak boleh tampil sudah
+    // diterjemahkan ke bahasa Indonesia.
+    const [pageTranslation, setPageTranslation] = useState<string | null>(null);
 
     // Security
     const [isFullScreen, setIsFullScreen] = useState(false);
@@ -1548,6 +1553,14 @@ export default function ExamPage() {
         return keepExamScreenAwake();
     }, [attempt?.id, isCompleted, loading, accessDenied, submissionOnly]);
 
+    // Berlaku untuk semua ujian, termasuk yang mode amannya dimatikan.
+    const translationGuardActive = !!attempt && !isCompleted && !submissionOnly;
+    useEffect(() => {
+        if (!translationGuardActive) return;
+        const stop = watchPageTranslation(setPageTranslation);
+        return () => { stop(); setPageTranslation(null); };
+    }, [translationGuardActive]);
+
     // ── Security event listeners ─────────────────────────────
     useEffect(() => {
         if (!attempt || isCompleted || loading || accessDenied || submissionOnly) return;
@@ -1734,8 +1747,12 @@ export default function ExamPage() {
         document.addEventListener('contextmenu', onContextMenu);
         window.addEventListener('keydown', onKeyDown);
         window.addEventListener(SCREEN_SHARE_LOST_EVENT, onShareLost);
+        const stopTranslationWatch = watchPageTranslation(translator => {
+            if (translator) void handleSecurityViolation('page_translated');
+        });
 
         return () => {
+            stopTranslationWatch();
             window.removeEventListener(SCREEN_SHARE_LOST_EVENT, onShareLost);
             document.removeEventListener('visibilitychange', onVisibilityChange);
             window.removeEventListener('blur', onBlur);
@@ -2312,7 +2329,17 @@ export default function ExamPage() {
                     </div>
                 </div>
             )}
-            <div inert={screenShareBlocked} aria-hidden={screenShareBlocked || undefined} className={screenShareBlocked ? 'invisible' : undefined}>
+            {pageTranslation && !screenShareBlocked && (
+                <div role="alertdialog" aria-modal="true" aria-label="Terjemahan otomatis terdeteksi" translate="no" className="notranslate fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/90 p-5">
+                    <div className="max-w-md rounded-2xl bg-white p-6 text-center text-slate-900">
+                        <AlertTriangle className="mx-auto mb-3 text-amber-500" size={36} />
+                        <h2 className="text-lg font-bold">Terjemahan otomatis terdeteksi</h2>
+                        <p className="mt-2 text-sm">Soal ujian tidak boleh diterjemahkan. Matikan fitur terjemahan browser atau ekstensi penerjemah, lalu pilih <strong>Tampilkan asli</strong> / <strong>Show original</strong>. Soal tampil kembali secara otomatis.</p>
+                        <p className="mt-2 text-xs text-slate-500">Kejadian ini dicatat untuk pengawas. Waktu ujian tetap berjalan.</p>
+                    </div>
+                </div>
+            )}
+            <div inert={screenShareBlocked || !!pageTranslation} aria-hidden={screenShareBlocked || !!pageTranslation || undefined} className={screenShareBlocked || pageTranslation ? 'invisible' : undefined}>
             <ExamViewer
             mode="exam"
             questions={questions}

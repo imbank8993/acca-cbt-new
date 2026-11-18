@@ -21,7 +21,7 @@ export const SCREENSHOT_BYTES = 200 * 1024;
 export const SCREENSHOT_INTERVAL_MS = 2_500;
 export const SCREENSHOT_MAX_EVENT_AGE_MS = 6 * 60 * 60 * 1000;
 export const SCREENSHOT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
-export const SCREENSHOT_EVENTS = ['tab_switch', 'window_blur', 'blur', 'focus_interruption', 'still_away', 'exit_fullscreen', 'restricted_shortcut', 'copy_paste_attempt', 'right_click_attempt'];
+export const SCREENSHOT_EVENTS = ['tab_switch', 'window_blur', 'blur', 'focus_interruption', 'still_away', 'exit_fullscreen', 'restricted_shortcut', 'copy_paste_attempt', 'right_click_attempt', 'page_translated'];
 /**
  * Kejadian ringan (klik kanan, salin-tempel, tombol pintas) boleh memakai
  * paling banyak sebagian kuota, supaya bukti pindah tab/keluar fokus di akhir

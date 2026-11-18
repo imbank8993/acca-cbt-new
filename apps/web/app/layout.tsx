@@ -60,9 +60,12 @@ export default async function RootLayout({
 }>) {
   const appConfig = await getSettingServer<{ maintenance_mode?: boolean }>('app_config');
   const isMaintenance = appConfig?.maintenance_mode || false;
+  // translate="no" + notranslate: soal berbahasa Arab/Inggris tidak boleh
+  // diterjemahkan otomatis oleh Chrome, Edge, Safari, atau Firefox.
   return (
-    <html lang="id" suppressHydrationWarning>
+    <html lang="id" translate="no" className="notranslate" suppressHydrationWarning>
       <head>
+        <meta name="google" content="notranslate" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="color-scheme" content="light" id="color-scheme-meta" />

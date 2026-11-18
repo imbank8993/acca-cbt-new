@@ -33,6 +33,7 @@ const VIOLATION_LABELS: Record<string, string> = {
     copy_paste_attempt: 'Mencoba menyalin atau menempel',
     right_click_attempt: 'Mencoba membuka menu klik kanan',
     tab_close: 'Menutup atau meninggalkan tab ujian',
+    page_translated: 'Menerjemahkan halaman ujian secara otomatis',
 };
 
 /**

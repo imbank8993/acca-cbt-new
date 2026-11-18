@@ -91,7 +91,8 @@ export type ViolationType =
   | 'restricted_shortcut'
   | 'copy_paste_attempt'
   | 'right_click_attempt'
-  | 'screen_share_lost';
+  | 'screen_share_lost'
+  | 'page_translated';
 
 export interface SecurityViolation {
   id: string;

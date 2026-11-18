@@ -122,6 +122,8 @@ export default function PengawasDashboard() {
                 return 'Pindah Tab / Jendela';
             case 'fullscreen_exit':
                 return 'Keluar Layar Penuh';
+            case 'page_translated':
+                return 'Terjemahan Otomatis';
             case 'devtools_open':
                 return 'Inspeksi DevTools';
             case 'force_terminated':
