@@ -123,6 +123,19 @@ class ResetAttemptDto {
     submitOnly?: boolean;
 }
 
+class ExtendAttemptTimeDto {
+    @ApiProperty({ example: 'Listrik padam 10 menit di ruang 3.' })
+    @IsString()
+    @Length(5, 500)
+    reason!: string;
+
+    @ApiProperty({ example: 10, minimum: 1, maximum: 240, description: 'Menit yang ditambahkan ke batas waktu saat ini.' })
+    @IsInt()
+    @Min(1)
+    @Max(240)
+    minutes!: number;
+}
+
 class MakeupAttemptDto extends ResetAttemptDto {
     @ApiProperty({
         required: true,
@@ -192,6 +205,17 @@ export class ProctoringController {
         @Body() dto: ResetAttemptDto,
     ) {
         return this.proctoring.resetAttempt(user, attemptId, dto.reason, dto.durationMinutes, dto.releaseDevice === true, dto.submitOnly);
+    }
+
+    @Post('attempts/:attemptId/extend')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Tambah waktu untuk siswa yang sedang mengerjakan (jawaban dan pelanggaran tidak berubah)' })
+    async extend(
+        @CurrentUser() user: AuthUser,
+        @Param('attemptId', ParseUUIDPipe) attemptId: string,
+        @Body() dto: ExtendAttemptTimeDto,
+    ) {
+        return this.proctoring.extendAttemptTime(user, attemptId, dto.minutes, dto.reason);
     }
 
     @Post('exams/:examId/participants/:studentId/makeup')

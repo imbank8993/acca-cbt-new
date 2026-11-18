@@ -61,6 +61,12 @@ export interface AttemptRecoveryResult {
     serverAnswerCount: number;
 }
 
+/** Tambah waktu siswa yang sedang mengerjakan; jawaban dan pelanggaran tidak berubah. */
+export function extendExamAttemptTime(attemptId: string, minutes: number, reason: string) {
+    return apiSend<{ attemptId: string; previousDeadline: string; deadline: string; addedMinutes: number }>(
+        `/api/proctoring/attempts/${encodeURIComponent(attemptId)}/extend`, { minutes, reason });
+}
+
 export function resetExamAttempt(attemptId: string, reason: string, durationMinutes: number, releaseDevice = false, submitOnly?: boolean) {
     return apiSend<AttemptRecoveryResult>(
         `/api/proctoring/attempts/${encodeURIComponent(attemptId)}/reset`,

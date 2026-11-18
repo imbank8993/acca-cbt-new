@@ -557,6 +557,76 @@ export class ProctoringService {
     }
 
     /**
+     * Tambah waktu untuk siswa yang SEDANG mengerjakan: batas waktu = batas saat ini
+     * (atau sekarang, bila sudah lewat) + `minutes`. Berbeda dari Pulihkan, ini tidak
+     * mengubah status, jawaban, nilai, maupun penghitung pelanggaran, sehingga aman
+     * diberikan ke banyak siswa sekaligus (mis. setelah gangguan jaringan/listrik).
+     * Perangkat siswa memuat ulang sendiri saat melihat batas waktu baru.
+     */
+    async extendAttemptTime(user: AuthUser, attemptId: string, minutes: number, reason: string) {
+        const normalizedReason = reason.trim();
+        if (normalizedReason.length < 5 || normalizedReason.length > 500) {
+            throw new BadRequestException('Alasan tambah waktu wajib diisi (5–500 karakter).');
+        }
+        if (!Number.isInteger(minutes) || minutes < 1 || minutes > 240) {
+            throw new BadRequestException('Tambahan waktu harus 1–240 menit.');
+        }
+        const { data: attempt } = await this.db.from('cbt_exam_attempts')
+            .select('id, exam_id, user_id').eq('id', attemptId).maybeSingle();
+        if (!attempt) throw new NotFoundException('Pengerjaan tidak ditemukan.');
+        // Hak yang sama dengan reset/pulihkan/susulan.
+        await this.authz.assertExamStaff(user, (attempt as { exam_id: string }).exam_id, 'reset', (attempt as { user_id: string }).user_id);
+
+        return this.db.transaction(async db => {
+            await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
+            const { data: locked, error: readError } = await db.from('cbt_exam_attempts')
+                .select('id, exam_id, status, started_at, personal_end_time, metadata').eq('id', attemptId).maybeSingle();
+            if (readError || !locked) throw new NotFoundException('Pengerjaan tidak ditemukan.');
+            const row = locked as { exam_id: string; status: string; started_at: string | null;
+                personal_end_time: string | null; metadata: Record<string, unknown> | null };
+            if (row.status !== 'in_progress') {
+                throw new BadRequestException('Tambah waktu hanya untuk siswa yang sedang mengerjakan. ' +
+                    'Untuk pengerjaan yang sudah ditutup gunakan Pulihkan atau susulan.');
+            }
+            const metadata = { ...(row.metadata || {}) };
+            if (metadata.recovery_submit_only === true) {
+                throw new BadRequestException('Siswa ini sedang dalam mode kirim jawaban saja; waktu mengerjakan tidak dapat ditambah.');
+            }
+            const now = await this.databaseNow(db);
+            if (hasCommittedSubmitIntent(metadata, now)) {
+                throw new BadRequestException('Pengumpulan jawaban sedang diproses. Tunggu statusnya sebelum menambah waktu.');
+            }
+            const { data: exam, error: examError } = await db.from('cbt_exams')
+                .select('end_time, duration_minutes').eq('id', row.exam_id).maybeSingle();
+            if (examError || !exam) throw new NotFoundException('Ujian tidak ditemukan.');
+            const current = examDeadline(row, exam as { end_time?: string | null; duration_minutes?: number | null });
+            const base = Number.isFinite(current.getTime()) ? Math.max(current.getTime(), now.getTime()) : now.getTime();
+            const extendedUntil = new Date(base + minutes * 60_000).toISOString();
+            const previousDeadline = row.personal_end_time;
+            // Salinan jawaban yang terkunci di perangkat menyimpan batas waktu lama.
+            const superseded = [
+                ...(Array.isArray(metadata.superseded_deadlines) ? metadata.superseded_deadlines : []),
+                previousDeadline,
+            ].filter((value, index, all): value is string => typeof value === 'string' &&
+                Number.isFinite(Date.parse(value)) && all.indexOf(value) === index).slice(-20);
+            const { error: updateError } = await db.from('cbt_exam_attempts').update({
+                personal_end_time: extendedUntil,
+                // Tanpa ini batas waktu ujian (end_time) tetap memotong tambahan waktu.
+                metadata: { ...metadata, proctor_recovery_until: extendedUntil, superseded_deadlines: superseded },
+            }).eq('id', attemptId).eq('status', 'in_progress');
+            if (updateError) throw new BadRequestException('Tambahan waktu belum dapat disimpan.');
+            const { error: logError } = await db.from('cbt_attempt_security_logs').insert({
+                attempt_id: attemptId,
+                event_type: 'TIME_EXTENDED_BY_PROCTOR',
+                metadata: { actor_user_id: user.id, reason: normalizedReason, extended_at: now.toISOString(),
+                    added_minutes: minutes, previous_deadline: current.toISOString(), recovery_until: extendedUntil },
+            });
+            if (logError) throw new BadRequestException('Jejak audit tambah waktu belum dapat disimpan.');
+            return { attemptId, previousDeadline: current.toISOString(), deadline: extendedUntil, addedMinutes: minutes };
+        });
+    }
+
+    /**
      * Buka ujian susulan dari awal untuk satu siswa.
      *
      * Berbeda dari reset/pemulihan: seluruh jawaban lama dihapus di transaksi

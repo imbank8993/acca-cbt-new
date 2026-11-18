@@ -10,6 +10,7 @@ import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { AttemptHistoryModal } from '@/app/components/monitoring/AttemptHistoryModal';
 import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
 import { BulkPendingRecoveryPanel } from '@/app/components/monitoring/BulkPendingRecoveryPanel';
+import { BulkExtendTimePanel, extendableAttempts } from '@/app/components/monitoring/BulkExtendTimePanel';
 import { pendingRecoveryCandidates } from '@/lib/pending-recovery';
 import { CancelExamModal, type CancellableExam } from '@/app/components/monitoring/CancelExamModal';
 import { IrtParametersPanel } from '@/app/components/monitoring/IrtParametersPanel';
@@ -114,7 +115,7 @@ export function ParticipantsWorkspace({
 }) {
     const router = useRouter();
     const [section, setSection] = useState<WorkspaceSection>(sections[0]);
-    const [action, setAction] = useState<'reset' | 'pending' | 'screen' | null>(null);
+    const [action, setAction] = useState<'reset' | 'pending' | 'extend' | 'screen' | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
     const [exportOpen, setExportOpen] = useState(false);
     const [status, setStatus] = useState<StatusFilter | null>(null);
@@ -286,10 +287,13 @@ export function ParticipantsWorkspace({
 
     const hasIrt = String(focusExam?.scoring_type || '').split(',').some(type => type.trim().startsWith('irt'));
     const showFilters = !action && ['peserta', 'jawaban', 'hasil'].includes(activeSection);
-    // Peserta dengan jawaban lokal tertahan (dilaporkan perangkat) pada filter ini.
-    const pendingCount = anyReset ? pendingRecoveryCandidates(scoped.filter(row => canReset(row.exam_id))).confirmed.length : 0;
+    // Peserta dengan jawaban lokal tertahan (dilaporkan perangkat). Tidak ikut filter
+    // kelas/ruang/pencarian, supaya tidak ada yang terlewat oleh proktor.
+    const recoverable = anyReset ? attempts.filter(row => canReset(row.exam_id)) : [];
+    const pendingCount = anyReset ? pendingRecoveryCandidates(recoverable).confirmed.length : 0;
     const actions = [
         ...(anyReset ? [['pending', `Pulihkan jawaban tertunda${pendingCount ? ` (${pendingCount})` : ''}`] as const] : []),
+        ...(anyReset && extendableAttempts(recoverable).length ? [['extend', 'Tambah waktu'] as const] : []),
         ...(anyReset ? [['reset', 'Reset massal'] as const] : []),
         ...(screenExams.length ? [['screen', 'Pengecualian layar'] as const] : []),
         ...(cancellableExams.length ? [['cancel', 'Batalkan ujian'] as const] : []),
@@ -317,6 +321,7 @@ export function ParticipantsWorkspace({
                 <button type="button" aria-haspopup="menu" className="monitoring-actions-trigger" aria-label="Tindakan" aria-expanded={menuOpen} onClick={() => setMenuOpen(open => !open)}>
                     <MoreHorizontal size={18} aria-hidden="true" />
                     <span>Tindakan</span>
+                    {pendingCount > 0 && <b className="monitoring-actions-badge" title={`${pendingCount} peserta punya jawaban tertahan`}>{pendingCount}</b>}
                     <ChevronDown size={14} className={menuOpen ? 'rotate-180' : ''} aria-hidden="true" />
                 </button>
                 {menuOpen && <div role="menu" aria-label="Tindakan" className="absolute right-0 z-20 mt-1.5 hidden w-56 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-lg sm:block">
@@ -344,12 +349,21 @@ export function ParticipantsWorkspace({
             </>}
         </FilterToolbar>}
 
+        {/* Penanda: proktor langsung tahu ada jawaban yang tertahan di perangkat siswa. */}
+        {!action && pendingCount > 0 && <div role="status" className="monitoring-pending-alert flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900">
+            <span><strong>{pendingCount} peserta</strong> punya jawaban yang masih tertahan di perangkat dan belum dinilai.</span>
+            <button type="button" onClick={() => { setMenuOpen(false); setAction('pending'); }}
+                className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700">Pulihkan sekarang</button>
+        </div>}
+
         {action ? <div className="space-y-3">
             <button type="button" onClick={() => setAction(null)} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline">
                 <ArrowLeft size={13} />Kembali ke {SECTION_LABELS[activeSection]}
             </button>
             {action === 'pending'
-                ? <BulkPendingRecoveryPanel attempts={scoped.filter(row => canReset(row.exam_id))} onRefresh={() => void onReload()} />
+                ? <BulkPendingRecoveryPanel attempts={recoverable} onRefresh={() => void onReload()} />
+                : action === 'extend'
+                ? <BulkExtendTimePanel attempts={scoped.filter(row => canReset(row.exam_id))} onRefresh={() => void onReload()} />
                 : action === 'reset'
                 ? <BulkResetPanel attempts={scoped.filter(row => canReset(row.exam_id))}
                     examDuration={Math.max(0, ...examOptions.map(option => examRecords[option.exam_id]?.duration_minutes ?? examRecords[option.exam_id]?.duration ?? 0)) || undefined}

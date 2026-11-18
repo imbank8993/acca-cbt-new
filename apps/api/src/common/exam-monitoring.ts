@@ -6,7 +6,9 @@ export const MONITORING_EVENTS = ['SCREEN_SHARE_STOPPED', 'SYNC_HEALTH_CHANGED',
     // tetapi wajib terlihat oleh pengawas sebelum memutuskan pemulihan.
     'CONNECTION_LOST_AT_CLOSE', 'LATE_SECURITY_EVIDENCE', 'LOCAL_ANSWERS_NOT_COUNTED',
     // Jawaban tertentu ditolak server; sisanya tetap tersimpan. Catatan untuk pengawas.
-    'ANSWERS_REJECTED'];
+    'ANSWERS_REJECTED',
+    // Pengawas menambah waktu; tercatat untuk audit, bukan pelanggaran.
+    'TIME_EXTENDED_BY_PROCTOR'];
 
 /** Sama dengan ambang "offline" pada monitoring (attempt-health). */
 export const CONNECTION_LOST_THRESHOLD_MS = 45_000;

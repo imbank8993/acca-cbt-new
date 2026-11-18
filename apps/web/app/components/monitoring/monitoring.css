@@ -303,6 +303,8 @@
 .monitoring-actions-trigger:hover { color: var(--monitoring-text, #334155); }
 .monitoring-actions-trigger[aria-expanded="true"] { color: var(--primary, #3083ff); border-bottom-color: var(--primary, #3083ff); font-weight: 600; }
 .monitoring-actions-trigger:focus-visible { outline: 2px solid var(--primary, #3083ff); outline-offset: 2px; }
+/* Jumlah peserta dengan jawaban tertahan (Pulihkan jawaban tertunda). */
+.monitoring-actions-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: #dc2626; color: #fff; font-size: 11px; font-weight: 700; line-height: 1; }
 
 /* Mobile hierarchy: context, navigation, filters, then the roster. */
 @media (max-width: 639px) {
@@ -326,6 +328,7 @@
   .monitoring-actions-trigger > span { display: none; }
   .monitoring-actions-trigger > svg:first-child { display: inline-flex; }
   .monitoring-actions-trigger > svg:last-child { display: none; }
+  .monitoring-actions-badge { position: absolute; top: -5px; right: -6px; min-width: 16px; height: 16px; font-size: 10px; }
   .monitoring-status-filters { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; padding: 5px 0; gap: 8px; scrollbar-width: none; }
   .monitoring-status-filters > button { position: relative; flex: 0 0 auto; height: 34px; min-height: 34px; padding: 0 10px; white-space: nowrap; }
   .monitoring-status-filters > button::after { content: ''; position: absolute; inset: -5px 0; }
