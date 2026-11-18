@@ -9,6 +9,8 @@ import { ExamKeyCorrectionButton } from '@/app/components/ExamKeyCorrectionButto
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { AttemptHistoryModal } from '@/app/components/monitoring/AttemptHistoryModal';
 import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
+import { BulkPendingRecoveryPanel } from '@/app/components/monitoring/BulkPendingRecoveryPanel';
+import { pendingRecoveryCandidates } from '@/lib/pending-recovery';
 import { CancelExamModal, type CancellableExam } from '@/app/components/monitoring/CancelExamModal';
 import { IrtParametersPanel } from '@/app/components/monitoring/IrtParametersPanel';
 import { MonitoringAnalysisView } from '@/app/components/monitoring/MonitoringAnalysisView';
@@ -112,7 +114,7 @@ export function ParticipantsWorkspace({
 }) {
     const router = useRouter();
     const [section, setSection] = useState<WorkspaceSection>(sections[0]);
-    const [action, setAction] = useState<'reset' | 'screen' | null>(null);
+    const [action, setAction] = useState<'reset' | 'pending' | 'screen' | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
     const [exportOpen, setExportOpen] = useState(false);
     const [status, setStatus] = useState<StatusFilter | null>(null);
@@ -284,7 +286,10 @@ export function ParticipantsWorkspace({
 
     const hasIrt = String(focusExam?.scoring_type || '').split(',').some(type => type.trim().startsWith('irt'));
     const showFilters = !action && ['peserta', 'jawaban', 'hasil'].includes(activeSection);
+    // Peserta dengan jawaban lokal tertahan (dilaporkan perangkat) pada filter ini.
+    const pendingCount = anyReset ? pendingRecoveryCandidates(scoped.filter(row => canReset(row.exam_id))).confirmed.length : 0;
     const actions = [
+        ...(anyReset ? [['pending', `Pulihkan jawaban tertunda${pendingCount ? ` (${pendingCount})` : ''}`] as const] : []),
         ...(anyReset ? [['reset', 'Reset massal'] as const] : []),
         ...(screenExams.length ? [['screen', 'Pengecualian layar'] as const] : []),
         ...(cancellableExams.length ? [['cancel', 'Batalkan ujian'] as const] : []),
@@ -343,7 +348,9 @@ export function ParticipantsWorkspace({
             <button type="button" onClick={() => setAction(null)} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline">
                 <ArrowLeft size={13} />Kembali ke {SECTION_LABELS[activeSection]}
             </button>
-            {action === 'reset'
+            {action === 'pending'
+                ? <BulkPendingRecoveryPanel attempts={scoped.filter(row => canReset(row.exam_id))} onRefresh={() => void onReload()} />
+                : action === 'reset'
                 ? <BulkResetPanel attempts={scoped.filter(row => canReset(row.exam_id))}
                     examDuration={Math.max(0, ...examOptions.map(option => examRecords[option.exam_id]?.duration_minutes ?? examRecords[option.exam_id]?.duration ?? 0)) || undefined}
                     onRefresh={() => void onReload()} />
