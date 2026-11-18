@@ -55,10 +55,71 @@ jobs:
           pip install -r apps/scoring/requirements.txt pytest
           pytest apps/scoring/tests
 
-  # ── 2. Otomatis Deploy ke VPS via Docker ─────────────────────────────────────
+  # ── 2. Build image Docker di GitHub (bukan di VPS) ──────────────────────────
+  # Build Next.js/NestJS/Python/TeX Live dulu berjalan di VPS dan membuat CPU
+  # penuh 10–20 menit setiap push, bahkan saat ujian. Sekarang image dibangun
+  # di runner GitHub lalu disimpan di GitHub Container Registry (privat).
+  build-images:
+    name: Build image ${{ matrix.service }}
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - service: web
+            context: .
+            dockerfile: apps/web/Dockerfile
+          - service: api
+            context: .
+            dockerfile: apps/api/Dockerfile
+          - service: scoring
+            context: .
+            dockerfile: apps/scoring/Dockerfile
+          - service: latex
+            context: apps/latex-renderer
+            dockerfile: apps/latex-renderer/Dockerfile
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login ke GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build & push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          # Nilai NEXT_PUBLIC_* tertanam saat build: samakan Repository variables
+          # GitHub dengan .env VPS bila domain berubah.
+          build-args: |
+            NEXT_PUBLIC_ACCA_URL=${{ vars.NEXT_PUBLIC_ACCA_URL || 'https://acca.icgowa.sch.id' }}
+            NEXT_PUBLIC_SITE_URL=${{ vars.NEXT_PUBLIC_SITE_URL || 'https://acca-cbt.icgowa.sch.id' }}
+          tags: |
+            ghcr.io/${{ github.repository }}-${{ matrix.service }}:${{ github.sha }}
+            ghcr.io/${{ github.repository }}-${{ matrix.service }}:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  # ── 3. Deploy ke VPS: hanya mengunduh image jadi, tanpa build ────────────────
   deploy:
     name: Deploy to VPS
-    needs: verify
+    needs: build-images
     runs-on: ubuntu-latest
     # main and master deploy to the same VPS; do not interrupt a live rollout.
     concurrency:
@@ -66,13 +127,16 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: read
+      packages: read
     steps:
       - name: Trigger Remote Deployment via SSH
         uses: appleboy/ssh-action@v1.0.3
         env:
           DEPLOY_GITHUB_TOKEN: ${{ github.token }}
+          DEPLOY_ACTOR: ${{ github.actor }}
           DEPLOY_REPOSITORY: ${{ github.repository }}
           DEPLOY_BRANCH: ${{ github.ref_name }}
+          DEPLOY_SHA: ${{ github.sha }}
         with:
           host: ${{ secrets.VPS_HOST || secrets.SSH_HOST }}
           username: ${{ secrets.VPS_USERNAME || secrets.SSH_USER || 'root' }}
@@ -81,7 +145,7 @@ jobs:
           port: ${{ secrets.VPS_PORT || secrets.SSH_PORT || 22 }}
           command_timeout: 30m
           timeout: 30m
-          envs: DEPLOY_GITHUB_TOKEN,DEPLOY_REPOSITORY,DEPLOY_BRANCH
+          envs: DEPLOY_GITHUB_TOKEN,DEPLOY_ACTOR,DEPLOY_REPOSITORY,DEPLOY_BRANCH,DEPLOY_SHA
           script: |
             set -e
             echo "🚀 Menghubungkan ke VPS..."
@@ -89,7 +153,7 @@ jobs:
             REPOSITORY_URL="https://github.com/$DEPLOY_REPOSITORY.git"
 
             # Also serialize remote scripts that outlive their Actions runner.
-            # Lock before fetching: concurrent resets/builds share this checkout.
+            # Lock before fetching: concurrent resets/rollouts share this checkout.
             command -v flock >/dev/null 2>&1 || {
               echo "flock diperlukan untuk mengunci proses deployment di VPS."
               exit 1
@@ -102,7 +166,7 @@ jobs:
             }
 
             # Supply the job's read-only token only while fetching source.
-            # The helper contains no token and is removed before the Docker build.
+            # The helper contains no token and is removed right after the fetch.
             : "${DEPLOY_GITHUB_TOKEN:?Token GitHub Actions tidak tersedia}"
             ASKPASS_FILE=$(mktemp)
             trap 'rm -f "$ASKPASS_FILE"' EXIT HUP INT TERM
@@ -132,7 +196,7 @@ jobs:
 
             rm -f "$ASKPASS_FILE"
             trap - EXIT HUP INT TERM
-            unset DEPLOY_GITHUB_TOKEN GIT_ASKPASS
+            unset GIT_ASKPASS
 
             if [ ! -f ".env" ]; then
               echo "⚠️ PERINGATAN: File .env tidak ditemukan di $TARGET_DIR!"
@@ -140,16 +204,38 @@ jobs:
               exit 1
             fi
 
-            echo "🐳 Menjalankan build image Docker..."
-            docker compose build
+            # Image sudah dibangun GitHub Actions; VPS hanya mengunduh (tanpa build).
+            # Login GHCR hanya selama pull; token job kedaluwarsa begitu job selesai.
+            PREFIX="ghcr.io/$(printf '%s' "$DEPLOY_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+            export CBT_IMAGE_PREFIX="$PREFIX"
+            printf '%s' "$DEPLOY_GITHUB_TOKEN" | docker login ghcr.io -u "$DEPLOY_ACTOR" --password-stdin
+            unset DEPLOY_GITHUB_TOKEN
 
-            echo "🔄 Me-restart kontainer ke versi terbaru..."
-            docker compose down || true
-            docker rm -f acca-cbt-web acca-cbt-api acca-cbt-scoring acca-cbt-latex acca-cbt-new-cbt-latex-1 2>/dev/null || true
-            docker compose up -d --remove-orphans
+            echo "📦 Mengunduh image versi $DEPLOY_SHA..."
+            CBT_IMAGE_TAG="$DEPLOY_SHA" docker compose pull cbt-latex cbt-scoring cbt-api cbt-web
+            docker logout ghcr.io >/dev/null 2>&1 || true
 
-            echo "🧹 Membersihkan image lama yang menggantung..."
+            # Tandai versi ini sebagai :latest di VPS, supaya `docker compose up -d`
+            # manual (mis. setelah reboot) memakai versi yang sama tanpa login/build.
+            for service in latex scoring api web; do
+              docker tag "$PREFIX-$service:$DEPLOY_SHA" "$PREFIX-$service:latest"
+            done
+
+            echo "🔄 Menjalankan kontainer versi terbaru..."
+            # Sisa nama kontainer lama dari project compose sebelumnya.
+            docker rm -f acca-cbt-new-cbt-latex-1 2>/dev/null || true
+            # Hanya kontainer yang image-nya berubah yang dibuat ulang (beberapa detik),
+            # tanpa mematikan semuanya lebih dulu.
+            CBT_IMAGE_TAG=latest docker compose up -d --no-build --remove-orphans
+
+            echo "🧹 Membersihkan image lama..."
             docker image prune -f
+            # Simpan 3 versi terakhir per layanan untuk rollback cepat.
+            for service in latex scoring api web; do
+              docker images "$PREFIX-$service" --format '{{.Tag}} {{.ID}}' \
+                | grep -v '^latest ' | tail -n +4 | awk '{print $2}' \
+                | xargs -r docker rmi -f 2>/dev/null || true
+            done
 
             echo "✅ Status kontainer saat ini:"
             docker compose ps

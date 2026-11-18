@@ -1,5 +1,9 @@
+# Image dibangun oleh GitHub Actions dan disimpan di GHCR; VPS cukup `docker compose pull`.
+# `build:` tetap ada sebagai cadangan build darurat langsung di VPS (`docker compose build`).
+# CBT_IMAGE_PREFIX / CBT_IMAGE_TAG dapat diubah lewat environment bila perlu.
 services:
   cbt-latex:
+    image: ${CBT_IMAGE_PREFIX:-ghcr.io/imbank8993/acca-cbt-new}-latex:${CBT_IMAGE_TAG:-latest}
     build: ./apps/latex-renderer
     container_name: acca-cbt-latex
     restart: unless-stopped
@@ -16,6 +20,7 @@ services:
 
   # ─── 1. Scoring & IRT Service (FastAPI / Python) ───────────────────────────
   cbt-scoring:
+    image: ${CBT_IMAGE_PREFIX:-ghcr.io/imbank8993/acca-cbt-new}-scoring:${CBT_IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: apps/scoring/Dockerfile
@@ -33,6 +38,7 @@ services:
 
   # ─── 2. Backend API (NestJS 10 / Node.js) ──────────────────────────────────
   cbt-api:
+    image: ${CBT_IMAGE_PREFIX:-ghcr.io/imbank8993/acca-cbt-new}-api:${CBT_IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -60,6 +66,7 @@ services:
 
   # ─── 3. Frontend Web (Next.js 16 / Standalone) ─────────────────────────────
   cbt-web:
+    image: ${CBT_IMAGE_PREFIX:-ghcr.io/imbank8993/acca-cbt-new}-web:${CBT_IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: apps/web/Dockerfile

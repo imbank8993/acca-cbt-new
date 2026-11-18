@@ -115,12 +115,35 @@ Setiap kali Anda menjalankan `git push origin master` (atau `main`):
    - Typecheck frontend Next.js (`npm run typecheck`).
    - Kompilasi backend NestJS (`npm run build:backend`).
    - Menjalankan unit tests scoring Python via `pytest`.
-2. **Tahap Deploy (Deploy Job)**:
-   - Menghubungi VPS via SSH aman.
-   - Melakukan `git fetch` & `git reset --hard` ke commit terbaru.
-   - Menjalankan `docker compose up -d --build --remove-orphans`.
-   - Membersihkan dangling image via `docker image prune -f`.
-   - Melaporkan status kontainer aktif.
+2. **Tahap Build Image (Build Images Job)** — berjalan di server GitHub, **bukan di VPS**:
+   - Membangun 4 image (`web`, `api`, `scoring`, `latex`) secara paralel dengan cache.
+   - Menyimpannya di GitHub Container Registry (privat, mengikuti repo):
+     `ghcr.io/imbank8993/acca-cbt-new-<layanan>:<commit>` dan `:latest`.
+3. **Tahap Deploy (Deploy Job)**:
+   - Menghubungi VPS via SSH aman, `git fetch` & `git reset --hard` ke commit terbaru.
+   - Login GHCR sementara dengan token job, `docker compose pull` image versi commit itu, lalu logout.
+   - Menandai image itu sebagai `:latest` di VPS, lalu `docker compose up -d --no-build --remove-orphans`.
+     Hanya kontainer yang berubah yang dibuat ulang (beberapa detik).
+   - Menyimpan 3 versi terakhir per layanan untuk rollback, sisanya dihapus.
+
+Dengan ini CPU VPS tidak lagi penuh 10–20 menit setiap push. Deploy masih membuat ulang kontainer
+beberapa detik, jadi sebaiknya tetap tidak push saat ujian sedang ramai.
+
+### Variabel build (opsional)
+`NEXT_PUBLIC_SITE_URL` dan `NEXT_PUBLIC_ACCA_URL` tertanam saat build. Bawaannya
+`https://acca-cbt.icgowa.sch.id` dan `https://acca.icgowa.sch.id`. Bila domain berubah, isi
+**Settings → Secrets and variables → Actions → Variables** dengan nilai yang sama seperti `.env` VPS.
+
+### Rollback ke versi sebelumnya (di VPS)
+```bash
+cd /www/wwwroot/acca-cbt-new
+docker images | grep acca-cbt-new-api        # lihat tag commit yang tersedia
+CBT_IMAGE_TAG=<commit-sebelumnya> docker compose up -d --no-build
+```
+
+### Build darurat langsung di VPS
+Bila GitHub Actions/GHCR tidak tersedia, `docker compose build && docker compose up -d` tetap bisa
+dipakai (bagian `build:` di `docker-compose.yml` dipertahankan). Ini memakan CPU VPS seperti dulu.
 
 ---
 
