@@ -71,3 +71,26 @@ test('owner grants and revokes folder collaboration; readers cannot promote them
 test('folder permission lookup failure denies writes',async()=>{
  const f=fixture(undefined,['cbt_pas_period_collaborators']);await assert.rejects(f.auth.assertPasPeriodManage(other,'period-1'));assert.equal(f.db.writes.length,0);
 });
+
+for(const permission of [null,'viewer','editor','manager'])test(`folder collaborator ${permission||'none'}: manage and recovery rights on exams inside the folder`,async()=>{
+ const f=fixture(permission);
+ const exam={id:'folder-exam',organization_id:'org-1',created_by:null,exam_type:'pas',is_published:true,metadata:{pas_period_id:'period-1'}};
+ (f.db.tables.cbt_exams ||= []).push(exam);
+ const canManage=['editor','manager'].includes(permission),canRecover=permission==='manager';
+ assert.equal(await f.auth.canManageExam(other,exam),canManage);
+ assert.equal(await f.auth.canManageExam(other,exam,'reset'),canRecover);
+ // Reset, pemulihan, dan susulan memakai pemeriksaan server yang sama.
+ if(canRecover)await f.auth.assertExamStaff(other,'folder-exam','reset','student-1');
+ else await assert.rejects(f.auth.assertExamStaff(other,'folder-exam','reset','student-1'),forbidden);
+ if(permission){
+  // Grant dicabut atau kedaluwarsa: hak pemulihan langsung hilang.
+  for(const invalid of [{revoked_at:'2026-01-01T00:00:00Z'},{expires_at:'2000-01-01T00:00:00Z'}]){
+   Object.assign(f.db.tables.cbt_pas_period_collaborators[0],invalid);
+   await assert.rejects(f.auth.assertExamStaff(other,'folder-exam','reset','student-1'),forbidden);
+   assert.equal(await f.auth.canManageExam(other,exam),false);
+  }
+ }
+ // Grant folder tidak berlaku untuk ujian di luar folder itu.
+ const outside={...exam,id:'outside-exam',metadata:{pas_period_id:'other-period'}};f.db.tables.cbt_exams.push(outside);
+ await assert.rejects(f.auth.assertExamStaff(other,'outside-exam','reset','student-1'),forbidden);
+});

@@ -365,25 +365,44 @@ export class AuthorizationService {
             }
             // Ujian dari folder ASAS/ASAT/AM dibangkitkan sistem tanpa `created_by`;
             // pembuatnya adalah Proktor yang membuat folder (periode) tersebut.
-            if (!record.created_by && await this.isPasFolderCreator(user, record)
+            const periodId = await this.pasPeriodIdOf(record);
+            if (!record.created_by && periodId && await this.isPasFolderCreator(user, periodId)
                 && await this.roles.hasOrgRole(user.id, organizationId, ['Proktor'])) return full;
+            // Pengelola folder ASAS/ASAT/AM menjalankan ujian di dalamnya atas nama
+            // pembuat folder: reset, pemulihan, dan susulan. Dulu hanya grant per
+            // ujian yang diperiksa, sehingga kolaborator folder tidak bisa memulihkan.
+            const folderGrant = await this.pasFolderGrant(user, organizationId, periodId);
+            if (folderGrant?.permission === 'manager') return full;
             return null;
         }
         if (await this.roles.hasOrgRole(user.id, organizationId, ['Proktor', 'Guru'])) return full;
         return null;
     }
 
-    /** Apakah pengguna membuat folder ASAS/ASAT/AM asal ujian sistem ini. */
-    private async isPasFolderCreator(user: AuthUser, record: { id?: string; metadata?: unknown }): Promise<boolean> {
+    /** Folder (periode) ASAS/ASAT/AM asal ujian, atau null bila bukan ujian folder. */
+    private async pasPeriodIdOf(record: { id?: string; metadata?: unknown }): Promise<string | null> {
         let metadata = record.metadata as { pas_period_id?: unknown } | null | undefined;
         if (metadata === undefined && record.id) {
             const { data } = await this.db.from('cbt_exams').select('metadata').eq('id', record.id).maybeSingle();
             metadata = (data as { metadata?: { pas_period_id?: unknown } | null } | null)?.metadata;
         }
         const periodId = metadata?.pas_period_id;
-        if (typeof periodId !== 'string' || !periodId) return false;
+        return typeof periodId === 'string' && periodId ? periodId : null;
+    }
+
+    /** Apakah pengguna membuat folder ASAS/ASAT/AM asal ujian sistem ini. */
+    private async isPasFolderCreator(user: AuthUser, periodId: string): Promise<boolean> {
         const { data: period } = await this.db.from('cbt_pas_periods').select('created_by').eq('id', periodId).maybeSingle();
         return (period as { created_by?: string | null } | null)?.created_by === user.id;
+    }
+
+    /**
+     * Grant kolaborator folder ASAS/ASAT/AM yang masih aktif. Kolaborator folder
+     * hanya Proktor/Admin (sama dengan daftar kandidat); grant tidak di-cache.
+     */
+    private async pasFolderGrant(user: AuthUser, organizationId: string | null, periodId: string | null): Promise<CollaborationGrant | null> {
+        if (!periodId || !await this.roles.hasOrgRole(user.id, organizationId, ['Proktor'])) return null;
+        return collaborationGrant(this.db, 'period', periodId, user.id);
     }
 
     /** Same policy for write authorization and monitoring controls. */
@@ -406,7 +425,10 @@ export class AuthorizationService {
             if (grant && ['editor', 'manager'].includes(grant.permission)) return true;
         }
         if (await this.roles.hasOrgRole(user.id, record.organization_id, ['Proktor'])) {
-            return record.created_by === user.id;
+            if (record.created_by === user.id) return true;
+            // Editor/Pengelola folder ASAS/ASAT/AM mengelola ujian di dalam folder itu.
+            const folderGrant = await this.pasFolderGrant(user, record.organization_id, await this.pasPeriodIdOf(record));
+            return Boolean(folderGrant && ['editor', 'manager'].includes(folderGrant.permission));
         }
         if (isSemesterAssessmentExam(record)) return false;
         return record.created_by === user.id &&
