@@ -48,6 +48,10 @@ export interface StudentClass {
 export interface StudentScheduledExam {
     id: string;
     title: string;
+    /** Nama mapel (ujian folder ASAS/AM berjudul nama folder). */
+    subject?: string | null;
+    /** Cover bank soal yang dipakai ujian. */
+    cover_url?: string | null;
     exam_type?: string | null;
     duration_minutes?: number | null;
     start_time?: string | null;
@@ -97,6 +101,10 @@ export async function getStudentExamsResult() {
 
 export interface StudentResultExam {
     title: string;
+    /** Nama mapel (ujian folder ASAS/AM berjudul nama folder). */
+    subject?: string | null;
+    /** Cover bank soal yang dipakai ujian. */
+    cover_url?: string | null;
     duration_minutes?: number;
     show_results: boolean;
     scoring_type?: string | null;
@@ -149,7 +157,7 @@ export interface StudentAttemptDetails {
         finished_at?: string | null;
         personal_end_time?: string | null;
         metadata?: { dimension_scores?: Record<string, number>; [key: string]: unknown } | null;
-        exams?: { id: string; title: string; show_results: boolean; question_bank_id?: string | null; scoring_type?: string | null } | null;
+        exams?: { id: string; title: string; subject?: string | null; show_results: boolean; question_bank_id?: string | null; scoring_type?: string | null } | null;
     };
     dimensions: { id: string; name: string }[];
     interpretations: { dimension_id: string; min_score: number; max_score: number; title?: string | null; interpretation?: string | null }[];
@@ -205,6 +213,10 @@ export interface StudentProfile {
 export interface StudentExam {
     id: string;
     title: string;
+    /** Nama mapel (ujian folder ASAS/AM berjudul nama folder). */
+    subject?: string | null;
+    /** Cover bank soal yang dipakai ujian. */
+    cover_url?: string | null;
     exam_type: string;
     duration_minutes: number;
     metadata?: {

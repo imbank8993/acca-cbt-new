@@ -192,6 +192,7 @@ export default function StudentResultDetailsPage() {
             {timeZoneError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{timeZoneError}</div>}
             <header className="rounded-2xl border border-slate-200 bg-white px-4 py-3 sm:px-5 sm:py-4 shadow-xs">
                 <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">{attempt.exams?.title || 'Detail hasil ujian'}</h1>
+                {attempt.exams?.subject && <p className="mt-1 text-sm font-semibold text-[#3083FF]">{attempt.exams.subject}</p>}
                 <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs sm:text-sm text-slate-500">
                     <span className="inline-flex items-center gap-2"><Clock size={14} aria-hidden="true" /> Mulai: {attempt.started_at ? formatUTCDateTime(attempt.started_at) : 'Belum tersedia'}</span>
                     <span>Selesai: {attempt.finished_at ? formatUTCDateTime(attempt.finished_at) : 'Belum tersedia'}</span>

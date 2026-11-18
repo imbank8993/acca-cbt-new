@@ -1,5 +1,6 @@
 import { assertAnswerKeysReleased } from '../common/answer-key-release';
 import { withQuestionTopics } from '../common/exam-question-topics';
+import { examBankInfo } from '../common/exam-subjects';
 import { readExamQuestionVersion } from '../common/exam-question-snapshots';
 import {
     BadRequestException,
@@ -233,7 +234,7 @@ export class StudentsService {
             .from('cbt_exams')
             .select(
                 `id, organization_id, title, description, status, is_published, start_time, end_time,
-                 duration_minutes, exam_type, question_bank_id, created_at, metadata`,
+                 duration_minutes, exam_type, question_bank_id, subject_id, created_at, metadata`,
             )
             .eq('organization_id', audience.organizationId)
             .eq('is_published', true)
@@ -276,8 +277,12 @@ export class StudentsService {
             rows.filter((a) => a.status === 'in_progress').map((a) => a.exam_id),
         );
 
+        // Ujian folder ASAS/AM berjudul nama folder: mapel wajib ikut agar siswa dapat membedakannya.
+        const bankInfo = await examBankInfo(this.db, visibleExams).catch(() => new Map<string, { subject?: string; cover?: string }>());
         return visibleExams.map((exam) => ({
             ...exam,
+            subject: bankInfo.get(exam.id)?.subject || null,
+            cover_url: bankInfo.get(exam.id)?.cover || null,
             metadata: studentExamMetadata(exam.metadata),
             isCompleted: completed.has(exam.id),
             isInProgress: inProgress.has(exam.id),
@@ -396,7 +401,7 @@ export class StudentsService {
             .from('cbt_exam_attempts')
             .select(
                 `id, total_score, score_irt, detailed_scores, finished_at, status, needs_manual_grading, metadata,
-                 exams:cbt_exams(title, duration_minutes, show_results, scoring_type, metadata)`,
+                 exams:cbt_exams(id, title, duration_minutes, show_results, scoring_type, question_bank_id, subject_id, metadata)`,
             )
             .eq('user_id', user.id)
             .in('status', FINISHED_STATUSES)
@@ -406,11 +411,15 @@ export class StudentsService {
             this.logger.error(`Gagal membaca riwayat nilai: ${error.message}`);
             throw new InternalServerErrorException('Hasil ujian belum dapat dimuat. Silakan coba lagi.');
         }
-        return ((data as any[]) || []).map(row => ({
+        const rows = (data as any[]) || [];
+        const bankInfo = await examBankInfo(this.db, rows.map(row => row.exams).filter(Boolean))
+            .catch(() => new Map<string, { subject?: string; cover?: string }>());
+        return rows.map(row => ({
             id: row.id, finished_at: row.finished_at, status: row.status, needs_manual_grading: row.needs_manual_grading,
             ...publicStudentScores(row, row.exams),
             exams: row.exams ? { title: row.exams.title, duration_minutes: row.exams.duration_minutes,
-                show_results: row.exams.show_results, scoring_type: row.exams.scoring_type } : null,
+                show_results: row.exams.show_results, scoring_type: row.exams.scoring_type,
+                subject: bankInfo.get(row.exams.id)?.subject || null, cover_url: bankInfo.get(row.exams.id)?.cover || null } : null,
         }));
     }
 
@@ -444,7 +453,7 @@ export class StudentsService {
             .select(
                 `id, total_score, status, needs_manual_grading, user_id, started_at, finished_at,
                  personal_end_time, score_irt, detailed_scores, metadata,
-                 exams:cbt_exams(id, title, show_results, question_bank_id, scoring_type, end_time, duration_minutes, metadata)`,
+                 exams:cbt_exams(id, title, show_results, question_bank_id, subject_id, scoring_type, end_time, duration_minutes, metadata)`,
             )
             .eq('id', attemptId)
             .maybeSingle();
@@ -471,6 +480,7 @@ export class StudentsService {
             personal_end_time: row.personal_end_time,
             metadata: { dimension_scores: row.metadata?.dimension_scores || {} },
             exams: { id: row.exams.id, title: row.exams.title, show_results: true,
+                subject: (await examBankInfo(this.db, [row.exams]).catch(() => new Map<string, { subject?: string }>())).get(row.exams.id)?.subject || null,
                 question_bank_id: row.exams.question_bank_id, scoring_type: row.exams.scoring_type },
         };
         try {

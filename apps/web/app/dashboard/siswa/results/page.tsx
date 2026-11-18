@@ -7,7 +7,8 @@ import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { motion } from 'framer-motion';
-import { Award,BookOpen,ChevronRight,Clock,Loader2,RefreshCw } from 'lucide-react';
+import { StudentExamCover, SubjectPill } from '@/app/components/student/StudentExamCover';
+import { Award,ChevronRight,Clock,Loader2,RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback,useEffect,useState } from 'react';
 
@@ -98,37 +99,34 @@ export default function StudentResultsPage() {
                                 disabled={!canViewDetails}
                                 aria-label={canViewDetails ? `Buka hasil ${attempt.exams?.title || 'ujian'}` : undefined}
                                 onClick={() => canViewDetails ? router.push(`/dashboard/siswa/results/${attempt.id}`) : null}
-                                className={`w-full text-left bg-white border border-slate-100 rounded-2xl p-5 flex flex-col sm:flex-row gap-4 transition-all duration-300 group relative overflow-hidden shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3083FF] focus-visible:ring-offset-2 ${
-                                    canViewDetails 
-                                        ? 'cursor-pointer hover:border-blue-100 hover:shadow-xl hover:shadow-[#3083FF]/5'
+                                className={`w-full text-left p-4 sm:p-5 rounded-2xl border border-slate-100 bg-white shadow-sm transition-all dark:border-slate-800 dark:bg-slate-900/70 flex flex-col sm:flex-row gap-4 duration-300 group relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3083FF] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950 ${
+                                    canViewDetails
+                                        ? 'cursor-pointer hover:border-sky-200 hover:shadow-lg dark:hover:border-sky-500/40'
                                         : 'opacity-90'
                                 }`}
                             >
-                                <div className="absolute top-0 left-0 w-1 h-full bg-[#3083FF]"></div>
-
-                                <div className="flex items-start gap-4 flex-1 pl-1 min-w-0">
-                                    <div className="w-10 h-10 bg-blue-50 border border-blue-100/50 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-[#3083FF] group-hover:border-[#3083FF] transition-colors text-[#3083FF] group-hover:text-white">
-                                        <BookOpen size={18} />
-                                    </div>
+                                <div className="flex items-start gap-4 flex-1 min-w-0">
+                                    <StudentExamCover cover={attempt.exams?.cover_url} title={attempt.exams?.title || 'Ujian'} subject={attempt.exams?.subject} />
                                     <div className="space-y-1 min-w-0 flex-1">
                                         <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                                            <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-blue-50 text-[#3083FF] border border-blue-100 flex items-center gap-1 leading-none">
+                                            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold border flex items-center gap-1 leading-none bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20">
                                                 SELESAI
                                             </span>
                                             {attempt.needs_manual_grading && (
-                                                <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-amber-50 text-amber-600 border border-amber-100 leading-none">
+                                                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-600 border border-amber-100 leading-none dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20">
                                                     MENUNGGU PENILAIAN
                                                 </span>
                                             )}
                                             {!canViewDetails && (
-                                                <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200 leading-none">
+                                                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold border leading-none bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
                                                     NILAI BELUM DIBUKA GURU
                                                 </span>
                                             )}
                                         </div>
-                                        <h3 className="font-bold text-slate-800 text-sm group-hover:text-[#3083FF] transition-colors line-clamp-2 leading-snug">
+                                        <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm group-hover:text-[#3083FF] transition-colors line-clamp-2 leading-snug">
                                             {attempt.exams?.title || 'Ujian Tidak Diketahui'}
                                         </h3>
+                                        <SubjectPill subject={attempt.exams?.subject} />
                                         <p className="text-xs text-slate-400 flex items-center gap-1 font-medium font-sans">
                                             <Clock size={12} className="text-slate-300" />
                                             {formatSchoolDateTime(attempt.finished_at, timeZone)}
@@ -136,7 +134,7 @@ export default function StudentResultsPage() {
                                     </div>
                                 </div>
 
-                                <div className="shrink-0 flex items-center justify-between sm:justify-start gap-4 border-t sm:border-t-0 sm:border-l border-slate-100 pt-3.5 sm:pt-0 sm:pl-4 mt-2 sm:mt-0">
+                                <div className="shrink-0 flex items-center justify-between sm:justify-start gap-4 border-t sm:border-t-0 sm:border-l border-slate-100 dark:border-slate-800 pt-3.5 sm:pt-0 sm:pl-4 mt-2 sm:mt-0">
                                     {attempt.exams?.show_results === true && (
                                         <div className="flex items-center gap-4">
                                             <div className="text-center min-w-[70px]">
@@ -156,7 +154,7 @@ export default function StudentResultsPage() {
                                         </div>
                                     )}
                                     {canViewDetails && (
-                                        <div className="w-8 h-8 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center group-hover:bg-[#3083FF] group-hover:border-[#3083FF] transition-colors shrink-0">
+                                        <div className="w-8 h-8 rounded-full bg-slate-50 border border-slate-200 dark:bg-slate-800 dark:border-slate-700 flex items-center justify-center group-hover:bg-[#3083FF] group-hover:border-[#3083FF] transition-colors shrink-0">
                                             <ChevronRight size={16} className="text-slate-400 group-hover:text-white transition-colors" />
                                         </div>
                                     )}

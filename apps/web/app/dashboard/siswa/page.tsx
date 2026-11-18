@@ -172,6 +172,7 @@ export default function SiswaDashboard() {
                         </div>
 
                         <h3 className="font-bold text-slate-800 text-sm group-hover:text-[#3083FF] transition-colors line-clamp-1 leading-snug">{exam.title}</h3>
+                        {exam.subject && <p className="text-xs font-semibold text-[#3083FF] truncate">{exam.subject}</p>}
                         
                         <p className="text-xs text-slate-400 flex items-center gap-1.5 font-sans font-medium">
                             <Clock size={12} className="text-slate-300" />
@@ -319,7 +320,7 @@ export default function SiswaDashboard() {
                                     return (
                                         <div key={res.id || i} className="space-y-1.5 text-left">
                                             <div className="flex justify-between items-start">
-                                                <p className="font-semibold text-slate-700 text-xs truncate pr-2 leading-none">{res.exams?.title || 'Ujian'}</p>
+                                                <p className="font-semibold text-slate-700 text-xs truncate pr-2 leading-none">{res.exams?.subject ? `${res.exams.subject} · ` : ''}{res.exams?.title || 'Ujian'}</p>
                                                 <p className="text-[10px] text-slate-400 shrink-0 leading-none">
                                                     <span className={`text-xs font-black font-mono ${textColorClass}`}>{gradingPending ? pendingLabel : score.toFixed(2)}</span>{!gradingPending && (res.score_type?.startsWith('irt_') ? ' (200–800)' : '/100')}
                                                 </p>

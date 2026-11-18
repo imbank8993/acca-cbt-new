@@ -121,6 +121,30 @@ export class StorageAccessService {
         return pending;
     }
 
+    /** Cover bank soal yang dipakai ujian terbit yang dapat diakses siswa (aturan sama dengan jadwal siswa). */
+    private async studentCanReadCover(audience: Awaited<ReturnType<typeof loadExamAudience>>, key: string): Promise<boolean> {
+        const { data: banks, error } = await this.db.from('cbt_question_banks').select('id, image_url')
+            .eq('organization_id', audience.organizationId);
+        if (error) throw new ForbiddenException('Izin berkas belum dapat diperiksa.');
+        const bankIds = ((banks || []) as Array<{ id: string; image_url?: string | null }>)
+            .filter(bank => this.references(bank.image_url, key)).map(bank => bank.id);
+        if (!bankIds.length) return false;
+        const [direct, sources] = await Promise.all([
+            this.db.from('cbt_exams').select('id, organization_id, is_published, metadata').in('question_bank_id', bankIds),
+            this.db.from('cbt_exam_question_sources').select('exam_id').in('bank_id', bankIds),
+        ]);
+        if (direct.error || sources.error) throw new ForbiddenException('Izin berkas belum dapat diperiksa.');
+        const exams = [...((direct.data || []) as any[])];
+        const extraIds = [...new Set(((sources.data || []) as Array<{ exam_id: string }>).map(row => row.exam_id))]
+            .filter(id => !exams.some(exam => exam.id === id));
+        if (extraIds.length) {
+            const { data, error: extraError } = await this.db.from('cbt_exams').select('id, organization_id, is_published, metadata').in('id', extraIds);
+            if (extraError) throw new ForbiddenException('Izin berkas belum dapat diperiksa.');
+            exams.push(...((data || []) as any[]));
+        }
+        return exams.some(exam => canAccessExam(exam, audience));
+    }
+
     /** Hak staf membaca satu bank (sama dengan aturan sebelumnya). */
     private async staffCanReadBank(user: AuthUser, bankId: string, organizationId: string): Promise<boolean> {
         try { await this.authz.assertBankAccess(user, bankId, 'read'); return true; }
@@ -184,6 +208,9 @@ export class StorageAccessService {
                 if (await this.staffCanReadBank(user, bankId, audience.organizationId)) return;
             }
         }
+        // Cover bank soal tampil di jadwal/hasil siswa: boleh dibuka bila bank itu
+        // dipakai ujian terbit yang memang ditugaskan kepada siswa ini.
+        if (/^users\/[^/]+\/banks\//.test(key) && await this.studentCanReadCover(audience, key)) return;
         const { data: attempts, error } = await this.db.from('cbt_exam_attempts')
             .select('exam_id, status, started_at, personal_end_time, metadata').eq('user_id', user.id);
         if (error) throw new ForbiddenException('Izin berkas belum dapat diperiksa.');
