@@ -10,7 +10,7 @@ import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { AttemptHistoryModal } from '@/app/components/monitoring/AttemptHistoryModal';
 import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
 import { BulkPendingRecoveryPanel } from '@/app/components/monitoring/BulkPendingRecoveryPanel';
-import { BulkExtendTimePanel, extendableAttempts } from '@/app/components/monitoring/BulkExtendTimePanel';
+import { BulkExtendTimePanel } from '@/app/components/monitoring/BulkExtendTimePanel';
 import { pendingRecoveryCandidates } from '@/lib/pending-recovery';
 import { CancelExamModal, type CancellableExam } from '@/app/components/monitoring/CancelExamModal';
 import { IrtParametersPanel } from '@/app/components/monitoring/IrtParametersPanel';
@@ -293,7 +293,7 @@ export function ParticipantsWorkspace({
     const pendingCount = anyReset ? pendingRecoveryCandidates(recoverable).confirmed.length : 0;
     const actions = [
         ...(anyReset ? [['pending', `Pulihkan jawaban tertunda${pendingCount ? ` (${pendingCount})` : ''}`] as const] : []),
-        ...(anyReset && extendableAttempts(recoverable).length ? [['extend', 'Tambah waktu'] as const] : []),
+        ...(anyReset ? [['extend', 'Tambah waktu'] as const] : []),
         ...(anyReset ? [['reset', 'Reset massal'] as const] : []),
         ...(screenExams.length ? [['screen', 'Pengecualian layar'] as const] : []),
         ...(cancellableExams.length ? [['cancel', 'Batalkan ujian'] as const] : []),
