@@ -168,6 +168,9 @@ export class ExamAdminService {
         if (!elevated && !assignedStudents && exams.some(exam => isSemesterAssessmentExam(exam))) {
             assignedStudents = await assignedPasExamStudents(this.db, user.id, organizationId);
         }
+        // Peran & grant folder dimuat sekali untuk seluruh daftar, bukan per ujian.
+        const accessContext = await this.authz.examAccessContext?.(user, organizationId,
+            new Map(periodRows.map(period => [period.id, period.created_by])));
         return Promise.all(exams.map(async (exam) => {
             const grant = grants.get(exam.id) ?? null;
             const access = collaboration.access(exam, grant);
@@ -182,8 +185,8 @@ export class ExamAdminService {
             questionCreatorNames: [...new Set(bankIdsForExam(exam).map(bankId => creatorNames.get(banksById.get(bankId)?.created_by || '') || 'Belum tercatat'))],
             question_bank_title: exam.question_bank_title || banksById.get(exam.question_bank_id)?.title || null,
             subject: subjectsById.get(exam.subject_id) || bankIdsForExam(exam).map(bankId => banksById.get(bankId)?.subject?.trim()).find(Boolean) || null,
-            canManage: await this.authz.canManageExam(user, exam, 'manage', undefined, grant),
-            canResetParticipants: await this.authz.canManageExam(user, exam, 'reset', assignedStudents, grant),
+            canManage: await this.authz.canManageExam(user, exam, 'manage', undefined, grant, accessContext),
+            canResetParticipants: await this.authz.canManageExam(user, exam, 'reset', assignedStudents, grant, accessContext),
             canCorrectKeys: !restrictedProctor || (() => {
                 const ids = [...(exam.question_bank_id ? [exam.question_bank_id] : []), ...examSources.filter(source => source.exam_id === exam.id).map(source => source.bank_id)];
                 return ids.length > 0 && ids.every(id => ownedBankIds.has(id));

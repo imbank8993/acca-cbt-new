@@ -1,4 +1,4 @@
-import { collaborationResourceTable, collaborationGrant, type CollaborationGrant, type CollaborativeResource } from '../common/collaboration-access';
+import { collaborationResourceTable, collaborationGrant, collaborationGrants, type CollaborationGrant, type CollaborativeResource } from '../common/collaboration-access';
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { DbService } from '../prisma/prisma-db-adapter';
@@ -20,6 +20,14 @@ import { isSemesterAssessmentExam } from '../common/exam-types';
  * `{ success: false, error }` sehingga bentuk yang sampai ke frontend tetap
  * sama seperti sebelumnya.
  */
+/** Peran & grant folder satu pengguna untuk satu permintaan daftar ujian. */
+export interface ExamAccessContext {
+    organizationId: string;
+    roles: Set<string>;
+    folderGrants: Map<string, CollaborationGrant>;
+    folderCreators?: Map<string, string | null | undefined>;
+}
+
 @Injectable()
 export class AuthorizationService {
     constructor(
@@ -354,28 +362,28 @@ export class AuthorizationService {
     /** Ownership of a bank grants monitoring only, never recovery rights. */
     async getExamResetScope(user: AuthUser, record: {
         id?: string; organization_id: string | null; created_by: string | null; exam_type: string | null; metadata?: unknown;
-    }, _assignedStudents?: Map<string, string[]>, knownGrant?: CollaborationGrant | null): Promise<{ allParticipants: boolean; studentIds: string[] } | null> {
+    }, _assignedStudents?: Map<string, string[]>, knownGrant?: CollaborationGrant | null, ctx?: ExamAccessContext): Promise<{ allParticipants: boolean; studentIds: string[] } | null> {
         const organizationId = await this.schoolScope.assertSchoolId(record.organization_id);
         const full = { allParticipants: true, studentIds: [] };
-        if (this.isElevatedGlobally(user) || await this.roles.hasOrgRole(user.id, organizationId, ['Admin'])) return full;
+        if (this.isElevatedGlobally(user) || await this.hasRole(user, organizationId, ['Admin'], ctx)) return full;
         if (record.created_by !== user.id) {
-            if (record.id && knownGrant !== null && await this.roles.hasOrgRole(user.id, organizationId, ['Proktor', 'Guru'])) {
+            if (record.id && knownGrant !== null && await this.hasRole(user, organizationId, ['Proktor', 'Guru'], ctx)) {
                 const grant = knownGrant !== undefined ? knownGrant : await collaborationGrant(this.db, 'exam', record.id, user.id);
                 if (grant?.can_reset && ['editor', 'manager'].includes(grant.permission)) return full;
             }
             // Ujian dari folder ASAS/ASAT/AM dibangkitkan sistem tanpa `created_by`;
             // pembuatnya adalah Proktor yang membuat folder (periode) tersebut.
             const periodId = await this.pasPeriodIdOf(record);
-            if (!record.created_by && periodId && await this.isPasFolderCreator(user, periodId)
-                && await this.roles.hasOrgRole(user.id, organizationId, ['Proktor'])) return full;
+            if (!record.created_by && periodId && await this.isPasFolderCreator(user, periodId, ctx)
+                && await this.hasRole(user, organizationId, ['Proktor'], ctx)) return full;
             // Pengelola folder ASAS/ASAT/AM menjalankan ujian di dalamnya atas nama
             // pembuat folder: reset, pemulihan, dan susulan. Dulu hanya grant per
             // ujian yang diperiksa, sehingga kolaborator folder tidak bisa memulihkan.
-            const folderGrant = await this.pasFolderGrant(user, organizationId, periodId);
+            const folderGrant = await this.pasFolderGrant(user, organizationId, periodId, ctx);
             if (folderGrant?.permission === 'manager') return full;
             return null;
         }
-        if (await this.roles.hasOrgRole(user.id, organizationId, ['Proktor', 'Guru'])) return full;
+        if (await this.hasRole(user, organizationId, ['Proktor', 'Guru'], ctx)) return full;
         return null;
     }
 
@@ -391,7 +399,9 @@ export class AuthorizationService {
     }
 
     /** Apakah pengguna membuat folder ASAS/ASAT/AM asal ujian sistem ini. */
-    private async isPasFolderCreator(user: AuthUser, periodId: string): Promise<boolean> {
+    private async isPasFolderCreator(user: AuthUser, periodId: string, ctx?: ExamAccessContext): Promise<boolean> {
+        // Daftar ujian sudah memuat semua folder yang dirujuk; yang tidak ada di peta memang tidak ada.
+        if (ctx?.folderCreators) return ctx.folderCreators.get(periodId) === user.id;
         const { data: period } = await this.db.from('cbt_pas_periods').select('created_by').eq('id', periodId).maybeSingle();
         return (period as { created_by?: string | null } | null)?.created_by === user.id;
     }
@@ -400,9 +410,37 @@ export class AuthorizationService {
      * Grant kolaborator folder ASAS/ASAT/AM yang masih aktif. Kolaborator folder
      * hanya Proktor/Admin (sama dengan daftar kandidat); grant tidak di-cache.
      */
-    private async pasFolderGrant(user: AuthUser, organizationId: string | null, periodId: string | null): Promise<CollaborationGrant | null> {
-        if (!periodId || !await this.roles.hasOrgRole(user.id, organizationId, ['Proktor'])) return null;
+    private async pasFolderGrant(user: AuthUser, organizationId: string | null, periodId: string | null, ctx?: ExamAccessContext): Promise<CollaborationGrant | null> {
+        if (!periodId || !await this.hasRole(user, organizationId, ['Proktor'], ctx)) return null;
+        if (ctx && organizationId === ctx.organizationId) return ctx.folderGrants.get(periodId) ?? null;
         return collaborationGrant(this.db, 'period', periodId, user.id);
+    }
+
+    /**
+     * Peran pengguna dan grant folder aktifnya, dimuat SEKALI untuk satu halaman
+     * daftar ujian. Tanpa ini setiap ujian memicu 8–12 query peran/grant yang
+     * sama, sehingga daftar ratusan ujian ASAS/AM menjadi ribuan query dan
+     * membebani CPU server. Konteks hanya hidup selama satu permintaan; tidak
+     * ada cache lintas permintaan, jadi pencabutan akses tetap langsung berlaku.
+     */
+    async examAccessContext(user: AuthUser, organizationId: string,
+        folderCreators?: Map<string, string | null | undefined>): Promise<ExamAccessContext> {
+        const schoolId = await this.schoolScope.assertSchoolId(organizationId);
+        // Lewat hasOrgRole agar aturannya identik dengan pemeriksaan biasa
+        // (mis. peran Pengawas tidak memberi hak kelola). Hanya 3 query per daftar.
+        const names = ['Admin', 'Proktor', 'Guru'];
+        const [held, folderGrants] = await Promise.all([
+            Promise.all(names.map(name => this.roles.hasOrgRole(user.id, schoolId, [name]))),
+            collaborationGrants(this.db, 'period', user.id),
+        ]);
+        const roles = new Set(names.filter((_, i) => held[i]).map(name => name.toUpperCase()));
+        return { organizationId: schoolId, roles, folderGrants, folderCreators };
+    }
+
+    /** hasOrgRole, atau dari konteks daftar bila tersedia untuk sekolah yang sama. */
+    private hasRole(user: AuthUser, organizationId: string | null | undefined, roles: string[], ctx?: ExamAccessContext): Promise<boolean> {
+        if (ctx && organizationId === ctx.organizationId) return Promise.resolve(roles.some(role => ctx.roles.has(role.toUpperCase())));
+        return this.roles.hasOrgRole(user.id, organizationId, roles);
     }
 
     /** Same policy for write authorization and monitoring controls. */
@@ -413,26 +451,26 @@ export class AuthorizationService {
         exam_type: string | null;
         is_published?: boolean;
     }, operation: 'manage' | 'reset' = 'manage', assignedStudents?: Map<string, string[]>,
-        knownGrant?: CollaborationGrant | null): Promise<boolean> {
-        if (operation === 'reset') return Boolean(await this.getExamResetScope(user, record, assignedStudents, knownGrant));
+        knownGrant?: CollaborationGrant | null, ctx?: ExamAccessContext): Promise<boolean> {
+        if (operation === 'reset') return Boolean(await this.getExamResetScope(user, record, assignedStudents, knownGrant, ctx));
         await this.schoolScope.assertSchoolId(record.organization_id);
         if (this.isElevatedGlobally(user)) return true;
-        if (await this.roles.hasOrgRole(user.id, record.organization_id, ['Admin'])) return true;
+        if (await this.hasRole(user, record.organization_id, ['Admin'], ctx)) return true;
         // knownGrant: grant yang sudah dimuat sekaligus untuk satu halaman daftar (null = tidak ada).
         if (record.id && record.created_by !== user.id && knownGrant !== null &&
-            await this.roles.hasOrgRole(user.id, record.organization_id, ['Proktor', 'Guru'])) {
+            await this.hasRole(user, record.organization_id, ['Proktor', 'Guru'], ctx)) {
             const grant = knownGrant !== undefined ? knownGrant : await collaborationGrant(this.db, 'exam', record.id, user.id);
             if (grant && ['editor', 'manager'].includes(grant.permission)) return true;
         }
-        if (await this.roles.hasOrgRole(user.id, record.organization_id, ['Proktor'])) {
+        if (await this.hasRole(user, record.organization_id, ['Proktor'], ctx)) {
             if (record.created_by === user.id) return true;
             // Editor/Pengelola folder ASAS/ASAT/AM mengelola ujian di dalam folder itu.
-            const folderGrant = await this.pasFolderGrant(user, record.organization_id, await this.pasPeriodIdOf(record));
+            const folderGrant = await this.pasFolderGrant(user, record.organization_id, await this.pasPeriodIdOf(record), ctx);
             return Boolean(folderGrant && ['editor', 'manager'].includes(folderGrant.permission));
         }
         if (isSemesterAssessmentExam(record)) return false;
         return record.created_by === user.id &&
-            await this.roles.hasOrgRole(user.id, record.organization_id, ['Guru']);
+            await this.hasRole(user, record.organization_id, ['Guru'], ctx);
     }
 
     /**

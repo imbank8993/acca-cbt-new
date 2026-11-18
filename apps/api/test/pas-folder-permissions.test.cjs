@@ -94,3 +94,25 @@ for(const permission of [null,'viewer','editor','manager'])test(`folder collabor
  const outside={...exam,id:'outside-exam',metadata:{pas_period_id:'other-period'}};f.db.tables.cbt_exams.push(outside);
  await assert.rejects(f.auth.assertExamStaff(other,'outside-exam','reset','student-1'),forbidden);
 });
+
+test('exam list access context gives identical rights without per-exam role or grant queries',async()=>{
+ for(const permission of [null,'viewer','editor','manager']){
+  const f=fixture(permission);
+  const exams=Array.from({length:50},(_,i)=>({id:`exam-${i}`,organization_id:'org-1',created_by:i%10===0?owner.id:null,exam_type:'pas',is_published:true,
+   metadata:{pas_period_id:i%2?'period-1':'other-period'}}));
+  f.db.tables.cbt_exams=[...(f.db.tables.cbt_exams||[]),...exams];
+  for(const user of [owner,other,admin]){
+   const expected=[];
+   for(const exam of exams)expected.push([await f.auth.canManageExam(user,exam),await f.auth.canManageExam(user,exam,'reset',undefined,null)]);
+   const ctx=await f.auth.examAccessContext(user,'org-1',new Map([['period-1',owner.id]]));
+   let roleCalls=0;const original=f.auth.roles.hasOrgRole;f.auth.roles.hasOrgRole=async(...args)=>{roleCalls++;return original(...args);};
+   const queriesBefore=f.db.queries.length;
+   const actual=[];
+   for(const exam of exams)actual.push([await f.auth.canManageExam(user,exam,'manage',undefined,null,ctx),await f.auth.canManageExam(user,exam,'reset',undefined,null,ctx)]);
+   f.auth.roles.hasOrgRole=original;
+   assert.deepEqual(actual,expected,`${user.id} / ${permission}`);
+   assert.equal(roleCalls,0,'tidak ada query peran per ujian');
+   assert.equal(f.db.queries.length-queriesBefore,0,'tidak ada query grant/folder per ujian');
+  }
+ }
+});
