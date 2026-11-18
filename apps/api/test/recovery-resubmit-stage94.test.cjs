@@ -96,7 +96,7 @@ test('the locked recovery screen submits a local copy automatically and shows th
     const page = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/questions/ExamPage.tsx'), 'utf8');
     assert.match(page, /if \(recoverySubmitOnly && localSnapshot && Object\.keys\(localSnapshot\.answers \|\| \{\}\)\.length > 0\) \{\s*setWaitingForSyncAndSubmit\(true\);/);
     assert.match(page, /Kirim sebelum pukul/);
-    assert.match(page, /Batas pemulihan pukul/);
+    assert.match(page, /Batas pengiriman pukul \{formatSchoolClock\(recoverySummary\.until, schoolTimeZone, schoolZoneLabel\)\}/);
 });
 
 function legacyRecovery() {

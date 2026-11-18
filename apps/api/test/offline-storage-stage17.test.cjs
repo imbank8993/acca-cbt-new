@@ -398,7 +398,7 @@ test('submit-only reload preserves the original local snapshot when question con
     const vm = require('node:vm'), ts = require('typescript');
     const source = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/questions/ExamPage.tsx'), 'utf8');
     const start = source.indexOf('                restoreAssignment(result.attempt.id, localSnapshot);');
-    const end = source.indexOf('                const recoveryUntil =', start);
+    const end = source.indexOf('                setRecoverySummary(examSessionNotice(result.attempt.metadata));', start);
     assert.ok(start >= 0 && end > start);
     for (const frozen of [false, true]) {
         const local = { answers: { q: 'new local answer' }, revisions: { q: 4 }, doubtfulAnswers: ['q'],

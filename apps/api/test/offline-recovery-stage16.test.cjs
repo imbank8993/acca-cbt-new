@@ -109,7 +109,7 @@ test('ANS-03: kegagalan menulis audit membatalkan reset secara atomik', async ()
     assert.equal(db.tables.cbt_exam_attempts[0].device_fingerprint, 'old-device');
 });
 
-test('ANS-03: layar siswa menampilkan jumlah lokal/server dan semua reset mengirim alasan', () => {
+test('ANS-03: layar siswa memakai pesan sesuai tindakan pengawas (tanpa angka lokal/server) dan semua reset mengirim alasan', () => {
     const examPage = fs.readFileSync(
         path.resolve(__dirname, '../../web/app/components/questions/ExamPage.tsx'),
         'utf8',
@@ -119,8 +119,10 @@ test('ANS-03: layar siswa menampilkan jumlah lokal/server dan semua reset mengir
         'utf8',
     );
 
-    assert.match(examPage, /Lokal:\s*\{recoverySummary\.localCount\}/);
-    assert.match(examPage, /Server:\s*\{recoverySummary\.serverCount\}/);
+    // Angka "Lokal: x · Server: y" membuat siswa mengira jawabannya hilang; kini
+    // pesan dipilih dari jenis tindakan pengawas (lib/exam-session-notice.ts).
+    assert.doesNotMatch(examPage, /Lokal:\s*\{recoverySummary/);
+    assert.match(examPage, /examSessionNoticeText\(recoverySummary, schoolTimeZone, schoolZoneLabel\)/);
     assert.match(examPage, /jangan hapus data browser atau berpindah perangkat/i);
     assert.match(proctoringClient, /\{ reason, durationMinutes \}/);
     assert.match(proctoringClient, /isRecovery \? '15' : '60'/);

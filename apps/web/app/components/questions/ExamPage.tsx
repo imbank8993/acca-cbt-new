@@ -39,6 +39,9 @@ writeExamSnapshot,
 } from '@/lib/exam-durable-storage';
 import { cacheExamOfflineImages,cacheExamOfflineImagesWithRetry,cacheExamOfflineShell,isExamPwaEnabled,removeExamOfflineShell } from '@/lib/exam-pwa';
 import { installExamImageRetry } from '@/lib/exam-image-retry';
+import { examSessionNotice, examSessionNoticeText, formatSchoolClock, type ExamSessionNotice } from '@/lib/exam-session-notice';
+import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
+import { getSchoolTimeZoneLabel } from '@/lib/school-time';
 import { examAutoRetryDelay } from '@/lib/exam-retry';
 import { mergeExamQuestionUpdates } from '@/lib/exam-question-updates';
 import { sampleExamNetwork, examNetworkLabel } from '@/lib/exam-network';
@@ -186,11 +189,11 @@ export default function ExamPage() {
     const connectionAttemptRef = useRef<string | null>(null);
     const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' ? !navigator.onLine : false);
     const [waitingForSyncAndSubmit, setWaitingForSyncAndSubmit] = useState(false);
-    const [recoverySummary, setRecoverySummary] = useState<{
-        localCount: number;
-        serverCount: number;
-        recoveryUntil: string;
-    } | null>(null);
+    // Tindakan pengawas yang masih berlaku (susulan, tambah waktu, dibuka kembali,
+    // kirim salinan saja); menentukan pesan yang dilihat siswa.
+    const [recoverySummary, setRecoverySummary] = useState<ExamSessionNotice | null>(null);
+    const { timeZone: schoolTimeZone } = useSchoolTimeZone();
+    const schoolZoneLabel = getSchoolTimeZoneLabel(schoolTimeZone);
     const storageStateRef = useRef<'healthy' | 'fallback' | 'unavailable' | 'unknown'>('unknown');
     const [storageWarning, setStorageWarning] = useState<string | null>(null);
 
@@ -720,12 +723,16 @@ export default function ExamPage() {
                         const cached = await readExamSnapshot(expiredId);
                         localCount = Object.keys(cached?.answers || {}).length;
                     }
+                    // Dulu jumlah SEMUA jawaban di perangkat disebut sebagai "perlu
+                    // pemulihan", termasuk yang sudah aman di server: siswa panik dan
+                    // proktor kebanjiran permintaan. Jawaban yang benar-benar tertahan
+                    // dilaporkan ke monitoring pengawas saat pengumpulan diperiksa.
                     setAccessDenied(true);
                     setAccessError(
                         (result.error || 'Tidak bisa mengakses ujian ini.') +
-                        (expiredId
-                            ? ` ${localCount} jawaban tersimpan di perangkat ini. ` +
-                              'Hubungi proktor untuk membuka pemulihan; jangan hapus data browser atau berpindah perangkat.'
+                        (expiredId && localCount > 0
+                            ? ' Jawaban yang sudah tersimpan di server tetap dinilai. Salinan di perangkat ini tetap disimpan; ' +
+                              'bila ada yang belum masuk, pengawas dapat membuka pemulihan. Jangan hapus data browser atau berpindah perangkat.'
                             : ''),
                     );
                     setLoading(false);
@@ -927,17 +934,7 @@ export default function ExamPage() {
                     });
                 }
 
-                const recoveryUntil = result.attempt.metadata?.proctor_recovery_until;
-                if (
-                    typeof recoveryUntil === 'string' &&
-                    new Date(recoveryUntil).getTime() > Date.now()
-                ) {
-                    setRecoverySummary({
-                        localCount: localAnswerIds.length,
-                        serverCount: serverAnswerIds.size,
-                        recoveryUntil,
-                    });
-                }
+                setRecoverySummary(examSessionNotice(result.attempt.metadata));
 
                 // Setelah proktor mereset attempt, statusnya kembali in_progress.
                 // Pada titik inilah salinan lokal boleh dipulihkan melalui jalur
@@ -955,10 +952,6 @@ export default function ExamPage() {
                         applySyncOutcome(localAnswerIds, sync);
                         if (sync?.success) {
                             localAnswerIds.forEach(id => failedSyncRef.current.delete(id));
-                            setRecoverySummary(current => current ? {
-                                ...current,
-                                serverCount: new Set([...serverAnswerIds, ...localAnswerIds]).size,
-                            } : current);
                         } else {
                             localAnswerIds.forEach(id => failedSyncRef.current.add(id));
                         }
@@ -2136,7 +2129,7 @@ export default function ExamPage() {
         // jawaban ditolak, sesi berakhir, jaringan/server putus, atau penyimpanan
         // perangkat bermasalah. Proktor tetap melihat jumlahnya di monitoring.
         : recoverySummary
-                ? { tone: 'blue' as const, text: 'Pemulihan pengumpulan aktif', details: `Lokal: ${recoverySummary.localCount} jawaban · Server: ${recoverySummary.serverCount} jawaban. Batas pemulihan: ${new Date(recoverySummary.recoveryUntil).toLocaleString('id-ID')}.` }
+                ? { tone: 'blue' as const, ...examSessionNoticeText(recoverySummary, schoolTimeZone, schoolZoneLabel) }
                 : storageWarning ? { tone: 'amber' as const, text: 'Penyimpanan perangkat perlu diperiksa', details: storageWarning }
                     : updatedQuestionIds.size > 0 ? { tone: 'blue' as const, text: `${updatedQuestionIds.size} soal diperbarui oleh guru`, details: 'Periksa kembali soal yang ditandai diperbarui sebelum mengumpulkan.' } : null;
 
@@ -2251,10 +2244,10 @@ export default function ExamPage() {
     if (submissionOnly && !waitingForSyncAndSubmit) {
         return <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
             <div className="max-w-md w-full rounded-xl bg-white p-8 text-center border border-slate-200">
-                <h1 className="text-xl font-bold mb-3">Jawaban Terkunci</h1>
-                <p className="text-slate-600 mb-5">Anda hanya dapat mengirim jawaban yang sudah tersimpan. Jawaban dan lampiran tidak dapat diubah.</p>
-                {recoverySummary && <p className="text-sm text-slate-500 mb-4">Lokal: {recoverySummary.localCount} jawaban · Server: {recoverySummary.serverCount} jawaban.</p>}
-                {recoverySummary && <p className="text-sm font-semibold text-amber-700 mb-4">Kirim sebelum pukul {new Date(recoverySummary.recoveryUntil).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}. Setelah itu ujian ditutup kembali.</p>}
+                <h1 className="text-xl font-bold mb-3">Kirim Jawaban</h1>
+                <p className="text-slate-600 mb-5">Pengawas membuka ujian Anda untuk mengirim jawaban yang tersimpan. Jawaban dan lampiran tidak dapat diubah.</p>
+                {Object.keys(answers).length === 0 && <p className="text-sm text-slate-600 mb-4">Perangkat ini tidak menyimpan jawaban tambahan. Jawaban yang sudah tersimpan di server tetap aman dan dinilai.</p>}
+                {recoverySummary && <p className="text-sm font-semibold text-slate-700 mb-4">Kirim sebelum pukul {formatSchoolClock(recoverySummary.until, schoolTimeZone, schoolZoneLabel)}.</p>}
                 {storageWarning && <p className="text-sm text-amber-700 mb-4">{storageWarning}</p>}
                 <button disabled={submitting} onClick={() => void handleSubmitExam()} className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white disabled:opacity-50">
                     {submitting ? 'Mengirim jawaban...' : 'Kirim Jawaban'}
@@ -2267,25 +2260,30 @@ export default function ExamPage() {
         return (
             <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
                 <div className="bg-slate-800 p-8 rounded-2xl shadow-xl border border-slate-700 max-w-md w-full text-center animate-in fade-in zoom-in duration-500">
+                    {/* Proses normal (pengiriman salinan, waktu habis): tampilan tenang, tanpa ikon peringatan. */}
                     <div className="w-20 h-20 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-6 relative">
                         <div className="absolute inset-0 border-4 border-slate-600 rounded-full"></div>
-                        <div className="absolute inset-0 border-4 border-amber-500 rounded-full border-t-transparent animate-spin"></div>
-                        <AlertTriangle className="text-amber-500" size={32} />
+                        <div className="absolute inset-0 border-4 border-blue-400 rounded-full border-t-transparent animate-spin"></div>
+                        <RefreshCw className="text-blue-300" size={30} />
                     </div>
                     <h1 className="text-2xl font-bold text-white mb-3">
-                        Memastikan Pengumpulan Jawaban
+                        {recoverySummary?.kind === 'submit' || attempt?.metadata?.recovery_submit_only === true
+                            ? 'Mengirim Jawaban'
+                            : frozenSnapshotRef.current ? 'Waktu Habis — Mengirim Jawaban' : 'Memastikan Jawaban Terkirim'}
                     </h1>
                     <p className="text-slate-300 mb-6 text-base leading-relaxed">
-                        Pengumpulan belum dapat dikonfirmasi. Jawaban mungkin sudah tersimpan di server. Sistem akan memeriksa ulang dan mengirim salinan yang sama bila diperlukan setelah koneksi tersedia. <br/><strong>Tetap buka halaman ini sampai pengumpulan terkonfirmasi.</strong>
+                        {recoverySummary?.kind === 'submit' || attempt?.metadata?.recovery_submit_only === true
+                            ? 'Jawaban yang tersimpan di perangkat ini sedang dikirim ke server. Jawaban tidak dapat diubah.'
+                            : 'Jawaban Anda tersimpan di perangkat ini. Sistem sedang memastikan semuanya sudah diterima server dan mencoba lagi otomatis bila koneksi terputus.'}
+                        <br/><strong>Biarkan halaman ini terbuka; layar berganti sendiri setelah selesai.</strong>
                     </p>
-                    <div className="flex items-center justify-center gap-2 text-sm font-medium text-amber-400 bg-amber-500/10 py-3 rounded-lg border border-amber-500/20">
+                    <div className="flex items-center justify-center gap-2 text-sm font-medium text-blue-200 bg-blue-500/10 py-3 rounded-lg border border-blue-400/20">
                         <RefreshCw size={16} className="animate-spin" />
-                        Memeriksa dan mengonfirmasi saat terhubung...
+                        {isOffline ? 'Menunggu koneksi, lalu dikirim otomatis…' : 'Mengirim dan memeriksa…'}
                     </div>
                     {recoverySummary && (
                         <p className="mt-4 text-sm text-slate-300">
-                            Lokal: {recoverySummary.localCount} jawaban · Server: {recoverySummary.serverCount} jawaban.
-                            Batas pemulihan pukul {new Date(recoverySummary.recoveryUntil).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}.
+                            Batas pengiriman pukul {formatSchoolClock(recoverySummary.until, schoolTimeZone, schoolZoneLabel)}.
                         </p>
                     )}
                     {storageWarning && <p className="mt-4 text-sm text-amber-300">{storageWarning}</p>}

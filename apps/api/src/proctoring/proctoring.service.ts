@@ -650,7 +650,10 @@ export class ProctoringService {
             const { error: updateError } = await db.from('cbt_exam_attempts').update({
                 personal_end_time: extendedUntil,
                 // Tanpa ini batas waktu ujian (end_time) tetap memotong tambahan waktu.
-                metadata: { ...metadata, proctor_recovery_until: extendedUntil, superseded_deadlines: superseded },
+                // time_extended_*: halaman siswa menampilkan "Waktu ditambah N menit",
+                // bukan "pemulihan".
+                metadata: { ...metadata, proctor_recovery_until: extendedUntil, superseded_deadlines: superseded,
+                    time_extended_at: now.toISOString(), time_extended_minutes: minutes },
             }).eq('id', attemptId).eq('status', 'in_progress');
             if (updateError) throw new BadRequestException('Tambahan waktu belum dapat disimpan.');
             const { error: logError } = await db.from('cbt_attempt_security_logs').insert({
