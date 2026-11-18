@@ -9,6 +9,7 @@ import { Button } from '@/app/components/ui/button';
 import { FilterActions,FilterSearch,FilterSelect,FilterToolbar } from '@/app/components/ui/filtertoolbar';
 import { Modal,ModalBody,ModalField,ModalFooter } from '@/app/components/ui/modal';
 import { Spinner } from '@/app/components/ui/Spinner';
+import { GradientStatCard } from '@/app/components/ui/GradientStatCard';
 import { LIST_PAGE_SIZE, ListPagination } from '@/app/components/ui/list-pagination';
 import { getProctorOrganization,hasUserDualRole,isUserProctor,listSubjects } from '@/lib/api/proctor';
 import type { ProctorOrganization,SchoolSubject } from '@/lib/api/proctor';
@@ -596,18 +597,11 @@ export default function GuruQuestionBankPage() {
 
             {/* ── Hero Header — Navy Gradient ── */}
             {/* ── Stats Grid ── */}
-            <div className="grid grid-cols-3 gap-x-2 mb-6">
-                <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
-                    <p className="text-2xl font-bold text-[#3083FF]">{allCount}</p>
-                    <p className="text-xs text-slate-500">Total</p>
-                </div>
-                <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
-                    <p className="text-2xl font-bold text-[#3083FF]">{draftCount}</p>
-                    <p className="text-xs text-red-400 font-medium">Draft</p>
-                </div>
-                <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
-                    <p className="text-2xl font-bold text-[#3083FF]">{publishedCount}</p>
-                    <p className="text-xs text-slate-500">Published</p>
+            <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <GradientStatCard label="Total" value={allCount} icon={BookOpen} tone="indigo" />
+                <GradientStatCard label="Draft" value={draftCount} icon={Edit3} tone="sunset" />
+                <div className="col-span-2 sm:col-span-1">
+                    <GradientStatCard label="Published" value={publishedCount} icon={Check} tone="teal" />
                 </div>
             </div>
 

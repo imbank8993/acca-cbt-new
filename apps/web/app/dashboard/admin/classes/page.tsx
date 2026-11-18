@@ -4,6 +4,7 @@ import { Button } from '@/app/components/ui/button';
 import { FilterActions,FilterSearch,FilterSelect,FilterToolbar } from '@/app/components/ui/filtertoolbar';
 import { Modal,ModalBody,ModalField,ModalFooter,ModalHeader } from '@/app/components/ui/modal';
 import { Spinner } from '@/app/components/ui/Spinner';
+import { GradientStatCard } from '@/app/components/ui/GradientStatCard';
 import {
 type ClassStudent,
 createClassAction,
@@ -299,35 +300,11 @@ export default function SettingsClassesPage() {
         <div className="max-w-7xl mx-auto pb-20">
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-4 gap-x-2 mb-6">
-                <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
-                    <div className="w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center bg-[#3083FF]/10 border border-[#3083FF]/30">
-                        <School size={18} className="text-[#3083FF]" />
-                    </div>
-                    <p className="text-2xl font-bold text-[#3083FF]">{classes.length}</p>
-                    <p className="text-xs text-slate-500">Total</p>
-                </div>
-                <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
-                    <div className="w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center bg-[#3083FF]/10 border border-[#3083FF]/30">
-                        <Check size={18} className="text-emerald-500" />
-                    </div>
-                    <p className="text-2xl font-bold text-[#3083FF]">{classes.filter(c => c.type === 'reguler').length}</p>
-                    <p className="text-xs text-slate-500">Utama</p>
-                </div>
-                <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
-                    <div className="w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center bg-[#3083FF]/10 border border-[#3083FF]/30">
-                        <School size={18} className="text-amber-500" />
-                    </div>
-                    <p className="text-2xl font-bold text-[#3083FF]">{classes.filter(c => c.type === 'tambahan').length}</p>
-                    <p className="text-xs text-slate-500">Tambahan</p>
-                </div>
-                <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
-                    <div className="w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center bg-[#3083FF]/10 border border-[#3083FF]/30">
-                        <CalendarDays size={18} className="text-violet-500" />
-                    </div>
-                    <p className="text-2xl font-bold text-[#3083FF]">{yearOptions.length}</p>
-                    <p className="text-xs text-slate-500">Thn Ajaran</p>
-                </div>
+            <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <GradientStatCard label="Total" value={classes.length} icon={School} tone="indigo" />
+                <GradientStatCard label="Utama" value={classes.filter(c => c.type === 'reguler').length} icon={Check} tone="teal" />
+                <GradientStatCard label="Tambahan" value={classes.filter(c => c.type === 'tambahan').length} icon={School} tone="sunset" />
+                <GradientStatCard label="Thn Ajaran" value={yearOptions.length} icon={CalendarDays} tone="sky" />
             </div>
 
             {/* FilterToolbar Bersama */}

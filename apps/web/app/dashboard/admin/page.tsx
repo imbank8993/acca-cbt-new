@@ -1,6 +1,7 @@
 "use client";
 import { getErrorMessage } from '@/lib/errors';
 import { Spinner } from '@/app/components/ui/Spinner';
+import { GradientStatCard } from '@/app/components/ui/GradientStatCard';
 import { ExamSourceSummary } from '@/app/components/exams/ExamSourceSummary';
 import {
     getOrganizationStats,
@@ -22,7 +23,6 @@ import {
 Activity,
 AlertCircle,
 BookOpen,CheckCircle2,
-ChevronRight,
 ClipboardCheck,
 Clock,
 Eye,
@@ -131,11 +131,6 @@ export default function AdminDashboard() {
             label: 'Bank Soal',
             value: stats.totalBanks,
             icon: BookOpen,
-            gradient: 'from-[#3083FF] to-[#3083FF]',
-            iconBg: 'bg-[#3083FF]/10',
-            iconColor: 'text-[#3083FF]',
-            borderColor: 'border-[#3083FF]/40',
-            valueColor: 'text-[#3083FF]',
             description: 'Koleksi soal tersedia',
             onClick: () => router.push('/dashboard/admin/questions'),
         },
@@ -143,11 +138,6 @@ export default function AdminDashboard() {
             label: 'Ujian Mendatang',
             value: stats.draftExams,
             icon: Layers,
-            gradient: 'from-[#3083FF] to-[#2563EB]',
-            iconBg: 'bg-[#3083FF]/10',
-            iconColor: 'text-[#3083FF]',
-            borderColor: 'border-[#3083FF]/40',
-            valueColor: 'text-[#3083FF]',
             description: 'Ujian terjadwal',
             onClick: () => router.push('/dashboard/admin/exams'),
         },
@@ -155,11 +145,6 @@ export default function AdminDashboard() {
             label: 'Ujian Aktif',
             value: stats.ongoingExams,
             icon: Clock,
-            gradient: 'from-[#3083FF] to-[#3083FF]',
-            iconBg: 'bg-[#3083FF]/10',
-            iconColor: 'text-[#3083FF]',
-            borderColor: 'border-[#3083FF]/40',
-            valueColor: 'text-[#3083FF]',
             description: 'Sedang berlangsung',
             onClick: () => router.push('/dashboard/admin/exams'),
         },
@@ -167,11 +152,6 @@ export default function AdminDashboard() {
             label: 'Selesai',
             value: stats.finishedExams,
             icon: CheckCircle2,
-            gradient: 'from-[#3083FF] to-[#1D4ED8]',
-            iconBg: 'bg-[#3083FF]/10',
-            iconColor: 'text-[#3083FF]',
-            borderColor: 'border-[#3083FF]/40',
-            valueColor: 'text-[#3083FF]',
             description: 'Telah selesai dikerjakan',
             onClick: () => router.push('/dashboard/admin/exams'),
         },
@@ -214,40 +194,8 @@ export default function AdminDashboard() {
             {/* ── Stats Grid ── */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3 mb-4">
                 {statCards.map((item, i) => (
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.06, duration: 0.4 }}
-                        whileTap={{ scale: 0.97 }}
-                        key={i}
-                        role="button"
-                        tabIndex={0}
-                        aria-label={`${item.label}: ${item.value} — ${item.description}`}
-                        onClick={() => item.onClick?.()}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); item.onClick?.(); } }}
-                        className="group relative min-h-[112px] bg-white rounded-xl sm:rounded-lg px-3 py-3 sm:px-4 sm:py-4 border border-[#3083FF]/20 shadow-sm sm:shadow-none hover:border-[#3083FF] hover:shadow-lg hover:shadow-[#3083FF]/10 transition-all duration-300 cursor-pointer overflow-hidden text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3083FF] focus-visible:ring-offset-2"
-                    >
-                        {/* Top accent line */}
-                        <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${item.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
-
-                        {/* Affordance: panah muncul saat hover/focus (menandakan bisa diklik) */}
-                        <ChevronRight size={14} className="absolute top-2.5 right-2.5 text-[#3083FF]/0 group-hover:text-[#3083FF]/40 transition-colors duration-300" />
-
-                        <div className="relative flex flex-col items-center">
-                            {/* Icon dan Label berdampingan */}
-                            <div className="flex items-center gap-2 mb-2 sm:mb-3">
-                                <div className={`w-7 h-7 sm:w-8 sm:h-8 ${item.iconBg} rounded-lg flex items-center justify-center ${item.borderColor} group-hover:scale-110 transition-transform duration-300`}>
-                                    <item.icon size={16} className={item.iconColor} />
-                                </div>
-                                <p className="text-xs sm:text-sm font-semibold leading-tight text-slate-700">{item.label}</p>
-                            </div>
-                            {/* Angka dan Keterangan */}
-                            <div className="space-y-0.5">
-                                <p className={`text-2xl sm:text-3xl font-extrabold ${item.valueColor} leading-none tabular-nums tracking-tight`}>{(item.value ?? 0).toLocaleString('id-ID')}</p>
-                                <p className="text-[10px] sm:text-xs text-slate-400 leading-tight">{item.description}</p>
-                            </div>
-                        </div>
-                    </motion.div>
+                    <GradientStatCard key={item.label} label={item.label} value={item.value ?? 0} description={item.description}
+                        icon={item.icon} tone={(['indigo', 'teal', 'sunset', 'sky'] as const)[i]} onClick={item.onClick} delay={i * 0.06} />
                 ))}
             </div>
 
