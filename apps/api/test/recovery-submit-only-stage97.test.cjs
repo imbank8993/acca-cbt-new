@@ -17,7 +17,9 @@ const web = file => fs.readFileSync(path.resolve(__dirname, '../../web', file), 
 function fixture(status) {
     let now = status === 'in_progress' ? '2026-10-24T01:30:00Z' : '2026-10-24T05:00:00Z';
     const db = fixtureDb({
-        cbt_exams: [{ id: 'exam', question_bank_id: 'bank', duration_minutes: 120, end_time: '2026-10-24T04:00:00Z', is_published: true }],
+        cbt_exams: [{ id: 'exam', organization_id: 'org', question_bank_id: 'bank', duration_minutes: 120,
+            end_time: '2026-10-24T04:00:00Z', is_published: true, metadata: { is_public: true } }],
+        cbt_organization_members: [{ user_id: user.id, organization_id: 'org', is_active: true }],
         cbt_exam_attempts: [{ id: 'attempt', exam_id: 'exam', user_id: user.id, status, started_at: startedAt,
             personal_end_time: originalDeadline, device_fingerprint: device,
             metadata: status === 'auto_submitted' ? { closed_by_expiry: true } : {} }],
@@ -80,11 +82,52 @@ test('a closed attempt cannot silently reopen for editing, and a device move can
     await assert.rejects(closed.proctor.resetAttempt({ id: 'proctor' }, 'attempt', 'Pindah perangkat', 30, true, true), /tidak dapat digabung/);
 });
 
+test('a closed attempt can explicitly continue for 20 minutes with saved answers and the same device', async () => {
+    const { db, service, proctor, setNow } = fixture('auto_submitted');
+    const row = db.tables.cbt_exam_attempts[0];
+    row.total_score = 72;
+    row.warning_count = 2;
+    row.tab_switch_count = 1;
+    row.metadata.base_score = 72;
+    const result = await proctor.resetAttempt({ id: 'proctor' }, 'attempt',
+        'Lanjutkan 20 menit setelah sesi selesai', 20, false, false, true);
+    assert.equal(result.recoveryUntil, '2026-10-24T05:20:00.000Z');
+    assert.equal(row.status, 'in_progress');
+    assert.equal(row.started_at, '2026-10-24T05:00:00.000Z');
+    assert.equal(row.device_fingerprint, device);
+    assert.equal(row.metadata.recovery_submit_only, false);
+    assert.equal(row.metadata.resume_activated_at, row.started_at);
+    assert.equal(row.total_score, null);
+    assert.equal(row.metadata.base_score, undefined);
+    assert.equal(row.warning_count, 2);
+    assert.equal(row.tab_switch_count, 1);
+    assert.equal(db.tables.cbt_answers.length, 1);
+    const reopened = await service.start(user, 'exam', device);
+    assert.equal(reopened.started, true);
+    assert.equal(reopened.remainingSeconds, 1200);
+    assert.equal(reopened.answers[0].essay_answer, 'online');
+    await assert.rejects(sendLocal(service, originalDeadline), /sesi|salinan|berbeda/i);
+    await service.saveAnswer(user, 'attempt', { questionId: 'q1', essay_answer: 'revised', revision: 2 }, device, row.started_at);
+    assert.equal(db.tables.cbt_answers[0].essay_answer, 'revised');
+    setNow('2026-10-24T05:21:00Z');
+    await assert.rejects(service.saveAnswer(user, 'attempt',
+        { questionId: 'q1', essay_answer: 'too late', revision: 3 }, device, row.started_at));
+});
+
+test('a closed attempt cannot continue after answer keys are released', async () => {
+    const { db, proctor } = fixture('submitted');
+    db.tables.cbt_exams[0].show_results = true;
+    db.tables.cbt_exams[0].metadata = { show_answer_keys: true };
+    await assert.rejects(proctor.resetAttempt({ id: 'proctor' }, 'attempt',
+        'Lanjutkan setelah kunci terbuka', 20, false, false, true), /Kunci jawaban/);
+    assert.equal(db.tables.cbt_exam_attempts[0].status, 'submitted');
+});
+
 test('the reset dialog offers an explicit "send only" recovery and the page sends automatically', () => {
     const modal = web('app/components/monitoring/ResetExamModal.tsx');
     assert.match(modal, /Kirim ulang jawaban saja/);
     assert.match(modal, /Lanjutkan mengerjakan/);
-    assert.match(modal, /resetExamAttempt\(attempt\.id, trimmedReason, duration, moveDevice, moveDevice \? undefined : lockAnswers\)/);
+    assert.match(modal, /resetExamAttempt\(attempt\.id, trimmedReason, duration, moveDevice,[\s\S]{0,100}resumeClosed\)/);
     assert.match(modal, /Buka Pengiriman Jawaban/);
     assert.match(web('lib/api/proctoring.ts'), /submitOnly !== undefined \? \{ submitOnly \} : \{\}/);
     assert.match(web('app/components/questions/ExamPage.tsx'),

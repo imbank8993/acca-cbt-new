@@ -91,14 +91,14 @@ export function BulkResetPanel({ attempts, examDuration, onRefresh }: {
         examDuration={examDuration}
         irtScoredCount={batch.filter(hasIrtScore).length}
         onClose={() => { setBatch([]); onRefresh(); }}
-        onConfirm={async (_id, mode, reason, duration) => {
+        onConfirm={async (_id, mode, reason, duration, resumeClosed) => {
           const failures: string[] = [];
           for (const attempt of batch) {
             if (completed.current.has(attempt.id)) continue;
             try {
               const response = mode === 'SUSULAN'
                 ? await startMakeupExam(attempt.id, reason, duration)
-                : await resetExamAttempt(attempt.id, reason, duration);
+                : await resetExamAttempt(attempt.id, reason, duration, false, resumeClosed ? false : undefined, resumeClosed);
               if (!response.success) throw new Error('error' in response ? String(response.error) : 'Gagal memproses');
               completed.current.add(attempt.id);
             } catch (error) {

@@ -26,7 +26,7 @@ export interface ResetExamModalProps {
   irtScoredCount?: number;
   onClose: () => void;
   onSuccess?: () => void;
-  onConfirm?: (attemptId: string, mode: ResetMode, reason: string, durationMinutes: number) => Promise<void>;
+  onConfirm?: (attemptId: string, mode: ResetMode, reason: string, durationMinutes: number, resumeClosed: boolean) => Promise<void>;
 }
 
 const PRESET_REASONS = [
@@ -37,7 +37,7 @@ const PRESET_REASONS = [
   'Salah kirim',
 ];
 
-const QUICK_DURATIONS = [15, 30, 60];
+const QUICK_DURATIONS = [15, 20, 30, 60];
 /** Sama dengan server: jendela lebih pendek habis sebelum perangkat sempat tersambung. */
 const MIN_RECOVERY_MINUTES = 10;
 const MIN_SUBMIT_ONLY_RECOVERY_MINUTES = 60;
@@ -93,22 +93,23 @@ function ResetExamForm({
   const handleModeSelect = (newMode: ResetMode) => {
     setMode(newMode);
     if (newMode === 'PULIHKAN') {
-      setDurationInput(String(!releaseDevice && (submitOnly || attempt?.status !== 'in_progress') ? MIN_SUBMIT_ONLY_RECOVERY_MINUTES : 15));
+      setDurationInput(String(!releaseDevice && submitOnly ? MIN_SUBMIT_ONLY_RECOVERY_MINUTES :
+        attempt?.status !== 'in_progress' ? 20 : 15));
     } else if (newMode === 'SUSULAN') {
       setDurationInput(String(resolvedExamDuration));
     }
   };
 
-  // Pemulihan "kirim saja" (atau sesi yang sudah ditutup) butuh jendela panjang;
+  // Pemulihan "kirim saja" butuh jendela panjang;
   // pemulihan "lanjut mengerjakan" minimal 10 menit. Susulan bebas.
-  const recoveryLocked = mode === 'PULIHKAN' && !releaseDevice &&
-    (submitOnly || attempt?.status !== 'in_progress');
+  const recoveryLocked = mode === 'PULIHKAN' && !releaseDevice && submitOnly;
   const minDuration = mode === 'PULIHKAN'
     ? (recoveryLocked ? MIN_SUBMIT_ONLY_RECOVERY_MINUTES : MIN_RECOVERY_MINUTES)
     : 1;
   const chooseSubmitOnly = (value: boolean) => {
     setSubmitOnly(value);
     if (value && duration < MIN_SUBMIT_ONLY_RECOVERY_MINUTES) setDurationInput(String(MIN_SUBMIT_ONLY_RECOVERY_MINUTES));
+    if (!value && attempt?.status !== 'in_progress') setDurationInput('20');
   };
   const quickDurations = Array.from(
     new Set(recoveryLocked ? SUBMIT_ONLY_QUICK_DURATIONS : [...QUICK_DURATIONS, resolvedExamDuration])
@@ -166,20 +167,21 @@ function ResetExamForm({
     }
 
     const moveDevice = mode === 'PULIHKAN' && releaseDevice && !participantSummary;
-    const lockAnswers = !moveDevice && (submitOnly || !isActive);
+    const lockAnswers = !moveDevice && submitOnly;
+    const resumeClosed = mode === 'PULIHKAN' && !isActive && !moveDevice && !submitOnly;
 
     setErrorMessage(null);
     setIsSubmitting(true);
 
     try {
       if (onConfirm) {
-        await onConfirm(attempt.id, mode, trimmedReason, duration);
+        await onConfirm(attempt.id, mode, trimmedReason, duration, resumeClosed);
       } else {
         const result = mode === 'SUSULAN'
           ? notStarted
             ? await startMakeupForAbsentStudent(attempt.exam_id, attempt.user_id, trimmedReason, duration)
             : await startMakeupExam(attempt.id, trimmedReason, duration)
-          : await resetExamAttempt(attempt.id, trimmedReason, duration, moveDevice, moveDevice ? undefined : lockAnswers);
+          : await resetExamAttempt(attempt.id, trimmedReason, duration, moveDevice, moveDevice ? undefined : lockAnswers, resumeClosed);
 
         if (!result.success) {
           throw new Error('error' in result ? (result.error as string) : 'Gagal memproses pemulihan/susulan');
@@ -392,18 +394,18 @@ function ResetExamForm({
               {!(releaseDevice && !participantSummary) && (
                 <div className="space-y-1.5">
                   <label className="flex items-start gap-2 cursor-pointer">
-                    <input type="radio" name="recovery-kind" className="mt-0.5" checked={submitOnly || !isActive} onChange={() => chooseSubmitOnly(true)} />
+                    <input type="radio" name="recovery-kind" className="mt-0.5" checked={submitOnly} onChange={() => chooseSubmitOnly(true)} />
                     <span className="leading-snug">
                       <span className="font-semibold text-slate-800">Kirim ulang jawaban saja</span>
                       <span className="block text-[11px] text-slate-500">Kirim jawaban dari perangkat siswa tanpa mengubah isinya.</span>
                     </span>
                   </label>
-                  <label className={`flex items-start gap-2 cursor-pointer ${isActive ? '' : 'opacity-50'}`}>
-                    <input type="radio" name="recovery-kind" className="mt-0.5" disabled={!isActive} checked={isActive && !submitOnly} onChange={() => chooseSubmitOnly(false)} />
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input type="radio" name="recovery-kind" className="mt-0.5" checked={!submitOnly} onChange={() => chooseSubmitOnly(false)} />
                     <span className="leading-snug">
                       <span className="font-semibold text-slate-800">Lanjutkan mengerjakan</span>
                       <span className="block text-[11px] text-slate-500">
-                        {isActive ? 'Siswa dapat mengubah jawaban hingga waktu habis.' : 'Hanya untuk sesi yang masih berjalan.'}
+                        {isActive ? 'Siswa dapat mengubah jawaban hingga waktu habis.' : 'Buka kembali sesi selama waktu baru. Jawaban di server tetap ada dan dapat diubah.'}
                       </span>
                     </span>
                   </label>
@@ -428,6 +430,12 @@ function ResetExamForm({
                     </p>
                   )}
                 </div>
+              )}
+              {!isActive && !submitOnly && !releaseDevice && (
+                <p className="rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] leading-snug text-amber-900">
+                  Lanjutkan di perangkat semula. Jawaban yang tersimpan di server dipertahankan;
+                  salinan lokal sesi lama diarsipkan. Nilai lama dihitung ulang setelah siswa mengumpulkan.
+                </p>
               )}
             </div>
           )}
@@ -487,9 +495,9 @@ function ResetExamForm({
                 ? `${notStarted ? 'Buat Ujian Susulan' : isActive ? 'Mulai Ulang' : 'Aktifkan Susulan'}${duration > 0 ? ` (${duration}m)` : ''}`
                 : releaseDevice && !participantSummary
                   ? `Pindahkan Perangkat${duration > 0 ? ` (${duration}m)` : ''}`
-                  : submitOnly || !isActive
+                  : submitOnly
                     ? `Buka Pengiriman Jawaban${duration > 0 ? ` (${duration}m)` : ''}`
-                    : `Atur Ulang Waktu${duration > 0 ? ` (${duration}m)` : ''}`}
+                    : `${isActive ? 'Atur Ulang Waktu' : 'Lanjutkan Sesi'}${duration > 0 ? ` (${duration}m)` : ''}`}
           </Button>
         </ModalFooter>
       </form>

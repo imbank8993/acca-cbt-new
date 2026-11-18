@@ -779,8 +779,9 @@ export default function ExamPage() {
                     return;
                 }
 
-                const makeupActivatedAt = result.attempt.metadata?.makeup_activated_at;
-                if (typeof makeupActivatedAt === 'string') {
+                const sessionRestartedAt = result.attempt.metadata?.makeup_activated_at ??
+                    result.attempt.metadata?.resume_activated_at;
+                if (typeof sessionRestartedAt === 'string') {
                     // Salinan lokal hanya dibuang bila TERBUKTI milik generasi lama
                     // (started_at berbeda). Dulu paket cache yang hilang — logout,
                     // sesi berakhir, gagal simpan — dianggap "lama" dan jawaban yang

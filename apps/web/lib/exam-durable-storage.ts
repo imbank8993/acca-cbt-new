@@ -704,7 +704,8 @@ export async function readExamSnapshot(attemptId: string): Promise<ExamAnswerSna
 export async function archiveExamSnapshot(attemptId: string): Promise<boolean> {
     const current = await readExamSnapshot(attemptId).catch(() => null);
     if (!current) return false;
-    await writeExamSnapshot(`${attemptId}#arsip-${Date.now()}`, current).catch(() => undefined);
+    const archived = await writeExamSnapshot(`${attemptId}#arsip-${Date.now()}`, current);
+    if (!archived.saved) throw new Error('Salinan jawaban lama tidak dapat diarsipkan. Jangan tutup halaman; hubungi pengawas.');
     return true;
 }
 

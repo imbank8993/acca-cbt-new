@@ -67,11 +67,13 @@ export function extendExamAttemptTime(attemptId: string, minutes: number, reason
         `/api/proctoring/attempts/${encodeURIComponent(attemptId)}/extend`, { minutes, reason });
 }
 
-export function resetExamAttempt(attemptId: string, reason: string, durationMinutes: number, releaseDevice = false, submitOnly?: boolean) {
+export function resetExamAttempt(attemptId: string, reason: string, durationMinutes: number,
+    releaseDevice = false, submitOnly?: boolean, resumeClosed = false) {
     return apiSend<AttemptRecoveryResult>(
         `/api/proctoring/attempts/${encodeURIComponent(attemptId)}/reset`,
         { reason, durationMinutes, ...(releaseDevice ? { releaseDevice: true } : {}),
-            ...(!releaseDevice && submitOnly !== undefined ? { submitOnly } : {}) },
+            ...(!releaseDevice && submitOnly !== undefined ? { submitOnly } : {}),
+            ...(resumeClosed ? { resumeClosed: true } : {}) },
     );
 }
 

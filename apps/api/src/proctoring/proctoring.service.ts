@@ -330,9 +330,12 @@ export class ProctoringService {
      * pengerjaan yang sudah ditutup, tidak untuk yang masih berjalan.
      */
     async resetAttempt(user: AuthUser, attemptId: string, reason: string, durationMinutes: number,
-        releaseDevice = false, submitOnly?: boolean) {
+        releaseDevice = false, submitOnly?: boolean, resumeClosed = false) {
         if (releaseDevice && submitOnly === true) {
             throw new BadRequestException('Pindah perangkat tidak dapat digabung dengan "kirim jawaban saja": perangkat baru tidak memiliki salinan jawaban.');
+        }
+        if (resumeClosed && (releaseDevice || submitOnly !== false)) {
+            throw new BadRequestException('Melanjutkan sesi selesai harus membuka pengeditan pada perangkat semula.');
         }
         const normalizedReason = reason.trim();
         if (normalizedReason.length < 5 || normalizedReason.length > 500) {
@@ -383,6 +386,9 @@ export class ProctoringService {
                     'Hanya ujian yang sedang dikerjakan atau sudah selesai yang bisa di-reset.',
                 );
             }
+            if (resumeClosed && active) {
+                throw new BadRequestException('Sesi masih berjalan. Gunakan tambah waktu untuk sesi aktif.');
+            }
 
             // Salin nilai sebelum UPDATE. Selain membuat audit eksplisit, ini
             // mencegah adapter/fixture yang mengembalikan referensi mutable
@@ -392,7 +398,21 @@ export class ProctoringService {
             const previousMetadata = { ...(row.metadata || {}) };
             const previousDevice = row.device_fingerprint;
 
+            if (resumeClosed && !previousDevice) {
+                throw new BadRequestException('Perangkat semula tidak tercatat. Gunakan pindahkan perangkat agar siswa dapat melanjutkan.');
+            }
+
             const now = await this.databaseNow(db);
+            if (resumeClosed) {
+                const { data: exam, error: examError } = await db.from('cbt_exams')
+                    .select('show_results, end_time, metadata').eq('id', row.exam_id).maybeSingle();
+                if (examError || !exam) throw new BadRequestException('Pengaturan ujian belum dapat diperiksa.');
+                const endMs = Date.parse(exam.end_time || '');
+                if (exam.show_results === true && exam.metadata?.show_answer_keys === true &&
+                    Number.isFinite(endMs) && now.getTime() >= endMs) {
+                    throw new BadRequestException('Kunci jawaban ujian ini sudah dibuka untuk siswa. Tutup kunci jawaban terlebih dahulu sebelum melanjutkan sesi.');
+                }
+            }
             if (active && hasCommittedSubmitIntent(row.metadata, now)) {
                 throw new BadRequestException('Pengumpulan jawaban sedang diproses. Tunggu statusnya sebelum reset.');
             }
@@ -412,21 +432,21 @@ export class ProctoringService {
                 detailed_scores: null,
                 irt_theta: null,
                 needs_manual_grading: false,
-                warning_count: 0,
-                tab_switch_count: 0,
+                ...(resumeClosed ? {} : { warning_count: 0, tab_switch_count: 0 }),
             };
 
             // Pemulihan TIDAK PERNAH memotong sisa waktu yang masih berjalan.
             // Dulu tenggat selalu diganti menjadi "sekarang + durasi": reset 2 menit
             // untuk siswa yang laptopnya mati memangkas sisa ~56 menitnya, ujian
             // ditutup saat perangkatnya offline, dan jawabannya tertahan di perangkat.
-            const lockRequested = submitOnly ?? (active
+            const lockRequested = resumeClosed ? false : (submitOnly ?? (active
                 ? previousMetadata.recovery_submit_only === true ||
                     (typeof previousDeadline === 'string' && Date.parse(previousDeadline) <= now.getTime())
-                : true);
+                : true));
             const effectiveMinutes = effectiveRecoveryMinutes(durationMinutes, lockRequested && !releaseDevice);
-            const recoveryUntil = laterDeadline(previousDeadline,
-                new Date(now.getTime() + effectiveMinutes * 60 * 1000), now).toISOString();
+            const requestedDeadline = new Date(now.getTime() + effectiveMinutes * 60 * 1000);
+            const recoveryUntil = (resumeClosed ? requestedDeadline :
+                laterDeadline(previousDeadline, requestedDeadline, now)).toISOString();
             const metadataWithoutOldScore = { ...previousMetadata };
             delete metadataWithoutOldScore.teacher_score;
             delete metadataWithoutOldScore.teacher_feedback;
@@ -435,10 +455,24 @@ export class ProctoringService {
             delete metadataWithoutOldScore.relative_scoring_pending;
             delete metadataWithoutOldScore.base_score;
             delete metadataWithoutOldScore.dimension_scores;
+            delete metadataWithoutOldScore.scoring_finished_at;
+            delete metadataWithoutOldScore.grading_retry_count;
+            delete metadataWithoutOldScore.grading_retry_at;
+            delete metadataWithoutOldScore.grading_retry_error;
+            delete metadataWithoutOldScore.grading_recovered_at;
             delete metadataWithoutOldScore.sync_health;
             delete metadataWithoutOldScore.submit_intent_at;
             delete metadataWithoutOldScore.submit_intent_digest;
             delete metadataWithoutOldScore.closed_by_staff;
+            if (resumeClosed) {
+                delete metadataWithoutOldScore.closed_by_expiry;
+                delete metadataWithoutOldScore.connection_lost_at_close;
+                delete metadataWithoutOldScore.local_answers_not_counted;
+                delete metadataWithoutOldScore.frozen_submission_received_at;
+                delete metadataWithoutOldScore.frozen_submission_deadline;
+                delete metadataWithoutOldScore.recovery_source_deadline;
+                updates.started_at = now.toISOString();
+            }
             updates.personal_end_time = recoveryUntil;
             // Salinan jawaban yang sudah dikunci di perangkat menyimpan batas waktu
             // sesi saat dikunci. Setiap reset mengganti batas itu; tanpa riwayat
@@ -454,8 +488,8 @@ export class ProctoringService {
             // otomatis belum sempat berjalan) diperlakukan seperti yang sudah ditutup:
             // bawaannya hanya kirim jawaban, bukan tambahan waktu mengerjakan.
             const deadlinePassed = active && typeof previousDeadline === 'string' && Date.parse(previousDeadline) <= now.getTime();
-            const lockAnswers = submitOnly ?? (active ? previousMetadata.recovery_submit_only === true || deadlinePassed : true);
-            if (!active && !lockAnswers && !releaseDevice) {
+            const lockAnswers = resumeClosed ? false : (submitOnly ?? (active ? previousMetadata.recovery_submit_only === true || deadlinePassed : true));
+            if (!active && !lockAnswers && !releaseDevice && !resumeClosed) {
                 throw new BadRequestException('Pengerjaan yang sudah ditutup hanya dapat dipulihkan untuk mengirim jawaban, ' +
                     'kecuali dipindahkan ke perangkat baru atau dibuat susulan.');
             }
@@ -469,8 +503,11 @@ export class ProctoringService {
             } : {
                 ...metadataWithoutOldScore,
                 proctor_recovery_until: recoveryUntil,
-                recovery_submit_only: true,
-                recovery_source_deadline: previousMetadata.recovery_source_deadline || previousDeadline,
+                recovery_submit_only: !resumeClosed,
+                ...(resumeClosed ? {
+                    resume_activated_at: now.toISOString(),
+                    active_restart_at: now.toISOString(),
+                } : { recovery_source_deadline: previousMetadata.recovery_source_deadline || previousDeadline }),
             };
 
             // Pindah perangkat: perangkat lama rusak/tidak tersedia. Kunci perangkat
@@ -532,6 +569,7 @@ export class ProctoringService {
                     recovery_duration_minutes: effectiveMinutes,
                     ...(effectiveMinutes !== durationMinutes ? { requested_duration_minutes: durationMinutes } : {}),
                     submit_only: releaseDevice ? false : lockAnswers,
+                    resume_closed: resumeClosed,
                     server_answer_count: serverAnswerCount || 0,
                     ...(releaseDevice ? {
                         device_released: true,

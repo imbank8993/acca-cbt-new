@@ -121,6 +121,14 @@ class ResetAttemptDto {
     @IsOptional()
     @IsBoolean()
     submitOnly?: boolean;
+
+    @ApiProperty({
+        required: false,
+        description: 'Buka kembali sesi yang sudah selesai untuk mengedit jawaban tersimpan pada perangkat semula.',
+    })
+    @IsOptional()
+    @IsBoolean()
+    resumeClosed?: boolean;
 }
 
 class ExtendAttemptTimeDto {
@@ -204,7 +212,8 @@ export class ProctoringController {
         @Param('attemptId', ParseUUIDPipe) attemptId: string,
         @Body() dto: ResetAttemptDto,
     ) {
-        return this.proctoring.resetAttempt(user, attemptId, dto.reason, dto.durationMinutes, dto.releaseDevice === true, dto.submitOnly);
+        return this.proctoring.resetAttempt(user, attemptId, dto.reason, dto.durationMinutes,
+            dto.releaseDevice === true, dto.submitOnly, dto.resumeClosed === true);
     }
 
     @Post('attempts/:attemptId/extend')
