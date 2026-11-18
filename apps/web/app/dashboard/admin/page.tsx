@@ -279,6 +279,8 @@ export default function AdminDashboard() {
                                 const isOngoing = isPublished && isRunnable &&
                                     (!exam.start_time || new Date(exam.start_time) <= now) &&
                                     (!exam.end_time || new Date(exam.end_time) >= now);
+                                const sourceLabel = exam.creatorName === 'Unknown' ? '' : exam.creatorName || '';
+                                const hasExamSummary = Boolean(exam.subject?.trim() || sourceLabel);
 
                                 return (
                                     <motion.div
@@ -293,10 +295,10 @@ export default function AdminDashboard() {
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-semibold leading-snug text-slate-800 whitespace-normal break-words group-hover:text-[#3083FF] transition-colors">{exam.title}</p>
                                             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 mt-1">
-                                                {exam.creatorName && exam.creatorName !== 'Unknown' && (
-                                                    <span className="font-medium text-slate-600"><ExamSourceSummary label={exam.creatorName} /></span>
+                                                {hasExamSummary && (
+                                                    <span className="font-medium text-slate-600"><ExamSourceSummary label={sourceLabel} subject={exam.subject} /></span>
                                                 )}
-                                                {exam.creatorName && exam.creatorName !== 'Unknown' && exam.start_time && (
+                                                {hasExamSummary && exam.start_time && (
                                                     <span className="text-slate-300">|</span>
                                                 )}
                                                 {exam.start_time && (
@@ -313,7 +315,7 @@ export default function AdminDashboard() {
                                                 )}
                                                 {!exam.start_time && exam.duration_minutes && (
                                                     <>
-                                                        {exam.creatorName && exam.creatorName !== 'Unknown' && (
+                                                        {hasExamSummary && (
                                                             <span className="text-slate-300">|</span>
                                                         )}
                                                         <span>{exam.duration_minutes} mnt</span>
