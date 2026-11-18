@@ -62,7 +62,7 @@ test('analysis filter always offers all five categories in the requested order',
  assert.deepEqual(select.props.options.map(option=>option.label),['Semua',...ITEM_DIFFICULTY_CATEGORIES]);
 });
 
-test('bulk reset immediately lists only eligible students and preserves select-all without a collapse control',()=>{
+test('bulk reset searches eligible names and keeps selections across searches',()=>{
  const h=hooks();const {BulkResetPanel}=loadWeb('app/components/monitoring/BulkResetPanel.tsx',{react:h.React});
  const attempts=[{id:'one',status:'submitted',canReset:true,profiles:{full_name:'Ani'}},
   {id:'two',status:'auto_submitted',canReset:true,profiles:{full_name:'Budi'}},
@@ -72,10 +72,23 @@ test('bulk reset immediately lists only eligible students and preserves select-a
  let tree=render();
  assert.match(text(tree),/Ani/);assert.match(text(tree),/Budi/);assert.doesNotMatch(text(tree),/Rahasia|Aktif/);
  assert.ok(!nodes(tree).some(node=>node.props['aria-expanded']!==undefined));
- assert.equal(nodes(tree).filter(node=>node.type==='input').length,3);
- nodes(tree).find(node=>node.type==='input').props.onChange();
+ const search=value=>nodes(tree).find(node=>node.type==='input'&&node.props['aria-label']==='Cari nama siswa untuk direset')
+  .props.onChange({target:{value}});
+ const checkboxes=()=>nodes(tree).filter(node=>node.type==='input'&&node.props.type==='checkbox');
+ assert.equal(checkboxes().length,3);
+ search('Ani');tree=render();
+ assert.match(text(tree),/Ani/);assert.doesNotMatch(text(tree),/Budi/);
+ assert.equal(checkboxes().length,2);
+ checkboxes()[0].props.onChange();
  tree=render();
- assert.ok(nodes(tree).filter(node=>node.type==='input').every(node=>node.props.checked));
+ assert.match(text(tree),/2 tersedia · 1 terpilih/);
+ search('Budi');tree=render();
+ assert.match(text(tree),/Budi/);assert.doesNotMatch(text(tree),/Ani/);
+ checkboxes()[0].props.onChange();
+ tree=render();
+ assert.match(text(tree),/2 tersedia · 2 terpilih/);
+ search('');tree=render();
+ assert.ok(checkboxes().every(node=>node.props.checked));
  assert.equal(nodes(tree).find(node=>node.type==='Button').props.disabled,false);
  assert.match(text(tree),/2 tersedia · 2 terpilih/);
 });
