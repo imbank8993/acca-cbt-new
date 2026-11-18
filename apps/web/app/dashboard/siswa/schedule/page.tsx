@@ -124,24 +124,20 @@ const SchedulePage = () => {
         <div className="max-w-7xl mx-auto pb-24 space-y-6">
             {timeZoneError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{timeZoneError}</div>}
 
-            {/* Stats bar */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-white border border-slate-100 rounded-2xl p-4 text-center shadow-sm hover:shadow-md transition-shadow">
-                    <p className="text-2xl font-black text-[#4B78B8] font-mono">{loadError ? '—' : openExams.length}</p>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Tersedia</p>
-                </div>
-                <div className="bg-white border border-slate-100 rounded-2xl p-4 text-center shadow-sm hover:shadow-md transition-shadow">
-                    <p className="text-2xl font-black text-blue-600 font-mono">{loadError ? '—' : upcomingExams.length}</p>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Akan Datang</p>
-                </div>
-                <div className="bg-white border border-slate-100 rounded-2xl p-4 text-center shadow-sm hover:shadow-md transition-shadow">
-                    <p className="text-2xl font-black text-[#3083FF] font-mono">{loadError ? '—' : sortedExams.filter(e => e.isCompleted).length}</p>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Selesai</p>
-                </div>
-                <div className="bg-white border border-slate-100 rounded-2xl p-4 text-center shadow-sm hover:shadow-md transition-shadow">
-                    <p className="text-2xl font-black text-slate-500 font-mono">{loadError ? '—' : sortedExams.length}</p>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Total Jadwal</p>
-                </div>
+            {/* Ringkasan: kartu bergradasi seperti kartu "Nilai akhir" di halaman hasil. */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+                {([
+                    { label: 'Tersedia', value: openExams.length, tone: 'from-emerald-500 via-teal-500 to-cyan-500 shadow-teal-500/20' },
+                    { label: 'Akan Datang', value: upcomingExams.length, tone: 'from-blue-500 via-indigo-500 to-violet-500 shadow-indigo-500/20' },
+                    { label: 'Selesai', value: sortedExams.filter(e => e.isCompleted).length, tone: 'from-violet-500 via-purple-500 to-fuchsia-500 shadow-fuchsia-500/20' },
+                    { label: 'Total Jadwal', value: sortedExams.length, tone: 'from-sky-500 via-blue-500 to-indigo-500 shadow-blue-500/20' },
+                ] as const).map(stat => (
+                    <div key={stat.label} className={`relative overflow-hidden rounded-2xl bg-gradient-to-br p-4 sm:p-5 text-white shadow-md ${stat.tone}`}>
+                        <div aria-hidden="true" className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white/10" />
+                        <p className="text-xs sm:text-sm font-medium text-white/85">{stat.label}</p>
+                        <p className="mt-2 text-3xl sm:text-4xl font-bold tracking-tight tabular-nums">{loadError ? '—' : stat.value}</p>
+                    </div>
+                ))}
             </div>
 
             {/* Open / Available exams */}
