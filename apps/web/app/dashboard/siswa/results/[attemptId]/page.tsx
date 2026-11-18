@@ -11,7 +11,8 @@ import { formatSchoolDateTime } from '@/lib/school-time';
 import { getSessionUser } from '@/lib/session';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { AnimatePresence,motion } from 'framer-motion';
-import { BarChart3,BookOpen,Brain,Clock,Info,Loader2 } from 'lucide-react';
+import { BarChart3,BookOpen,Brain,CheckCircle2,Clock,Info,Loader2,Lock,Sparkles,Target,Timer } from 'lucide-react';
+import { StudentExamCover, SubjectPill } from '@/app/components/student/StudentExamCover';
 import { useParams,useRouter } from 'next/navigation';
 import { useCallback,useEffect,useState } from 'react';
 
@@ -171,6 +172,14 @@ export default function StudentResultDetailsPage() {
     const scoreLabel = attempt.score_label || STUDENT_SCORE_LABELS[studentScoreType(attempt.exams)];
     const gradingPending = displayedScore == null;
     const totalScore = Number(displayedScore || 0);
+    const classicalScore = (attempt.score_type || studentScoreType(attempt.exams)) === 'classical';
+    // Satu kalimat penyemangat yang ramah, hanya untuk nilai klasik yang sudah final.
+    const cheer = gradingPending || attempt.needs_manual_grading || !classicalScore ? null
+        : totalScore >= 90 ? 'Luar biasa! Pertahankan prestasimu.'
+        : totalScore >= 75 ? 'Kerja bagus! Sedikit lagi menuju sempurna.'
+        : totalScore >= 60 ? 'Sudah baik, terus tingkatkan ya.'
+        : 'Jangan menyerah, pelajari lagi materinya ya.';
+    const lockedHint = details.answerKeysReleased === false ? 'Tampil setelah pembahasan dibuka' : 'Belum tersedia';
 
 
     const hasDimensionScores = attempt.metadata?.dimension_scores && Object.keys(attempt.metadata.dimension_scores).length > 0;
@@ -190,60 +199,75 @@ export default function StudentResultDetailsPage() {
     return (
         <ResultImagePreview className="max-w-7xl mx-auto space-y-6 pb-24 animate-in fade-in duration-700">
             {timeZoneError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{timeZoneError}</div>}
-            <header className="rounded-2xl border border-slate-200 bg-white px-4 py-3 sm:px-5 sm:py-4 shadow-xs">
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">{attempt.exams?.title || 'Detail hasil ujian'}</h1>
-                {attempt.exams?.subject && <p className="mt-1 text-sm font-semibold text-[#3083FF]">{attempt.exams.subject}</p>}
-                <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs sm:text-sm text-slate-500">
-                    <span className="inline-flex items-center gap-2"><Clock size={14} aria-hidden="true" /> Mulai: {attempt.started_at ? formatUTCDateTime(attempt.started_at) : 'Belum tersedia'}</span>
-                    <span>Selesai: {attempt.finished_at ? formatUTCDateTime(attempt.finished_at) : 'Belum tersedia'}</span>
+            <header className="relative overflow-hidden rounded-3xl border border-sky-100 bg-gradient-to-br from-sky-50 via-white to-violet-50 px-4 py-4 sm:px-6 sm:py-5 shadow-sm dark:border-slate-800 dark:from-sky-500/10 dark:via-slate-900 dark:to-violet-500/10">
+                <div className="flex items-start gap-4">
+                    <StudentExamCover cover={attempt.exams?.cover_url} title={attempt.exams?.title || 'Ujian'} subject={attempt.exams?.subject} size={60} />
+                    <div className="min-w-0 flex-1">
+                        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{attempt.exams?.title || 'Detail hasil ujian'}</h1>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                            <SubjectPill subject={attempt.exams?.subject} />
+                            {cheer && <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
+                                <Sparkles size={12} aria-hidden="true" />{cheer}</span>}
+                        </div>
+                        <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                            <span className="inline-flex items-center gap-1.5"><Clock size={14} aria-hidden="true" /> Mulai {attempt.started_at ? formatUTCDateTime(attempt.started_at) : '—'}</span>
+                            <span>Selesai {attempt.finished_at ? formatUTCDateTime(attempt.finished_at) : '—'}</span>
+                        </div>
+                    </div>
                 </div>
             </header>
 
             <section aria-label="Ringkasan nilai" className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                {(hasPengetahuan || details.answerKeysReleased === false || !hasKepribadian) && <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 sm:p-5">
-                    <p className="text-sm font-medium text-blue-700">{attempt.needs_manual_grading ? 'Nilai sementara' : 'Nilai akhir'}</p>
-                    <p className="mt-3 text-3xl sm:text-4xl font-semibold tracking-tight text-blue-700 tabular-nums">{gradingPending ? '—' : totalScore.toFixed(2)}</p>
-                    <p className="mt-2 text-xs text-blue-600">{gradingPending ? 'Sedang diproses' : `${scoreLabel} · ${(attempt.score_type || studentScoreType(attempt.exams)) === 'classical' ? 'Skala 0–100' : 'Skala 200–800'}`}</p>
+                {(hasPengetahuan || details.answerKeysReleased === false || !hasKepribadian) && <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-500 p-4 sm:p-5 text-white shadow-md shadow-indigo-500/20">
+                    <div aria-hidden="true" className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/10" />
+                    <p className="text-sm font-medium text-white/85">{attempt.needs_manual_grading ? 'Nilai sementara' : 'Nilai akhir'}</p>
+                    <p className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight tabular-nums">{gradingPending ? '—' : totalScore.toFixed(2)}</p>
+                    <p className="mt-2 text-xs text-white/80">{gradingPending ? 'Sedang diproses' : `${scoreLabel} · ${classicalScore ? 'Skala 0–100' : 'Skala 200–800'}`}</p>
                 </div>}
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-                    <p className="text-sm font-medium text-slate-500">Jawaban benar</p>
-                    <p className="mt-3 text-3xl sm:text-4xl font-semibold text-slate-900 tabular-nums">{hasPengetahuan ? correctCount : '—'}{hasPengetahuan && <span className="ml-1 text-base font-normal text-slate-400">/ {totalPengetahuanCount}</span>}</p>
-                    <p className="mt-2 text-xs text-slate-500">{hasPengetahuan ? `${pendingCount ? `${pendingCount} menunggu koreksi` : 'Soal pengetahuan'}` : 'Belum tersedia'}</p>
+                <div className="rounded-2xl border p-4 sm:p-5 border-emerald-100 bg-emerald-50/70 dark:border-emerald-500/20 dark:bg-emerald-500/10">
+                    <p className="flex items-center gap-2 text-sm font-medium text-emerald-700 dark:text-emerald-300"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-500/20"><CheckCircle2 size={15} aria-hidden="true" /></span>Jawaban benar</p>
+                    <p className="mt-3 text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white tabular-nums">{hasPengetahuan ? correctCount : '—'}{hasPengetahuan && <span className="ml-1 text-base font-normal text-slate-400">/ {totalPengetahuanCount}</span>}</p>
+                    <p className="mt-2 text-xs text-emerald-700/80 dark:text-emerald-300/80">{hasPengetahuan ? `${pendingCount ? `${pendingCount} menunggu koreksi` : 'Soal pengetahuan'}` : lockedHint}</p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-                    <p className="text-sm font-medium text-slate-500">Akurasi</p>
-                    <p className="mt-3 text-3xl sm:text-4xl font-semibold text-slate-900 tabular-nums">{accuracy == null ? '—' : `${accuracy}%`}</p>
-                    <p className="mt-2 text-xs text-slate-500">{hasPengetahuan ? 'Dari soal yang sudah dinilai' : 'Belum tersedia'}</p>
+                <div className="rounded-2xl border p-4 sm:p-5 border-amber-100 bg-amber-50/70 dark:border-amber-500/20 dark:bg-amber-500/10">
+                    <p className="flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-300"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-500/20"><Target size={15} aria-hidden="true" /></span>Akurasi</p>
+                    <p className="mt-3 text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white tabular-nums">{accuracy == null ? '—' : `${accuracy}%`}</p>
+                    {accuracy != null
+                        ? <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-amber-100 dark:bg-amber-500/20" aria-hidden="true"><div className="h-full rounded-full bg-amber-400" style={{ width: `${accuracy}%` }} /></div>
+                        : <p className="mt-2 text-xs text-amber-700/80 dark:text-amber-300/80">{lockedHint}</p>}
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-                    <p className="text-sm font-medium text-slate-500">Durasi pengerjaan</p>
-                    <p className="mt-3 text-2xl sm:text-3xl font-semibold text-slate-900 tabular-nums">{durationLabel}</p>
-                    <p className="mt-2 text-xs text-slate-500">Waktu mulai hingga selesai</p>
+                <div className="rounded-2xl border p-4 sm:p-5 border-violet-100 bg-violet-50/70 dark:border-violet-500/20 dark:bg-violet-500/10">
+                    <p className="flex items-center gap-2 text-sm font-medium text-violet-700 dark:text-violet-300"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-500/20"><Timer size={15} aria-hidden="true" /></span>Durasi</p>
+                    <p className="mt-3 text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tabular-nums">{durationLabel}</p>
+                    <p className="mt-2 text-xs text-violet-700/80 dark:text-violet-300/80">Waktu mulai hingga selesai</p>
                 </div>
             </section>
 
             {(gradingPending || attempt.needs_manual_grading) && (
-                <div role="status" className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+                <div role="status" className="flex items-start gap-3 rounded-2xl border border-sky-100 bg-sky-50/80 p-4 text-sm text-sky-900 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-100">
                     <Info size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
                     <div><p className="font-semibold">{attempt.needs_manual_grading ? 'Menunggu penilaian guru' : scoreLabel.startsWith('IRT') ? 'Skor kemampuan sedang diproses' : 'Nilai sedang diproses'}</p>
-                        <p className="mt-1 text-blue-700">{attempt.needs_manual_grading ? 'Sebagian jawaban masih memerlukan koreksi. Hasil akan diperbarui setelah penilaian selesai.' : 'Jawaban sudah dikumpulkan. Periksa kembali untuk melihat nilai terbaru.'}</p>
+                        <p className="mt-1 text-sky-800/90 dark:text-sky-200/90">{attempt.needs_manual_grading ? 'Sebagian jawaban masih memerlukan koreksi. Hasil akan diperbarui setelah penilaian selesai.' : 'Jawaban sudah dikumpulkan. Periksa kembali untuk melihat nilai terbaru.'}</p>
                         <button type="button" onClick={() => void load()} className="mt-2 font-semibold underline underline-offset-4">Muat ulang nilai</button>
                     </div>
                 </div>
             )}
             {details.answerKeysReleased === false && (
-                <div role="status" className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
-                    <p className="font-semibold">Ringkasan hasil ujian tersedia</p>
-                    <p className="mt-1">{details.answerKeysMessage || 'Kunci jawaban dan pembahasan belum dibuka oleh guru.'}</p>
-                    <button type="button" onClick={() => void load()} className="mt-2 font-bold underline">Periksa kembali pembahasan</button>
+                <div role="status" className="flex flex-col gap-3 rounded-2xl border border-sky-100 bg-sky-50/80 p-4 text-sm text-sky-900 sm:flex-row sm:items-center dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-100">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-sky-600 shadow-sm dark:bg-slate-900 dark:text-sky-300"><Lock size={16} aria-hidden="true" /></span>
+                    <div className="min-w-0 flex-1">
+                        <p className="font-semibold">Nilaimu sudah tersedia</p>
+                        <p className="mt-0.5 text-sky-800/90 dark:text-sky-200/90">{details.answerKeysMessage || 'Kunci jawaban dan pembahasan belum dibuka oleh guru.'}</p>
+                    </div>
+                    <button type="button" onClick={() => void load()} className="shrink-0 self-start rounded-full bg-white px-4 py-2 text-xs font-semibold text-sky-700 shadow-sm ring-1 ring-sky-100 hover:bg-sky-50 sm:self-auto dark:bg-slate-900 dark:text-sky-300 dark:ring-sky-500/20 dark:hover:bg-slate-800">Periksa lagi</button>
                 </div>
             )}
 
-            <div role="tablist" aria-label="Tampilan hasil" className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1.5">
+            <div role="tablist" aria-label="Tampilan hasil" className="flex gap-1 overflow-x-auto rounded-full bg-slate-100 p-1 dark:bg-slate-800/80">
                 {(['ringkasan', 'materi', 'pembahasan'] as const).map(value => <button key={value} type="button" role="tab"
                     id={`result-tab-${value}`} aria-selected={section === value} aria-controls={`result-panel-${value}`}
                     onClick={() => setSection(value)}
-                    className={`flex-1 sm:flex-none whitespace-nowrap rounded-lg px-3 sm:px-5 py-2.5 text-sm font-semibold transition-colors ${section === value ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-slate-50'}`}>
+                    className={`flex-1 sm:flex-none whitespace-nowrap rounded-full px-3 sm:px-5 py-2 text-sm font-semibold transition-all ${section === value ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-900 dark:text-indigo-300' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>
                     {value === 'ringkasan' ? 'Ringkasan' : value === 'materi' ? 'Analisis Materi' : 'Pembahasan Soal'}
                 </button>)}
             </div>

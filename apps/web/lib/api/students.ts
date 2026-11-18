@@ -157,7 +157,7 @@ export interface StudentAttemptDetails {
         finished_at?: string | null;
         personal_end_time?: string | null;
         metadata?: { dimension_scores?: Record<string, number>; [key: string]: unknown } | null;
-        exams?: { id: string; title: string; subject?: string | null; show_results: boolean; question_bank_id?: string | null; scoring_type?: string | null } | null;
+        exams?: { id: string; title: string; subject?: string | null; cover_url?: string | null; show_results: boolean; question_bank_id?: string | null; scoring_type?: string | null } | null;
     };
     dimensions: { id: string; name: string }[];
     interpretations: { dimension_id: string; min_score: number; max_score: number; title?: string | null; interpretation?: string | null }[];

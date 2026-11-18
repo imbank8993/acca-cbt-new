@@ -472,6 +472,7 @@ export class StudentsService {
             throw new ForbiddenException('Hasil ujian ini belum dibuka oleh guru.');
         }
 
+        const bank = (await examBankInfo(this.db, [row.exams]).catch(() => new Map<string, { subject?: string; cover?: string }>())).get(row.exams.id);
         // Never return exam configuration or submission metadata in a score summary.
         const publicAttempt = {
             id: row.id, ...publicStudentScores(row, row.exams),
@@ -480,7 +481,7 @@ export class StudentsService {
             personal_end_time: row.personal_end_time,
             metadata: { dimension_scores: row.metadata?.dimension_scores || {} },
             exams: { id: row.exams.id, title: row.exams.title, show_results: true,
-                subject: (await examBankInfo(this.db, [row.exams]).catch(() => new Map<string, { subject?: string }>())).get(row.exams.id)?.subject || null,
+                subject: bank?.subject || null, cover_url: bank?.cover || null,
                 question_bank_id: row.exams.question_bank_id, scoring_type: row.exams.scoring_type },
         };
         try {

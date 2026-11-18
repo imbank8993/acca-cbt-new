@@ -53,7 +53,6 @@ test('student dashboard, schedule and results pages show the subject and the ban
     const results = web('app/dashboard/siswa/results/page.tsx');
     assert.match(results, /<StudentExamCover cover=\{attempt\.exams\?\.cover_url\}/);
     assert.match(results, /<SubjectPill subject=\{attempt\.exams\?\.subject\} \/>/);
-    assert.match(web('app/dashboard/siswa/results/[attemptId]/page.tsx'), /attempt\.exams\?\.subject && /);
 });
 
 test('students may open a bank cover only when the bank is used by an exam assigned to them', async () => {
@@ -88,4 +87,14 @@ test('student schedule list carries subject and cover', async () => {
     const [exam] = await new StudentsService(db).listExams({ id: 'student' });
     assert.equal(exam.subject, 'Fisika');
     assert.equal(exam.cover_url, '/api/storage/file/users/t/banks/fisika.webp');
+});
+
+test('schedule page does not auto-refresh and has no manual refresh button; result page shows the cover', () => {
+    const web = file => fs.readFileSync(path.resolve(__dirname, '../../web', file), 'utf8');
+    const schedule = web('app/dashboard/siswa/schedule/page.tsx');
+    assert.doesNotMatch(schedule, /useAutoRefresh/);
+    assert.doesNotMatch(schedule, /Perbarui Jadwal/);
+    const detail = web('app/dashboard/siswa/results/[attemptId]/page.tsx');
+    assert.match(detail, /<StudentExamCover cover=\{attempt\.exams\?\.cover_url\}/);
+    assert.match(detail, /<SubjectPill subject=\{attempt\.exams\?\.subject\} \/>/);
 });

@@ -5,7 +5,6 @@ import { formatSchoolDate,formatSchoolDateTime,formatSchoolTimeRange } from '@/l
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { getSessionUser } from '@/lib/session';
 import { examTypeLabel } from '@/lib/exam-types';
-import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
 import { recoveryActive, recoveryLabel, scheduleState, scheduleCountdown } from '@/lib/student-schedule';
 import { motion } from 'framer-motion';
 import { StudentExamCover, SubjectPill } from '@/app/components/student/StudentExamCover';
@@ -64,8 +63,9 @@ const SchedulePage = () => {
         return () => { window.clearTimeout(initialLoad); clearInterval(interval); generation.current++; inFlight.current = false; };
     }, [loadData]);
 
-    // Jadwal ujian disegarkan berkala; langganan realtime Supabase sudah tidak ada.
-    useAutoRefresh(loadData, REFRESH_INTERVAL.dashboard);
+    // Tidak disegarkan otomatis: daftar sempat berkedip menjadi "Memuat…" tiap 30 detik.
+    // Hitung mundur dan perpindahan "akan datang" → "tersedia" tetap berjalan dari jam
+    // server yang dicatat saat halaman dibuka; data baru dimuat saat halaman dibuka lagi.
 
     const getStatus = (exam: StudentScheduledExam) => {
         if (scheduleState(exam, now.getTime()) === 'invalid') return { label: 'Jadwal tidak valid', color: '', bg: 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20', icon: AlertCircle, enabled: false };
@@ -317,13 +317,6 @@ const SchedulePage = () => {
                 </div>
             ) : null}
 
-            {/* Refresh button */}
-            <div className="flex justify-center">
-                <button onClick={loadData}
-                    className="px-5 py-2.5 bg-white border border-slate-200 text-slate-500 rounded-xl font-bold text-xs hover:bg-slate-50 flex items-center gap-2 transition-all shadow-sm active:scale-95">
-                    <RefreshCw size={13} className={loading ? "animate-spin" : ""} /> Perbarui Jadwal
-                </button>
-            </div>
         </div>
     );
 };
