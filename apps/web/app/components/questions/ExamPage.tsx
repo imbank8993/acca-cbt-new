@@ -109,8 +109,20 @@ export default function ExamPage() {
     const maxViolations = resolveMaxViolations(exam);
     const [isCompleted, setIsCompleted] = useState(false);
     const screenshots = useExamScreenshots(examId, isCompleted);
-    // Gambar soal yang gagal dimuat (server berat / jaringan putus sesaat) dicoba ulang otomatis.
-    useEffect(() => installExamImageRetry(document), []);
+    // Gambar soal yang gagal dimuat diperiksa penyebabnya lalu dipulihkan: dicoba
+    // ulang (server berat/jaringan), sesi diperpanjang (401), atau diganti pesan
+    // yang jelas (403/404). Lihat lib/exam-image-retry.ts.
+    useEffect(() => {
+        const images = installExamImageRetry(document, {
+            onAuthFailure: () => {
+                void refreshExamSessionAction().then(res => {
+                    if (res?.success) images.retryAll();
+                    else if (res?.unauthorized) setSyncRejection(SESSION_ENDED_MESSAGE);
+                }).catch(() => undefined);
+            },
+        });
+        return images.dispose;
+    }, []);
     const { sharingRef: screenSharingRef, requesting: screenRequestingRef, capture: captureScreenshot, canCapture: canCaptureScreenshot, upload: uploadScreenshot } = screenshots;
     const wasScreenSharing = useRef(false);
     /** Kapan berbagi layar terakhir terputus (0 = sedang aktif). */

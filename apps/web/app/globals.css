@@ -2950,3 +2950,19 @@ html.dark,
 .dark .latex-renderer :where(.katex, .mathjax-inline, .mathjax-display) {
   color: inherit;
 }
+
+/* Gambar soal yang tidak dapat dimuat (lib/exam-image-retry.ts): tampilkan pesan
+   yang jelas, bukan ikon gambar rusak tanpa keterangan. */
+img[data-image-state] {
+  display: inline-block;
+  min-width: 220px;
+  min-height: 2.75em;
+  padding: 6px 10px;
+  border: 1px dashed #f59e0b;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 12px;
+  line-height: 1.4;
+  font-style: normal;
+}
