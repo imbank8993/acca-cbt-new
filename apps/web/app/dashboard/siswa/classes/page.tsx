@@ -23,6 +23,13 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 type FilterTab = 'all' | 'reguler' | 'tambahan';
 
+const CLASS_CARD_GRADIENTS = [
+    'from-blue-500 via-indigo-600 to-violet-600 shadow-indigo-500/20',
+    'from-emerald-500 via-teal-600 to-cyan-700 shadow-teal-500/20',
+    'from-amber-600 via-orange-600 to-rose-600 shadow-orange-500/20',
+    'from-sky-500 via-blue-600 to-indigo-600 shadow-blue-500/20',
+] as const;
+
 export default function SiswaClassesPage() {
     const [classes, setClasses] = useMemoryState<StudentClass[]>('siswa_classes_classes', []);
     const [isLoading, setIsLoading] = useMemoryState('siswa_classes_isLoading', true);
@@ -183,6 +190,7 @@ export default function SiswaClassesPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
                     {filteredClasses.map((cls, index) => {
                         const isReguler = cls.type === 'reguler';
+                        const gradient = CLASS_CARD_GRADIENTS[classes.indexOf(cls) % CLASS_CARD_GRADIENTS.length];
 
                         return (
                             <motion.div
@@ -191,74 +199,56 @@ export default function SiswaClassesPage() {
                                 initial={{ opacity: 0, y: 6 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.18, delay: index * 0.02 }}
-                                className="group bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-[#3083FF]/40 dark:hover:border-[#3083FF]/50 rounded-2xl p-4 sm:p-5 shadow-xs hover:shadow-md transition-all duration-200 relative overflow-hidden flex flex-col justify-between"
+                                className={`relative flex min-h-[190px] min-w-0 flex-col overflow-hidden rounded-2xl bg-gradient-to-br p-5 text-white shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg ${gradient}`}
                             >
-                                {/* Top Line Accent */}
-                                <div
-                                    className={`absolute top-0 left-0 right-0 h-1 ${
-                                        isReguler ? 'bg-[#3083FF]' : 'bg-indigo-500'
-                                    }`}
-                                />
+                                <div aria-hidden="true" className="pointer-events-none absolute -right-7 -top-7 h-28 w-28 rounded-full bg-white/10" />
 
-                                <div className="space-y-2">
-                                    {/* ── Metadata Row ── */}
-                                    <div className="flex justify-between items-center pt-0.5">
-                                        <div className="flex items-center gap-1.5">
-                                            <span
-                                                className={`text-[10px] font-bold tracking-wider uppercase ${
-                                                    isReguler
-                                                        ? 'text-[#3083FF] dark:text-blue-400'
-                                                        : 'text-indigo-600 dark:text-indigo-400'
-                                                }`}
-                                            >
-                                                {isReguler ? 'Utama' : 'Tambahan'}
-                                            </span>
+                                <div className="relative flex items-start justify-between gap-3">
+                                    <div className="flex min-w-0 items-center gap-2.5">
+                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15">
+                                            <School size={17} aria-hidden="true" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-xs font-semibold leading-tight text-white/95">
+                                                {isReguler ? 'Kelas Utama' : 'Kelas Tambahan'}
+                                            </p>
                                             {cls.program && (
-                                                <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 truncate">
-                                                    • {cls.program}
-                                                </span>
+                                                <p className="mt-0.5 break-words text-[11px] leading-tight text-white/75">{cls.program}</p>
                                             )}
                                         </div>
-
-                                        {/* Action Icon: Tombol Keluar untuk Kelas Tambahan, Icon Gedung untuk Reguler */}
-                                        {!isReguler ? (
-                                            <button
-                                                type="button"
-                                                onClick={() => setClassToLeave({ id: cls.id, name: cls.name })}
-                                                title="Keluar dari kelas ini"
-                                                className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center justify-center transition-colors active:scale-90"
-                                            >
-                                                <LogOut size={13} />
-                                            </button>
-                                        ) : (
-                                            <div className="w-7 h-7 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700/60 flex items-center justify-center text-slate-400 group-hover:text-[#3083FF] transition-colors">
-                                                <School size={14} />
-                                            </div>
-                                        )}
                                     </div>
-
-                                    {/* ── Nama Kelas (Fokus Utama, Tanpa Wali Kelas) ── */}
-                                    <div className="pt-0.5">
-                                        <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100 group-hover:text-[#3083FF] dark:group-hover:text-blue-400 transition-colors leading-snug line-clamp-2">
-                                            {cls.name}
-                                        </h2>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
-                                            {isReguler ? 'Program Reguler Akademik' : 'Bimbingan & Pengayaan Tambahan'}
-                                        </p>
-                                    </div>
+                                    {!isReguler && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setClassToLeave({ id: cls.id, name: cls.name })}
+                                            title="Keluar dari kelas ini"
+                                            aria-label={`Keluar dari kelas ${cls.name}`}
+                                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15 text-white transition-colors hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white active:scale-95"
+                                        >
+                                            <LogOut size={15} />
+                                        </button>
+                                    )}
                                 </div>
 
-                                {/* ── Footer Status & Navigasi ── */}
-                                <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
-                                    <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                                <div className="relative mt-5 min-w-0 flex-1">
+                                    <h2 className="break-words text-xl font-bold leading-snug tracking-tight text-white">
+                                        {cls.name}
+                                    </h2>
+                                    <p className="mt-1 text-xs font-medium leading-relaxed text-white/85">
+                                        {isReguler ? 'Program Reguler Akademik' : 'Bimbingan & Pengayaan Tambahan'}
+                                    </p>
+                                </div>
+
+                                <div className="relative mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-white/20 pt-3">
+                                    <span className="text-[11px] font-medium text-white/80">
                                         Tersedia di Jadwal Ujian
                                     </span>
                                     <Link
                                         href="/dashboard/siswa/schedule"
-                                        className="inline-flex items-center gap-1 text-xs font-semibold text-[#3083FF] hover:text-[#2563EB] group-hover:translate-x-0.5 transition-transform"
+                                        className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-white/15 px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                                     >
                                         <span>Jadwal</span>
-                                        <ChevronRight size={14} />
+                                        <ChevronRight size={14} aria-hidden="true" />
                                     </Link>
                                 </div>
                             </motion.div>
