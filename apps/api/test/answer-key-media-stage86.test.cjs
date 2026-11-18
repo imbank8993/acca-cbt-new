@@ -196,3 +196,22 @@ test('admin can read another uploader image referenced by a bank with the deploy
     assert.equal(checked, 1);
     await assert.rejects(access.assertRead(admin, 'users/teacher/questions/unreferenced.png'), denied);
 });
+
+test('exam image checks reuse the exam file list instead of reloading every question per image', async () => {
+    const { db, access } = fixture();
+    // Ujian lama yang sudah selesai tidak boleh ikut dimuat saat ujian aktif meminta gambar.
+    for (let i = 0; i < 20; i++) {
+        db.tables.cbt_exams.push({ ...db.tables.cbt_exams[0], id: `old-${i}`, question_bank_id: 'other-bank', metadata: { is_public: true, show_answer_keys: true }, end_time: '2026-09-01T00:00:00Z' });
+        db.tables.cbt_exam_attempts.push({ id: `old-attempt-${i}`, exam_id: `old-${i}`, user_id: user.id, status: 'submitted', metadata: {} });
+    }
+    await access.assertRead(user, image);
+    const snapshotReads = () => db.queries.filter(q => q.table === 'cbt_exam_question_snapshots' || q.table === 'cbt_bank_questions').length;
+    const before = snapshotReads();
+    for (let i = 0; i < 10; i++) await access.assertRead(user, image);
+    assert.equal(snapshotReads() - before, 0, 'gambar berikutnya dari ujian yang sama tidak memuat ulang soal');
+    // Aturan keamanan tetap: pembahasan ditolak, dan setelah tenggat gambar ujian ditolak.
+    await assert.rejects(access.assertRead(user, explanation), denied);
+    db.tables.cbt_exam_attempts[0].personal_end_time = '2026-09-20T00:10:00Z';
+    db.tables.cbt_exams[0].end_time = '2026-09-20T00:10:00Z';
+    await assert.rejects(access.assertRead(user, image), denied);
+});

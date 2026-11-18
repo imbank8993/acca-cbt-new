@@ -10,19 +10,132 @@ import { canAccessExam, loadExamAudience } from '../students/exam-access';
 import { studentQuestion } from '../students/student-question';
 import { StorageService } from './storage.service';
 
+/** Daftar berkas yang dirujuk satu ujian/bank disimpan sebentar di memori. */
+const KEY_SET_TTL_MS = 60_000;
+/** Berkas tak dikenal memicu hitung ulang paling cepat tiap 5 detik (soal baru diubah). */
+const KEY_SET_REFRESH_MS = 5_000;
+
+interface KeySetEntry { at: number; keys: Set<string>; pending?: Promise<Set<string>> }
+interface BankIndexEntry { at: number; byKey: Map<string, Set<string>>; banks: Array<{ id: string }>; pending?: Promise<BankIndexEntry> }
+
 @Injectable()
 export class StorageAccessService {
+    /**
+     * Setiap gambar soal dulu memicu pemeriksaan penuh: semua pengerjaan siswa,
+     * seluruh soal tiap ujian (dua kali untuk ujian selesai), atau seluruh soal
+     * semua bank untuk staf — lalu menelusuri semuanya per gambar. Saat ujian
+     * ramai ini membebani PostgreSQL dan API sampai gambar gagal dimuat. Kini
+     * daftar berkas per ujian/bank dihitung sekali dan disimpan singkat; aturan
+     * izinnya (pengerjaan aktif, tenggat, rilis kunci, hak bank) tetap diperiksa
+     * pada setiap permintaan.
+     */
+    private readonly keySets = new Map<string, KeySetEntry>();
+    private readonly bankIndexes = new Map<string, BankIndexEntry>();
+
     constructor(private readonly db: DbService, private readonly authz: AuthorizationService,
         private readonly storage: StorageService) {}
 
+    /** Semua kunci berkas yang dirujuk lewat URL lengkap (termasuk di dalam teks kaya). */
+    referencedKeys(value: unknown, into = new Set<string>()): Set<string> {
+        if (typeof value === 'string') {
+            if (!value.includes('/api/storage/file/') && !/https?:\/\//.test(value)) return into;
+            const urls = value.replace(/&amp;/g, '&').match(/(?:https?:\/\/|\/api\/storage\/file\/)[^\s<>"']+/g) || [];
+            for (const url of urls) {
+                const key = this.storage.objectKeyFromUrl(url);
+                if (key) into.add(key);
+            }
+        } else if (Array.isArray(value)) {
+            for (const item of value) this.referencedKeys(item, into);
+        } else if (value && typeof value === 'object') {
+            for (const item of Object.values(value)) this.referencedKeys(item, into);
+        }
+        return into;
+    }
+
     /** Match complete URLs, including URLs embedded in rich text; never substring-match object keys. */
     references(value: unknown, key: string): boolean {
-        if (typeof value === 'string') {
-            const urls = value.replace(/&amp;/g, '&').match(/(?:https?:\/\/|\/api\/storage\/file\/)[^\s<>"']+/g) || [];
-            return urls.some(url => this.storage.objectKeyFromUrl(url) === key);
+        return this.referencedKeys(value).has(key);
+    }
+
+    /** Apakah `key` dirujuk konten `cacheKey`; dihitung ulang bila basi atau berkas belum dikenal. */
+    private async cachedHasKey(cacheKey: string, build: () => Promise<Set<string>>, key: string): Promise<boolean> {
+        const load = async (force: boolean): Promise<Set<string>> => {
+            const entry = this.keySets.get(cacheKey);
+            const age = entry ? Date.now() - entry.at : Infinity;
+            if (entry && !force && age < KEY_SET_TTL_MS) return entry.keys;
+            if (entry?.pending) return entry.pending;
+            const pending = build().then(keys => {
+                this.keySets.set(cacheKey, { at: Date.now(), keys });
+                return keys;
+            }).catch(error => {
+                if (entry) this.keySets.set(cacheKey, { at: entry.at, keys: entry.keys });
+                else this.keySets.delete(cacheKey);
+                throw error;
+            });
+            this.keySets.set(cacheKey, { at: entry?.at ?? 0, keys: entry?.keys ?? new Set(), pending });
+            return pending;
+        };
+        if ((await load(false)).has(key)) return true;
+        const entry = this.keySets.get(cacheKey);
+        if (entry && !entry.pending && Date.now() - entry.at < KEY_SET_REFRESH_MS) return false;
+        return (await load(true)).has(key);
+    }
+
+    /** Peta berkas → bank yang merujuknya, untuk seluruh bank satu sekolah. */
+    private async bankIndex(organizationId: string, force: boolean): Promise<BankIndexEntry> {
+        const entry = this.bankIndexes.get(organizationId);
+        if (entry && !force && Date.now() - entry.at < KEY_SET_TTL_MS) return entry;
+        if (entry?.pending) return entry.pending;
+        const pending = (async () => {
+            const { data: banks, error } = await this.db.from('cbt_question_banks')
+                .select('id, image_url').eq('organization_id', organizationId);
+            if (error) throw new ForbiddenException('Izin berkas belum dapat diperiksa.');
+            const rows = (banks || []) as Array<{ id: string; image_url?: string | null }>;
+            const byKey = new Map<string, Set<string>>();
+            const add = (bankId: string, value: unknown) => {
+                for (const key of this.referencedKeys(value)) {
+                    if (!byKey.has(key)) byKey.set(key, new Set());
+                    byKey.get(key)!.add(bankId);
+                }
+            };
+            for (const bank of rows) add(bank.id, bank);
+            const ids = rows.map(bank => bank.id);
+            for (let i = 0; i < ids.length; i += 200) {
+                const chunk = ids.slice(i, i + 200);
+                for (const [table, select] of [['cbt_bank_questions', EXAM_QUESTION_SNAPSHOT_SELECT],
+                    ['cbt_question_stimuli', '*'], ['cbt_question_instructions', '*']] as const) {
+                    const { data, error: readError } = await this.db.from(table).select(select).in('bank_id', chunk);
+                    if (readError) throw new ForbiddenException('Izin berkas belum dapat diperiksa.');
+                    for (const row of (data || []) as Array<{ bank_id: string }>) add(row.bank_id, row);
+                }
+            }
+            const built: BankIndexEntry = { at: Date.now(), byKey, banks: rows.map(bank => ({ id: bank.id })) };
+            this.bankIndexes.set(organizationId, built);
+            return built;
+        })().catch(error => {
+            if (entry) this.bankIndexes.set(organizationId, { ...entry, pending: undefined });
+            else this.bankIndexes.delete(organizationId);
+            throw error;
+        });
+        this.bankIndexes.set(organizationId, { at: entry?.at ?? 0, byKey: entry?.byKey ?? new Map(), banks: entry?.banks ?? [], pending });
+        return pending;
+    }
+
+    /** Hak staf membaca satu bank (sama dengan aturan sebelumnya). */
+    private async staffCanReadBank(user: AuthUser, bankId: string, organizationId: string): Promise<boolean> {
+        try { await this.authz.assertBankAccess(user, bankId, 'read'); return true; }
+        catch (error) {
+            if (!(error instanceof ForbiddenException)) throw error;
+            if ((user.roles || []).some(role => role.toUpperCase() === 'PROKTOR')) return false;
+            await this.authz.assertOrgStaff(user, organizationId);
+            const { data: sessions, error: sessionError } = await this.db.from('cbt_question_bank_validations')
+                .select('id').eq('bank_id', bankId).eq('organization_id', organizationId);
+            if (sessionError) throw new ForbiddenException('Izin validator belum dapat diperiksa.');
+            const { data: assignments, error: assignmentError } = await this.db.from('cbt_question_bank_validators')
+                .select('id').eq('validator_id', user.id).in('validation_id', (sessions || []).map((session: { id: string }) => session.id));
+            if (assignmentError) throw new ForbiddenException('Izin validator belum dapat diperiksa.');
+            return Boolean(assignments?.length);
         }
-        if (Array.isArray(value)) return value.some(item => this.references(item, key));
-        return !!value && typeof value === 'object' && Object.values(value).some(item => this.references(item, key));
     }
 
     /**
@@ -58,60 +171,55 @@ export class StorageAccessService {
         const staff = user.isPlatformAdmin || user.resolved?.superadmin ||
             (user.roles || []).some(role => ['ADMIN', 'PROKTOR', 'GURU'].includes(role.toUpperCase()));
         if (staff) {
-            const { data: banks, error } = await this.db.from('cbt_question_banks')
-                .select('id, image_url').eq('organization_id', audience.organizationId);
-            if (error) throw new ForbiddenException('Izin berkas belum dapat diperiksa.');
-            for (const bank of banks || []) {
-                try { await this.authz.assertBankAccess(user, bank.id, 'read'); }
-                catch (error) {
-                    if (!(error instanceof ForbiddenException)) throw error;
-                    if ((user.roles || []).some(role => role.toUpperCase() === 'PROKTOR')) continue;
-                    await this.authz.assertOrgStaff(user, audience.organizationId);
-                    const { data: sessions, error: sessionError } = await this.db.from('cbt_question_bank_validations')
-                        .select('id').eq('bank_id', bank.id).eq('organization_id', audience.organizationId);
-                    if (sessionError) throw new ForbiddenException('Izin validator belum dapat diperiksa.');
-                    const { data: assignments, error: assignmentError } = await this.db.from('cbt_question_bank_validators')
-                        .select('id').eq('validator_id', user.id).in('validation_id', (sessions || []).map((session: { id: string }) => session.id));
-                    if (assignmentError) throw new ForbiddenException('Izin validator belum dapat diperiksa.');
-                    if (!assignments?.length) continue;
-                }
-                if (key.startsWith(`banks/${bank.id}/`) || this.references(bank, key)) return;
-                const { data: questions, error: readError } = await this.db.from('cbt_bank_questions')
-                    .select(EXAM_QUESTION_SNAPSHOT_SELECT).eq('bank_id', bank.id);
-                if (readError) throw new ForbiddenException('Izin berkas belum dapat diperiksa.');
-                if (this.references(questions, key)) return;
-                for (const table of ['cbt_question_stimuli', 'cbt_question_instructions']) {
-                    const { data, error: contentError } = await this.db.from(table).select('*').eq('bank_id', bank.id);
-                    if (contentError) throw new ForbiddenException('Izin berkas belum dapat diperiksa.');
-                    if (this.references(data, key)) return;
-                }
+            // Hanya bank yang benar-benar merujuk berkas ini yang diperiksa haknya.
+            const candidates = async (force: boolean) => {
+                const index = await this.bankIndex(audience.organizationId!, force);
+                const ids = new Set(index.byKey.get(key) || []);
+                for (const bank of index.banks) if (key.startsWith(`banks/${bank.id}/`)) ids.add(bank.id);
+                return { ids, at: index.at };
+            };
+            let found = await candidates(false);
+            if (!found.ids.size && Date.now() - found.at >= KEY_SET_REFRESH_MS) found = await candidates(true);
+            for (const bankId of found.ids) {
+                if (await this.staffCanReadBank(user, bankId, audience.organizationId)) return;
             }
         }
         const { data: attempts, error } = await this.db.from('cbt_exam_attempts')
             .select('exam_id, status, started_at, personal_end_time, metadata').eq('user_id', user.id);
         if (error) throw new ForbiddenException('Izin berkas belum dapat diperiksa.');
+        // Ujian yang sedang dikerjakan lebih dulu: itulah yang memuat gambar saat ujian.
+        const ordered = [...(attempts || [])]
+            .filter(attempt => ['in_progress', 'submitted', 'auto_submitted'].includes(attempt.status))
+            .sort((a, b) => Number(b.status === 'in_progress') - Number(a.status === 'in_progress'));
+        if (!ordered.length) throw new ForbiddenException('Berkas tidak tersedia untuk sesi Anda.');
+        const { data: exams, error: examError } = await this.db.from('cbt_exams').select('*')
+            .in('id', [...new Set(ordered.map(attempt => attempt.exam_id))]);
+        if (examError) throw new ForbiddenException('Izin berkas belum dapat diperiksa.');
+        const examById = new Map(((exams || []) as any[]).map(exam => [exam.id, exam]));
         const [clock] = await this.db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
         const now = new Date(clock.now);
-        for (const attempt of attempts || []) {
-            const { data: exam, error: examError } = await this.db.from('cbt_exams').select('*').eq('id', attempt.exam_id).maybeSingle();
-            if (examError || !exam || exam.organization_id !== audience.organizationId) continue;
-            let questions: any[];
+        for (const attempt of ordered) {
+            const exam = examById.get(attempt.exam_id);
+            if (!exam || exam.organization_id !== audience.organizationId) continue;
             if (attempt.status === 'in_progress') {
                 if (!canAccessExam(exam, audience)) continue;
                 const deadline = examDeadline(attempt, exam);
                 if (attempt.metadata?.recovery_submit_only || !Number.isFinite(deadline.getTime()) || now >= deadline ||
                     (exam.start_time && now < new Date(exam.start_time))) continue;
-                questions = (await readExamQuestionVersion(this.db, exam.id)).map(q => studentQuestion(q, `${user.id}:${exam.id}`));
                 if (this.references({ document: exam.metadata?.document_url, description: exam.metadata?.assignment_description }, key)) return;
-            } else if (['submitted', 'auto_submitted'].includes(attempt.status)) {
+                // Soal versi siswa (tanpa kunci/pembahasan); urutan opsi tidak memengaruhi daftar berkas.
+                if (await this.cachedHasKey(`exam-student:${exam.id}`, async () => this.referencedKeys(
+                    (await readExamQuestionVersion(this.db, exam.id)).map(q => studentQuestion(q, exam.id))), key)) return;
+            } else {
                 try { await assertAnswerKeysReleased(this.db, exam); }
                 catch (error) { if (error instanceof ForbiddenException) continue; throw error; }
                 // Released historical details intentionally use the latest bank content.
-                questions = await loadExamQuestions(this.db, exam.id, EXAM_QUESTION_SNAPSHOT_SELECT, exam.question_bank_id);
-                const frozen = await readExamQuestionVersion(this.db, exam.id);
-                questions = [...questions, ...frozen];
-            } else continue;
-            if (this.references(questions, key)) return;
+                if (await this.cachedHasKey(`exam-review:${exam.id}:${exam.question_bank_id || ''}`, async () => {
+                    const questions = await loadExamQuestions(this.db, exam.id, EXAM_QUESTION_SNAPSHOT_SELECT, exam.question_bank_id);
+                    const frozen = await readExamQuestionVersion(this.db, exam.id);
+                    return this.referencedKeys([...questions, ...frozen]);
+                }, key)) return;
+            }
         }
         throw new ForbiddenException('Berkas tidak tersedia untuk sesi Anda.');
     }
