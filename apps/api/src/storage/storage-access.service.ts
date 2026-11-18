@@ -6,7 +6,7 @@ import { examDeadline } from '../common/exam-deadline';
 import { assertAnswerKeysReleased } from '../common/answer-key-release';
 import { readExamQuestionVersion, EXAM_QUESTION_SNAPSHOT_SELECT } from '../common/exam-question-snapshots';
 import { loadExamQuestions } from '../common/exam-question-sources';
-import { canAccessExam, loadExamAudience } from '../students/exam-access';
+import { canAccessExam, loadExamAudience, type ExamAudience } from '../students/exam-access';
 import { studentQuestion } from '../students/student-question';
 import { StorageService } from './storage.service';
 
@@ -15,6 +15,17 @@ const KEY_SET_TTL_MS = 60_000;
 /** Berkas tak dikenal memicu hitung ulang paling cepat tiap 5 detik (soal baru diubah). */
 const KEY_SET_REFRESH_MS = 5_000;
 
+/**
+ * Data izin yang jarang berubah (keanggotaan kelas/sekolah, baris ujian, daftar
+ * sampul bank) disimpan sebentar. Saat ujian dimulai, setiap siswa meminta puluhan
+ * gambar sekaligus; tanpa cache ini setiap gambar menjalankan ±8 query.
+ * Status pengerjaan dan jam server TETAP dibaca segar per permintaan, sehingga
+ * pengerjaan yang selesai, dihentikan, atau lewat tenggat langsung ditolak.
+ */
+const ACCESS_CONTEXT_TTL_MS = 30_000;
+const MEMO_SWEEP_SIZE = 20_000;
+
+interface MemoEntry<T> { at: number; value?: T; pending?: Promise<T> }
 interface KeySetEntry { at: number; keys: Set<string>; pending?: Promise<Set<string>> }
 interface BankIndexEntry { at: number; byKey: Map<string, Set<string>>; banks: Array<{ id: string }>; pending?: Promise<BankIndexEntry> }
 
@@ -31,6 +42,9 @@ export class StorageAccessService {
      */
     private readonly keySets = new Map<string, KeySetEntry>();
     private readonly bankIndexes = new Map<string, BankIndexEntry>();
+    private readonly audiences = new Map<string, MemoEntry<ExamAudience>>();
+    private readonly examRows = new Map<string, MemoEntry<any>>();
+    private readonly coverExams = new Map<string, MemoEntry<any[]>>();
 
     constructor(private readonly db: DbService, private readonly authz: AuthorizationService,
         private readonly storage: StorageService) {}
@@ -81,6 +95,50 @@ export class StorageAccessService {
         return (await load(true)).has(key);
     }
 
+    /** Nilai `load()` disimpan `ACCESS_CONTEXT_TTL_MS`; permintaan bersamaan berbagi satu query. */
+    private async memo<T>(map: Map<string, MemoEntry<T>>, key: string, load: () => Promise<T>): Promise<T> {
+        const now = Date.now();
+        const entry = map.get(key);
+        if (entry?.pending) return entry.pending;
+        if (entry && now - entry.at < ACCESS_CONTEXT_TTL_MS) return entry.value as T;
+        if (map.size >= MEMO_SWEEP_SIZE) {
+            for (const [name, item] of map) if (!item.pending && now - item.at >= ACCESS_CONTEXT_TTL_MS) map.delete(name);
+        }
+        const pending = load().then(value => {
+            map.set(key, { at: Date.now(), value });
+            return value;
+        }, error => {
+            map.delete(key);
+            throw error;
+        });
+        map.set(key, { at: 0, pending });
+        return pending;
+    }
+
+    /** Baris ujian (`select('*')`) per id, dari cache bila masih segar. */
+    private async examsById(ids: string[]): Promise<Map<string, any>> {
+        const now = Date.now();
+        const found = new Map<string, any>();
+        const missing: string[] = [];
+        for (const id of ids) {
+            const entry = this.examRows.get(id);
+            if (entry && !entry.pending && now - entry.at < ACCESS_CONTEXT_TTL_MS) {
+                if (entry.value) found.set(id, entry.value);
+            } else missing.push(id);
+        }
+        if (missing.length) {
+            const { data, error } = await this.db.from('cbt_exams').select('*').in('id', missing);
+            if (error) throw new ForbiddenException('Izin berkas belum dapat diperiksa.');
+            if (this.examRows.size >= MEMO_SWEEP_SIZE) this.examRows.clear();
+            const at = Date.now();
+            for (const exam of (data || []) as any[]) {
+                this.examRows.set(exam.id, { at, value: exam });
+                found.set(exam.id, exam);
+            }
+        }
+        return found;
+    }
+
     /** Peta berkas → bank yang merujuknya, untuk seluruh bank satu sekolah. */
     private async bankIndex(organizationId: string, force: boolean): Promise<BankIndexEntry> {
         const entry = this.bankIndexes.get(organizationId);
@@ -122,13 +180,19 @@ export class StorageAccessService {
     }
 
     /** Cover bank soal yang dipakai ujian terbit yang dapat diakses siswa (aturan sama dengan jadwal siswa). */
-    private async studentCanReadCover(audience: Awaited<ReturnType<typeof loadExamAudience>>, key: string): Promise<boolean> {
+    private async studentCanReadCover(audience: ExamAudience, key: string): Promise<boolean> {
+        const exams = await this.memo(this.coverExams, `${audience.organizationId}:${key}`, () => this.coverExamsFor(audience, key));
+        return exams.some(exam => canAccessExam(exam, audience));
+    }
+
+    /** Ujian yang memakai bank bersampul `key`; disimpan per sekolah dan berkas. */
+    private async coverExamsFor(audience: ExamAudience, key: string): Promise<any[]> {
         const { data: banks, error } = await this.db.from('cbt_question_banks').select('id, image_url')
             .eq('organization_id', audience.organizationId);
         if (error) throw new ForbiddenException('Izin berkas belum dapat diperiksa.');
         const bankIds = ((banks || []) as Array<{ id: string; image_url?: string | null }>)
             .filter(bank => this.references(bank.image_url, key)).map(bank => bank.id);
-        if (!bankIds.length) return false;
+        if (!bankIds.length) return [];
         const [direct, sources] = await Promise.all([
             this.db.from('cbt_exams').select('id, organization_id, is_published, metadata').in('question_bank_id', bankIds),
             this.db.from('cbt_exam_question_sources').select('exam_id').in('bank_id', bankIds),
@@ -142,7 +206,7 @@ export class StorageAccessService {
             if (extraError) throw new ForbiddenException('Izin berkas belum dapat diperiksa.');
             exams.push(...((data || []) as any[]));
         }
-        return exams.some(exam => canAccessExam(exam, audience));
+        return exams;
     }
 
     /** Hak staf membaca satu bank (sama dengan aturan sebelumnya). */
@@ -190,7 +254,7 @@ export class StorageAccessService {
             await this.authz.assertExamStaff(user, examId);
             return;
         }
-        const audience = await loadExamAudience(this.db, user);
+        const audience = await this.memo(this.audiences, user.id, () => loadExamAudience(this.db, user));
         if (!audience.organizationId) throw new ForbiddenException('Berkas tidak tersedia.');
         const staff = user.isPlatformAdmin || user.resolved?.superadmin ||
             (user.roles || []).some(role => ['ADMIN', 'PROKTOR', 'GURU'].includes(role.toUpperCase()));
@@ -219,10 +283,7 @@ export class StorageAccessService {
             .filter(attempt => ['in_progress', 'submitted', 'auto_submitted'].includes(attempt.status))
             .sort((a, b) => Number(b.status === 'in_progress') - Number(a.status === 'in_progress'));
         if (!ordered.length) throw new ForbiddenException('Berkas tidak tersedia untuk sesi Anda.');
-        const { data: exams, error: examError } = await this.db.from('cbt_exams').select('*')
-            .in('id', [...new Set(ordered.map(attempt => attempt.exam_id))]);
-        if (examError) throw new ForbiddenException('Izin berkas belum dapat diperiksa.');
-        const examById = new Map(((exams || []) as any[]).map(exam => [exam.id, exam]));
+        const examById = await this.examsById([...new Set(ordered.map(attempt => attempt.exam_id))]);
         const [clock] = await this.db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
         const now = new Date(clock.now);
         for (const attempt of ordered) {

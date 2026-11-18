@@ -100,7 +100,31 @@ test('anonymous file request cannot reach storage; allowed response is private',
     await assert.rejects(controller.serveFile(req, res, null), denied);
     assert.equal(reads, 0);
     await controller.serveFile(req, res, user);
-    assert.equal(headers['Cache-Control'], 'private, no-store');
+    // Gambar boleh disimpan browser siswa itu sendiri; tidak pernah di cache bersama.
+    assert.equal(headers['Cache-Control'], 'private, max-age=3600');
+    assert.equal(headers['Vary'], 'Cookie, Authorization');
+});
+test('only private images are browser-cacheable; documents stay no-store', () => {
+    const { fileCacheControl } = require('../src/storage/storage-file-policy.ts');
+    assert.equal(fileCacheControl(image, 'image/png'), 'private, max-age=3600');
+    assert.equal(fileCacheControl(image, 'image/svg+xml'), 'private, max-age=3600');
+    assert.equal(fileCacheControl('users/teacher/questions/doc.pdf', 'application/pdf'), 'private, no-store');
+    assert.equal(fileCacheControl('users/teacher/questions/clip.mp4', 'video/mp4'), 'private, no-store');
+    assert.equal(fileCacheControl('users/teacher/questions/x', undefined), 'private, no-store');
+    assert.equal(fileCacheControl('users/teacher/avatars/a.png', 'image/png'), 'public, max-age=3600');
+});
+test('image checks cache membership and exam rows but re-read the attempt every time', async () => {
+    const { db, access } = fixture();
+    await access.assertRead(user, image);
+    const count = table => db.queries.filter(q => q.table === table).length;
+    const before = { members: count('cbt_organization_members'), exams: count('cbt_exams'), attempts: count('cbt_exam_attempts') };
+    for (let i = 0; i < 10; i++) await access.assertRead(user, image);
+    assert.equal(count('cbt_organization_members') - before.members, 0, 'keanggotaan tidak dimuat ulang per gambar');
+    assert.equal(count('cbt_exams') - before.exams, 0, 'baris ujian tidak dimuat ulang per gambar');
+    assert.equal(count('cbt_exam_attempts') - before.attempts, 10, 'status pengerjaan tetap dibaca setiap gambar');
+    // Pengawas menghentikan atau siswa mengumpulkan: gambar langsung ditolak, tanpa menunggu cache.
+    db.tables.cbt_exam_attempts[0].status = 'submitted';
+    await assert.rejects(access.assertRead(user, image), denied);
 });
 test('private URLs always use gateway, including legacy HTML on configured domain', () => {
     const { storage } = fixture();
@@ -149,7 +173,7 @@ test('HTTP media guard rejects anonymous and internal-key callers but streams to
     }
     const response = await fetch(`${base}/storage/file/${image}`, { headers: { Authorization: 'Bearer test-student' } });
     assert.equal(response.status, 200);
-    assert.equal(response.headers.get('cache-control'), 'private, no-store');
+    assert.equal(response.headers.get('cache-control'), 'private, max-age=3600');
     assert.equal(await response.text(), 'image');
     assert.equal((await fetch(`${base}/storage/file/avatars/public.png`)).status, 200);
 });

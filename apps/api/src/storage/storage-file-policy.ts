@@ -45,6 +45,21 @@ export function canUploadSvg(user: { roles?: string[]; isPlatformAdmin?: boolean
 }
 
 /** Only explicitly public branding/profile folders bypass authentication. Unknown folders are private. */
+/**
+ * Gambar privat (soal, sampul bank) boleh disimpan browser siswa itu sendiri
+ * selama satu jam. Nama berkas unggahan selalu unik, jadi isinya tidak pernah
+ * berubah di URL yang sama. Tanpa ini setiap gambar diunduh dua kali saat ujian
+ * dimulai (oleh <img> dan oleh service worker offline) dan diunduh ulang setiap
+ * halaman dimuat ulang, semuanya lewat Next.js, NestJS, dan R2. Service worker
+ * ujian memang sudah menyimpan gambar yang sama sampai logout; `Vary: Cookie`
+ * mencegah akun lain di perangkat yang sama memakai salinan ini.
+ * Berkas selain gambar (dokumen, audio, video) tetap tidak disimpan.
+ */
+export function fileCacheControl(key: string, contentType: string | undefined): string {
+    if (isPublicFile(key)) return 'public, max-age=3600';
+    return /^image\//i.test(contentType || '') ? 'private, max-age=3600' : 'private, no-store';
+}
+
 export function isPublicFile(key: string): boolean {
     return /^(?:users\/[^/]+\/)?(?:avatars|logos|branding)\//.test(key);
 }

@@ -27,7 +27,7 @@ import { AllowInternalKey } from '../auth/allow-internal-key.decorator';
 import { StorageAuthGuard } from './storage-auth.guard';
 import { RateLimit, RateLimitGuard } from '../common/rate-limit';
 import { StorageAccessService } from './storage-access.service';
-import { canUploadSvg, fileKey, fileServingHeaders, isPublicFile } from './storage-file-policy';
+import { canUploadSvg, fileCacheControl, fileKey, fileServingHeaders, isPublicFile } from './storage-file-policy';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { MAX_UPLOAD_BYTES, StorageService } from './storage.service';
 
@@ -151,7 +151,7 @@ export class StorageController {
     if (obj.etag) {
       res.setHeader('ETag', obj.etag);
     }
-    res.setHeader('Cache-Control', isPublicFile(key) ? 'public, max-age=3600' : 'private, no-store');
+    res.setHeader('Cache-Control', fileCacheControl(key, obj.contentType));
     res.setHeader('Vary', 'Cookie, Authorization');
     for (const [name, value] of Object.entries(fileServingHeaders(obj.contentType))) res.setHeader(name, value);
 
