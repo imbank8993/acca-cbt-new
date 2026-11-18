@@ -172,10 +172,7 @@
 /* Chapter catalogue: each material is one independently published subchapter. */
 /* Katalog Bahan Ajar: tenang dan rapi — satu warna aksen, garis tipis, bayangan hanya saat disorot. */
 .learn-library{--lc-surface:#fff;--lc-soft:#f6f8fb;--lc-line:#e4e9f0;--lc-line-strong:#d3dbe6;--lc-text:#16233a;--lc-muted:#6b7a90;--lc-accent:#2563eb;--lc-accent-soft:#eef4ff}
-.lc-header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:4px 0 20px;margin-bottom:20px;border-bottom:1px solid var(--lc-line)}
-.learning .lc-header h1{font-size:24px;line-height:1.25;font-weight:700;letter-spacing:-.4px;color:var(--lc-text);margin:0 0 4px}
-.learning .lc-header p{font-size:13px;color:var(--lc-muted)}
-.lc-header-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.lc-library-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:20px}
 .lc-segmented{display:inline-flex;padding:3px;border:1px solid var(--lc-line);border-radius:10px;background:var(--lc-soft)}
 .learning .lc-segmented button{border:0;background:transparent;color:var(--lc-muted);padding:6px 12px;border-radius:7px;font-size:12.5px;font-weight:600}
 .learning .lc-segmented button:hover{color:var(--lc-text)}
@@ -290,7 +287,7 @@
 .dark .lc-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.3)}
 .dark .learning .lc-search input:not([type=file]){background:transparent!important;border:0!important;box-shadow:none!important}
 .dark .learn-create-form :is(input,select){background:#121c2e!important;color:#e8edf5!important;border-color:#34445e!important}.dark .learn-chapter-suggestions button{background:#172235;color:#cbd5e1;border-color:#34445e}.dark .learn-chapter-suggestions button[aria-pressed=true]{background:#1b3353;color:#93c5fd;border-color:#60a5fa}
-@media(max-width:760px){.lc-header{align-items:stretch;flex-direction:column;padding-bottom:16px}.learning .lc-header h1{font-size:21px}.lc-segmented{width:100%}.learning .lc-segmented button{flex:1}.lc-continue{flex-wrap:wrap;padding:14px}.learning .lc-continue-action{width:100%;justify-content:center}.lc-filters{flex-direction:column;align-items:stretch}.learning .lc-search{flex:none}.learning .lc-select{width:100%}.lc-grid{grid-template-columns:1fr}.lc-tabs{gap:18px}.lc-mark{width:40px;height:40px}.learn-create-grid{grid-template-columns:1fr}.learn-create-grid--title{grid-template-columns:1fr 75px}}
+@media(max-width:760px){.lc-library-actions{align-items:stretch}.lc-segmented{width:100%}.learning .lc-segmented button{flex:1}.lc-continue{flex-wrap:wrap;padding:14px}.learning .lc-continue-action{width:100%;justify-content:center}.lc-filters{flex-direction:column;align-items:stretch}.learning .lc-search{flex:none}.learning .lc-select{width:100%}.lc-grid{grid-template-columns:1fr}.lc-tabs{gap:18px}.lc-mark{width:40px;height:40px}.learn-create-grid{grid-template-columns:1fr}.learn-create-grid--title{grid-template-columns:1fr 75px}}
 /* Modal tambah subbab (dirender di luar .learning). */
 .lc-create{display:flex;flex-direction:column;gap:14px}
 .lc-mode{display:inline-flex;align-self:flex-start;padding:3px;border:1px solid #e2e8f0;border-radius:10px;background:#f6f8fb}

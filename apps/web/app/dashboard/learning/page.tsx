@@ -82,8 +82,6 @@ function LearningLibraryContent({ manage, setManage }: { manage: boolean; setMan
     const gradeGroups = [...new Set(visible.map(chapter => chapter.grade))];
     const gradeChoices = [{ value: 'all', label: 'Semua' }, ...learningGrades,
         ...[...new Set(materials.map(item => item.grade_level).filter(value => value && !learningGrades.some(item => item.value === value)))].map(value => ({ value, label: learningGradeLabel(value) }))];
-    const completed = materials.filter(item => item.completed).length;
-    const drafts = materials.filter(item => item.status === 'draft').length;
     // Kartu "Lanjutkan": BAB yang sedang dipelajari, atau BAB pertama yang belum selesai.
     const resume = useMemo(() => {
         if (manage) return null;
@@ -93,24 +91,15 @@ function LearningLibraryContent({ manage, setManage }: { manage: boolean; setMan
         return { chapter, item: chapter.items.find(item => !item.completed) || chapter.items[0], started: Boolean(inProgress) };
     }, [chapters, manage]);
     const resumeMark = resume ? subjectMark(resume.chapter.subject) : null;
-    const summary = loading ? 'Memuat…' : manage
-        ? `${chapters.length} BAB · ${materials.length} subbab${drafts ? ` · ${drafts} draf` : ''}`
-        : `${chapters.length} BAB · ${completed} dari ${materials.length} subbab selesai`;
 
     return <main className="learning learn-library">
-        <header className="lc-header">
-            <div>
-                <h1>{manage ? 'Kelola materi' : 'Ruang belajar'}</h1>
-                <p>{summary}</p>
-            </div>
-            {canManage && <div className="lc-header-actions">
+        {canManage && <div className="lc-library-actions">
                 <div className="lc-segmented" role="group" aria-label="Tampilan bahan ajar">
                     <button type="button" aria-pressed={!manage} onClick={() => setManage(false)}>Ruang belajar</button>
                     <button type="button" aria-pressed={manage} onClick={() => setManage(true)}>Kelola materi</button>
                 </div>
                 {manage && <button type="button" className="learn-primary lc-add" onClick={() => setCreating({})}><Plus size={16} />Tambah subbab</button>}
-            </div>}
-        </header>
+        </div>}
 
         {!loading && resume && resumeMark && <section className="lc-continue" aria-label="Lanjutkan belajar">
             <span className="lc-mark" style={resumeMark.style} aria-hidden="true">{resumeMark.abbr}</span>
