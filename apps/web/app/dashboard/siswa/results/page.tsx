@@ -59,14 +59,15 @@ export default function StudentResultsPage() {
         <div className="max-w-7xl mx-auto pb-24 space-y-6 animate-in fade-in duration-700">
             {timeZoneError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{timeZoneError}</div>}
             {/* Top Stat & Refresh Bar */}
-            <div className="flex items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-                <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-600">Total Ujian Selesai:</span>
-                    <span className="text-base font-black text-[#3083FF] font-mono bg-blue-50 border border-blue-100 px-2.5 py-0.5 rounded-lg leading-none">{results.length}</span>
+            <div className="relative flex items-center justify-between gap-4 overflow-hidden rounded-2xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 shadow-fuchsia-500/20 px-5 py-6 sm:px-6 sm:py-7 text-white shadow-md">
+                <div aria-hidden="true" className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/10" />
+                <div className="relative">
+                    <p className="text-sm font-medium text-white/85">Total ujian selesai</p>
+                    <p className="mt-1.5 text-3xl sm:text-4xl font-bold leading-none tabular-nums">{results.length}</p>
                 </div>
                 <button
                     onClick={loadResults}
-                    className="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 px-3.5 py-2 rounded-xl font-bold text-xs transition-all shadow-xs active:scale-95 shrink-0"
+                    className="relative flex items-center gap-1.5 rounded-full bg-white/15 px-4 py-2 text-xs font-bold text-white ring-1 ring-white/25 transition-all hover:bg-white/25 active:scale-95 shrink-0"
                 >
                     <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
                     Muat Ulang

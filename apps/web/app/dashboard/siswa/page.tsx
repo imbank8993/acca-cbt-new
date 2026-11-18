@@ -228,15 +228,15 @@ export default function SiswaDashboard() {
                 <StudentScoreAverages results={results} />
 
                 {/* Ujian Selesai */}
-                <div className="bg-white border border-slate-100 rounded-2xl p-5 hover:shadow-xl hover:shadow-[#3083FF]/5 transition-all duration-300 relative overflow-hidden flex items-center justify-between gap-4">
-                    <div className="absolute left-0 top-0 h-full w-1.5 bg-[#3083FF]" />
-                    <div className="flex items-center gap-3.5">
-                        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-[#3083FF] border border-blue-100/50">
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 shadow-teal-500/20 p-5 text-white shadow-md flex items-center justify-between gap-4">
+                    <div aria-hidden="true" className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/10" />
+                    <div className="relative flex items-center gap-3.5">
+                        <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center text-white">
                             <CheckCircle2 size={18} />
                         </div>
                         <div className="text-left">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1.5">Ujian Selesai</p>
-                            <p className="text-2xl font-black text-slate-800 leading-none font-mono">{completedExamsCount}</p>
+                            <p className="text-sm font-medium text-white/85 leading-none mb-2">Ujian selesai</p>
+                            <p className="text-3xl font-bold leading-none tabular-nums">{completedExamsCount}</p>
                         </div>
                     </div>
                 </div>

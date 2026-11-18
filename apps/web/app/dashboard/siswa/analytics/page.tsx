@@ -295,17 +295,17 @@ export default function StudentAnalyticsPage() {
                         initial={{ opacity: 0, y: 15 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.05 }}
-                        className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden flex flex-col text-left pl-6"
+                        className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-500 shadow-indigo-500/20 p-5 text-white shadow-md flex flex-col text-left"
                     >
-                        <div className="absolute left-0 top-0 h-full w-1 bg-indigo-500" />
+                        <div aria-hidden="true" className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/10" />
                         <div className="flex items-center gap-3 mb-2.5">
-                            <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 border border-indigo-100/50">
+                            <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-white">
                                 <Target size={16} />
                             </div>
-                            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">Rata-rata</span>
+                            <span className="text-xs font-semibold text-white/85 leading-none">Rata-rata</span>
                         </div>
-                        <p className="text-2xl font-semibold text-slate-800 leading-none tabular-nums tracking-tight">{overview.averageScore}{scoreUnit}</p>
-                        <p className="text-xs text-slate-400 font-medium mt-2">{overview.scoreLabel || 'Klasikal'} · dari {overview.totalExams} ujian dengan model yang sama</p>
+                        <p className="text-3xl font-bold leading-none tabular-nums tracking-tight">{overview.averageScore}{scoreUnit}</p>
+                        <p className="text-xs text-white/80 font-medium mt-2">{overview.scoreLabel || 'Klasikal'} · dari {overview.totalExams} ujian dengan model yang sama</p>
                     </motion.div>
 
                     {/* Peringkat */}
@@ -313,17 +313,17 @@ export default function StudentAnalyticsPage() {
                         initial={{ opacity: 0, y: 15 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.1 }}
-                        className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden flex flex-col text-left pl-6"
+                        className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 shadow-teal-500/20 p-5 text-white shadow-md flex flex-col text-left"
                     >
-                        <div className="absolute left-0 top-0 h-full w-1 bg-emerald-500" />
+                        <div aria-hidden="true" className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/10" />
                         <div className="flex items-center gap-3 mb-2.5">
-                            <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100/50">
+                            <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-white">
                                 <Trophy size={16} />
                             </div>
-                            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">Peringkat</span>
+                            <span className="text-xs font-semibold text-white/85 leading-none">Peringkat</span>
                         </div>
-                        <p className="text-2xl font-semibold text-slate-800 leading-none tabular-nums tracking-tight">#{overview.rank || '-'}</p>
-                        <p className="text-xs text-slate-400 font-medium mt-2">{overview.rank == null ? 'Peserta pembanding belum cukup' : `dari ${overview.totalStudents} peserta ujian yang sama`}</p>
+                        <p className="text-3xl font-bold leading-none tabular-nums tracking-tight">#{overview.rank || '-'}</p>
+                        <p className="text-xs text-white/80 font-medium mt-2">{overview.rank == null ? 'Peserta pembanding belum cukup' : `dari ${overview.totalStudents} peserta ujian yang sama`}</p>
                     </motion.div>
 
                     {/* Percentile */}
@@ -331,17 +331,17 @@ export default function StudentAnalyticsPage() {
                         initial={{ opacity: 0, y: 15 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.15 }}
-                        className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden flex flex-col text-left pl-6"
+                        className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-400 via-orange-500 to-rose-500 shadow-orange-500/20 p-5 text-white shadow-md flex flex-col text-left"
                     >
-                        <div className="absolute left-0 top-0 h-full w-1 bg-amber-500" />
+                        <div aria-hidden="true" className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/10" />
                         <div className="flex items-center gap-3 mb-2.5">
-                            <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 border border-amber-100/50">
+                            <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-white">
                                 <Flame size={16} />
                             </div>
-                            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">Persentil</span>
+                            <span className="text-xs font-semibold text-white/85 leading-none">Persentil</span>
                         </div>
-                        <p className="text-2xl font-semibold text-slate-800 leading-none tabular-nums tracking-tight">{overview.percentile == null ? '—' : `${overview.percentile}%`}</p>
-                        <p className="text-xs text-slate-400 font-medium mt-2">peserta pembanding dengan rata-rata lebih rendah</p>
+                        <p className="text-3xl font-bold leading-none tabular-nums tracking-tight">{overview.percentile == null ? '—' : `${overview.percentile}%`}</p>
+                        <p className="text-xs text-white/80 font-medium mt-2">peserta pembanding dengan rata-rata lebih rendah</p>
                     </motion.div>
 
                     {/* Total Waktu */}
@@ -349,17 +349,17 @@ export default function StudentAnalyticsPage() {
                         initial={{ opacity: 0, y: 15 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.2 }}
-                        className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden flex flex-col text-left pl-6"
+                        className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-sky-500 via-blue-500 to-indigo-500 shadow-blue-500/20 p-5 text-white shadow-md flex flex-col text-left"
                     >
-                        <div className="absolute left-0 top-0 h-full w-1 bg-blue-500" />
+                        <div aria-hidden="true" className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/10" />
                         <div className="flex items-center gap-3 mb-2.5">
-                            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100/50">
+                            <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-white">
                                 <Clock size={16} />
                             </div>
-                            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">Total Waktu</span>
+                            <span className="text-xs font-semibold text-white/85 leading-none">Total Waktu</span>
                         </div>
-                        <p className="text-2xl font-semibold text-slate-800 leading-none tabular-nums tracking-tight">{formatDuration(overview.totalStudyTime)}</p>
-                        <p className="text-xs text-slate-400 font-medium mt-2">waktu pengerjaan ujian</p>
+                        <p className="text-3xl font-bold leading-none tabular-nums tracking-tight">{formatDuration(overview.totalStudyTime)}</p>
+                        <p className="text-xs text-white/80 font-medium mt-2">waktu pengerjaan ujian</p>
                     </motion.div>
                 </div>
 

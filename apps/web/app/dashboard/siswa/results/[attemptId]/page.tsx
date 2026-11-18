@@ -199,19 +199,17 @@ export default function StudentResultDetailsPage() {
     return (
         <ResultImagePreview className="max-w-7xl mx-auto space-y-6 pb-24 animate-in fade-in duration-700">
             {timeZoneError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{timeZoneError}</div>}
-            <header className="relative overflow-hidden rounded-3xl border border-sky-100 bg-gradient-to-br from-sky-50 via-white to-violet-50 px-4 py-4 sm:px-6 sm:py-5 shadow-sm dark:border-slate-800 dark:from-sky-500/10 dark:via-slate-900 dark:to-violet-500/10">
-                <div className="flex items-start gap-4">
-                    <StudentExamCover cover={attempt.exams?.cover_url} title={attempt.exams?.title || 'Ujian'} subject={attempt.exams?.subject} size={60} />
+            <header className="relative overflow-hidden rounded-3xl border border-sky-100 bg-gradient-to-br from-sky-50 via-white to-violet-50 px-4 py-3 sm:px-5 sm:py-3.5 shadow-sm dark:border-slate-800 dark:from-sky-500/10 dark:via-slate-900 dark:to-violet-500/10">
+                <div className="flex items-center gap-3.5">
+                    <StudentExamCover cover={attempt.exams?.cover_url} title={attempt.exams?.title || 'Ujian'} subject={attempt.exams?.subject} size={44} />
                     <div className="min-w-0 flex-1">
-                        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{attempt.exams?.title || 'Detail hasil ujian'}</h1>
-                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                        <h1 className="text-lg sm:text-xl font-bold leading-tight tracking-tight text-slate-900 dark:text-white">{attempt.exams?.title || 'Detail hasil ujian'}</h1>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                             <SubjectPill subject={attempt.exams?.subject} />
                             {cheer && <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
                                 <Sparkles size={12} aria-hidden="true" />{cheer}</span>}
-                        </div>
-                        <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                            <span className="inline-flex items-center gap-1.5"><Clock size={14} aria-hidden="true" /> Mulai {attempt.started_at ? formatUTCDateTime(attempt.started_at) : '—'}</span>
-                            <span>Selesai {attempt.finished_at ? formatUTCDateTime(attempt.finished_at) : '—'}</span>
+                            <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 sm:ml-1"><Clock size={13} aria-hidden="true" /> Mulai {attempt.started_at ? formatUTCDateTime(attempt.started_at) : '—'}</span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">Selesai {attempt.finished_at ? formatUTCDateTime(attempt.finished_at) : '—'}</span>
                         </div>
                     </div>
                 </div>
