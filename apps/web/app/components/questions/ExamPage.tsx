@@ -37,7 +37,8 @@ validateExamRecoverySession,
 writeExamRecoverySession,
 writeExamSnapshot,
 } from '@/lib/exam-durable-storage';
-import { cacheExamOfflineImages,cacheExamOfflineShell,isExamPwaEnabled,removeExamOfflineShell } from '@/lib/exam-pwa';
+import { cacheExamOfflineImages,cacheExamOfflineImagesWithRetry,cacheExamOfflineShell,isExamPwaEnabled,removeExamOfflineShell } from '@/lib/exam-pwa';
+import { installExamImageRetry } from '@/lib/exam-image-retry';
 import { examAutoRetryDelay } from '@/lib/exam-retry';
 import { mergeExamQuestionUpdates } from '@/lib/exam-question-updates';
 import { sampleExamNetwork, examNetworkLabel } from '@/lib/exam-network';
@@ -55,7 +56,7 @@ import type { AuthUser } from '@acca-cbt/shared';
 import { ExamViewer } from './ExamViewer';
 import { ExamStartPreparation } from './ExamStartPreparation';
 import { useExamScreenshots } from '@/hooks/useExamScreenshots';
-import { SCREEN_SHARE_GRACE_MS,SCREEN_SHARE_LOST_EVENT,SCREEN_SHARE_RACE_MS,SCREENSHOT_REPEAT_MS,screenshotBase64 } from '@/lib/exam-screenshots';
+import { SCREEN_SHARE_GRACE_MS,SCREEN_SHARE_LOST_EVENT,SCREEN_SHARE_RACE_MS,awayCaptureDelay,screenshotBase64 } from '@/lib/exam-screenshots';
 import { retryExamEvidence } from '@/lib/exam-evidence-outbox';
 
 function resolveMaxViolations(exam: StudentExam | null): number | null {
@@ -108,6 +109,8 @@ export default function ExamPage() {
     const maxViolations = resolveMaxViolations(exam);
     const [isCompleted, setIsCompleted] = useState(false);
     const screenshots = useExamScreenshots(examId, isCompleted);
+    // Gambar soal yang gagal dimuat (server berat / jaringan putus sesaat) dicoba ulang otomatis.
+    useEffect(() => installExamImageRetry(document), []);
     const { sharingRef: screenSharingRef, requesting: screenRequestingRef, capture: captureScreenshot, canCapture: canCaptureScreenshot, upload: uploadScreenshot } = screenshots;
     const wasScreenSharing = useRef(false);
     /** Kapan berbagi layar terakhir terputus (0 = sedang aktif). */
@@ -985,7 +988,8 @@ export default function ExamPage() {
                         );
                     }
                     // Gambar soal disimpan di latar belakang; tidak menahan siswa memulai.
-                    void cacheExamOfflineImages(examId, loadedQuestions, { jitterMs: 8_000 });
+                    // Dicoba ulang bila sebagian gagal (mis. server sedang berat).
+                    void cacheExamOfflineImagesWithRetry(examId, loadedQuestions, () => !cancelled, { jitterMs: 8_000 });
                 } catch {
                     setStorageWarning(
                         'Paket pemulihan offline tidak dapat disimpan. Jangan memuat ulang halaman saat jaringan terputus.',
@@ -1648,17 +1652,25 @@ export default function ExamPage() {
         };
 
         // Selama siswa belum kembali ke halaman ujian (tab lain, aplikasi lain),
-        // layar diambil ulang tiap 3 detik sebagai kejadian still_away. Berhenti
-        // begitu siswa kembali, berbagi layar putus, atau kuota 20 gambar habis.
-        let awayTimer: ReturnType<typeof setInterval> | undefined;
+        // layar diambil ulang sebagai kejadian still_away: tiap 10 detik selama
+        // 30 detik pertama (saat bukti paling penting), lalu tiap 15 detik agar
+        // server tidak terbebani bila banyak siswa lama di luar ujian. Berhenti
+        // begitu siswa kembali, berbagi layar putus, atau kuota 20 MB habis.
+        let awayTimer: ReturnType<typeof setTimeout> | undefined;
+        let awayStartedAt = 0;
         const isAway = () => document.hidden || !document.hasFocus();
-        const stopAwayCapture = () => { if (awayTimer) clearInterval(awayTimer); awayTimer = undefined; };
-        const startAwayCapture = () => {
-            if (awayTimer || exam?.metadata?.screenshot_enabled !== true) return;
-            awayTimer = setInterval(() => {
+        const stopAwayCapture = () => { if (awayTimer) clearTimeout(awayTimer); awayTimer = undefined; };
+        const scheduleAwayCapture = () => {
+            awayTimer = setTimeout(() => {
                 if (!isAway() || !canCaptureScreenshot()) { stopAwayCapture(); return; }
                 void handleSecurityViolation('still_away');
-            }, SCREENSHOT_REPEAT_MS);
+                scheduleAwayCapture();
+            }, awayCaptureDelay(Date.now() - awayStartedAt));
+        };
+        const startAwayCapture = () => {
+            if (awayTimer || exam?.metadata?.screenshot_enabled !== true) return;
+            awayStartedAt = Date.now();
+            scheduleAwayCapture();
         };
 
         const onVisibilityChange = () => {

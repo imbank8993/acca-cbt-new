@@ -129,7 +129,7 @@ test('OFFIMG-04: CACHE_EXAM_IMAGES menyimpan gambar sah saja, memangkas yang lam
 
 test('OFFIMG-05: siklus hidup cache gambar mengikuti ujian (submit, logout, pembaruan worker)', () => {
     const examPage = web('app/components/questions/ExamPage.tsx');
-    assert.match(examPage, /void cacheExamOfflineImages\(examId, loadedQuestions, \{ jitterMs: 8_000 \}\)/);
+    assert.match(examPage, /void cacheExamOfflineImagesWithRetry\(examId, loadedQuestions, \(\) => !cancelled, \{ jitterMs: 8_000 \}\)/);
     assert.match(examPage, /void cacheExamOfflineImages\(examId, next\)/, 'soal yang diperbarui ikut disimpan');
     assert.match(sw, /await caches\.delete\(imageCacheName\(url\.pathname\)\)/, 'UNCACHE (submit) menghapus gambar ujian');
     assert.match(sw, /CLEAR_EXAM_CACHES[\s\S]*name\.startsWith\(OWNED_CACHE_PREFIX\)/, 'logout menghapus semua cache ujian');

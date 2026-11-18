@@ -84,6 +84,30 @@ export async function cacheExamOfflineImages(
     return postToWorker({ type: 'CACHE_EXAM_IMAGES', path: examPath(examId), images }, 180_000);
 }
 
+/** Jeda percobaan ulang penyimpanan gambar ujian (gambar yang sudah tersimpan dilewati). */
+export const EXAM_IMAGE_CACHE_RETRY_MS = [30_000, 60_000, 120_000, 240_000, 300_000, 300_000];
+
+/**
+ * Seperti cacheExamOfflineImages, tetapi dicoba ulang bila sebagian gambar gagal
+ * diunduh (mis. server sedang berat saat ujian dibuka). Dulu hanya sekali coba,
+ * sehingga gambar yang gagal tidak pernah tersimpan dan tetap rusak di perangkat.
+ */
+export async function cacheExamOfflineImagesWithRetry(
+    examId: string,
+    questions: unknown,
+    isActive: () => boolean,
+    options: { jitterMs?: number } = {},
+): Promise<boolean> {
+    if (await cacheExamOfflineImages(examId, questions, options)) return true;
+    for (const delay of EXAM_IMAGE_CACHE_RETRY_MS) {
+        await new Promise(resolve => window.setTimeout(resolve, delay + Math.random() * 10_000));
+        if (!isActive()) return false;
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) continue;
+        if (await cacheExamOfflineImages(examId, questions)) return true;
+    }
+    return false;
+}
+
 export async function removeExamOfflineShell(examId: string): Promise<void> {
     await postToWorker({ type: 'UNCACHE_EXAM_SHELL', path: examPath(examId) });
 }

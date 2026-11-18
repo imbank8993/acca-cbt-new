@@ -3,8 +3,17 @@ export const SCREENSHOT_MAX_BYTES = 200 * 1024;
 export const SCREENSHOT_TOTAL_BYTES = 20 * 1024 * 1024;
 /** Jeda minimum antar gambar (server: 2,5 detik). */
 export const SCREENSHOT_COOLDOWN_MS = 2_500;
-/** Selama siswa belum kembali ke halaman ujian, gambar diambil ulang tiap 3 detik. */
-export const SCREENSHOT_REPEAT_MS = 3_000;
+/** Selama siswa belum kembali ke halaman ujian: tiap 10 detik di awal... */
+export const SCREENSHOT_REPEAT_MS = 10_000;
+/** ...selama 30 detik pertama di luar ujian... */
+export const SCREENSHOT_FAST_WINDOW_MS = 30_000;
+/** ...lalu tiap 15 detik, agar server tidak terbebani bila banyak siswa lama di luar ujian. */
+export const SCREENSHOT_REPEAT_SLOW_MS = 15_000;
+
+/** Jeda ke gambar berikutnya menurut lamanya siswa sudah berada di luar halaman ujian. */
+export function awayCaptureDelay(awayForMs: number): number {
+    return awayForMs < SCREENSHOT_FAST_WINDOW_MS ? SCREENSHOT_REPEAT_MS : SCREENSHOT_REPEAT_SLOW_MS;
+}
 /** Toleransi sebelum terputusnya berbagi layar dihitung sebagai pelanggaran. */
 export const SCREEN_SHARE_GRACE_MS = 30_000;
 /** Mengunci layar memutus berbagi layar dan fokus hampir bersamaan; jangan hitung dobel. */
