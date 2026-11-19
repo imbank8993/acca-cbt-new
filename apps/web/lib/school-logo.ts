@@ -67,6 +67,18 @@ async function fetchLogo(source: string): Promise<KopLogo | null> {
     }
 }
 
+/** Muat gambar dari folder `public` aplikasi (mis. logo ACCA) sebagai PNG data URL. */
+export function loadPublicImage(path: string): Promise<KopLogo | null> {
+    if (typeof window === 'undefined') return Promise.resolve(null);
+    let pending = cache.get(`public:${path}`);
+    if (!pending) {
+        pending = fetchLogo(path);
+        cache.set(`public:${path}`, pending);
+        void pending.then(logo => { if (!logo) cache.delete(`public:${path}`); });
+    }
+    return pending;
+}
+
 /**
  * Muat logo kop dari `profil_sekolah.logo_url`. Mengembalikan `null` bila
  * sekolah belum mengatur logo atau logo tidak dapat dibaca; kop tetap dicetak

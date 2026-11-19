@@ -174,3 +174,51 @@ test('non-academic questions are excluded and small classes get a stability warn
     assert.equal(report.itemCount, 5);
     assert.ok(report.warnings.some(w => w.includes('belum stabil')));
 });
+
+const P = require('../../web/lib/analysis-plain.ts');
+
+test('plain readings: three difficulty bands, discrimination labels and per-type families', () => {
+    assert.equal(P.difficultyLabel(0.3), 'Sulit');
+    assert.equal(P.difficultyLabel(0.31), 'Sedang');
+    assert.equal(P.difficultyLabel(0.71), 'Mudah');
+    assert.equal(P.discriminationLabel(-0.1), 'Terbalik');
+    assert.equal(P.discriminationLabel(0.19), 'Kurang');
+    assert.equal(P.discriminationLabel(0.25), 'Cukup');
+    assert.equal(P.discriminationLabel(0.3), 'Baik');
+    assert.equal(P.typeInfo('essay').family, 'uraian');
+    assert.equal(P.typeInfo('matching').family, 'berbagian');
+    assert.equal(P.typeInfo('mcq').label, 'Pilihan ganda');
+});
+
+test('plain readings: key problems → Periksa ulang, dead distractors → Perlu diperbaiki, good item → Layak dipakai', () => {
+    const answers = [];
+    RESPONSES.forEach((row, s) => {
+        const option = row[3] ? 'q4a' : s === 2 ? 'q4c' : s >= 7 ? null : 'q4a';
+        if (option) answers.push({ attempt_id: `a${s}`, question_id: 'q4', selected_option_id: option });
+    });
+    const report = R.buildAssessmentReport(fixture({ answers }));
+    const read = id => P.readItem(report.items.find(i => i.id === id), report.analyzed);
+    const q4 = read('q4');
+    assert.equal(q4.conclusion, 'Periksa ulang');
+    assert.ok(q4.notes.some(note => note.includes('Pilihan C lebih banyak dipilih siswa berkemampuan tinggi')));
+    assert.ok(q4.notes.some(note => note.includes('Pilihan B hampir tidak dipilih')));
+    // q2: p = 0,6 dan D = 1 tanpa data pilihan (fixture hanya mencatat pilihan q4).
+    const q2 = P.readItem({ ...report.items.find(i => i.id === 'q2'), distractors: [] }, report.analyzed);
+    assert.equal(q2.conclusion, 'Layak dipakai');
+    assert.equal(q2.notes.length, 0);
+    assert.equal(q2.difficulty, 'Sedang');
+    assert.equal(q2.discrimination, 'Baik');
+});
+
+test('plain readings: partial-credit share for multi-part items and per-type student rows', () => {
+    const report = R.buildAssessmentReport(fixture({ cells: (s, i, value) => i === 4 ? { status: s < 5 ? 'wrong' : 'correct', score: s < 5 ? 0.5 : 1 } : undefined }));
+    const item = { ...report.items.find(i => i.id === 'q5'), type: 'matching' };
+    close(item.partialShare, 0.5, 1e-9);
+    assert.ok(P.readItem(item, report.analyzed).notes.some(note => note.startsWith('50% siswa hanya benar sebagian')));
+    const student = report.students[0];
+    const rows = P.studentTypeRows(student.items.map(i => i.id === 'q5' ? { ...i, type: 'essay' } : i));
+    assert.deepEqual(rows.map(row => row.label), ['Pilihan ganda', 'Uraian']);
+    assert.equal(rows[0].count + rows[1].count, 5);
+    assert.ok(P.studentNarrative(student, 60).includes('dari 100'));
+    assert.ok(P.studentAdvice(student).length > 0);
+});

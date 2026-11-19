@@ -68,3 +68,55 @@ penyusunan PDF di `apps/web/lib/export-analysis-pdf.ts`.
 - Nunnally, J. C., & Bernstein, I. H. (1994). *Psychometric Theory* (3rd ed.). McGraw-Hill.
 - Sato, T. (1975). *The Construction and Interpretation of S-P Tables*. Tokyo: Meiji Tosho.
 - Zenisky, A. L., & Hambleton, R. K. (2012). Developing test score reports that work. *Educational Measurement: Issues and Practice, 31*(2), 21–26.
+
+## Penyederhanaan 19 November 2026
+
+Laporan lama dinilai terlalu ramai, baik bagian kelas maupun bagian siswa. Sekarang ekspor dipecah
+menjadi **dua PDF** dengan kop logo ACCA di kiri atas (`public/logo-sidebar.png`), bukan kop sekolah:
+
+| PDF | Pembaca | Isi |
+|---|---|---|
+| Analisis Soal (`Analisis_Soal_*.pdf`) | Guru, wali kelas, sekolah | Ringkasan hasil (4 angka + paragraf), sebaran capaian, hasil per bentuk soal, penguasaan materi, analisis tiap soal (capaian, kesulitan, daya pembeda, kesimpulan), catatan dan saran perbaikan, daftar nilai, cara membaca laporan |
+| Laporan Siswa (`Laporan_Siswa_*.pdf`) | Siswa dan orang tua | Satu halaman per siswa: identitas, nilai/kategori/rata-rata kelas, ringkasan naratif, hasil per bentuk soal, penguasaan materi + nomor soal yang belum tepat, saran untuk siswa dan untuk orang tua/wali |
+
+Data teknis (r_it, alpha jika butir dihapus, parameter IRT, sebaran pilihan atas/bawah) tidak lagi
+dicetak di PDF dan tetap tersedia di ekspor Excel. Bahasa awam dan aturannya ada di
+`apps/web/lib/analysis-plain.ts`.
+
+### Satu rumus untuk semua bentuk soal
+
+- **Capaian kelas** = rata-rata skor ÷ skor maksimum soal. Untuk soal dikotomus angka ini sama dengan
+  p (proporsi benar); untuk soal berskor sebagian (uraian, menjodohkan, dsb.) ini adalah indeks kesukaran
+  soal uraian pada Panduan Analisis Butir Soal (Depdiknas 2008).
+- **Kesulitan** memakai tiga kategori panduan tersebut: ≤ 0,30 sulit; 0,31–0,70 sedang; > 0,70 mudah.
+- **Daya pembeda** = (rata-rata kelompok atas − rata-rata kelompok bawah) ÷ skor maksimum, kelompok 27%.
+  Baik ≥ 0,30; cukup 0,20–0,29; kurang < 0,20; terbalik < 0 (Ebel & Frisbie 1991).
+
+### Pemeriksaan tambahan menurut bentuk soal
+
+| Kelompok | Bentuk | Pemeriksaan khusus |
+|---|---|---|
+| Pilihan | PG, PG kompleks | Pengecoh dipilih < 5% (tidak berfungsi); pengecoh lebih menarik kelompok atas; capaian PG ≤ peluang tebakan 1/k + 5 poin persen (≥ 10 peserta) → "Periksa ulang" |
+| Berbagian | Benar-salah, pengelompokan, menjodohkan, mengurutkan | ≥ 40% siswa hanya benar sebagian → pemahaman belum utuh |
+| Isian | Isian singkat | Saran perbaikan: perjelas pertanyaan, lengkapi variasi jawaban benar |
+| Uraian | Uraian | ≥ 50% siswa mendapat skor nol → periksa kejelasan tuntutan; jawaban belum dinilai disebutkan |
+
+Kesimpulan: **Periksa ulang** (daya beda/korelasi negatif, pengecoh menarik kelompok atas, setara
+tebakan), **Perlu diperbaiki** (daya beda < 0,20, capaian ≤ 20%, > 20% kosong, atau tersisa ≤ 1 pengecoh
+yang berfungsi), selain itu **Layak dipakai**. Soal yang sangat mudah (> 90%) tidak otomatis
+diperbaiki karena wajar dipakai untuk materi dasar; satu pengecoh lemah hanya dicatat (Haladyna & Downing 1993).
+
+### Laporan siswa untuk orang tua
+
+Mengikuti Panduan Pembelajaran dan Asesmen (Kemendikbudristek 2024): laporan ringkas, mengutamakan
+informasi yang paling penting bagi siswa dan orang tua, menyebut capaian tertinggi dan yang perlu
+ditingkatkan, dengan kalimat positif dan memotivasi. Susunan mengikuti Goodman & Hambleton (2004) /
+Zenisky & Hambleton (2012): ringkasan naratif di awal, tata letak sederhana, saran untuk orang tua di
+bagian akhir. Rincian mengikuti EYD V ("a, b, dan c").
+
+Rujukan tambahan:
+- Depdiknas. (2008). *Panduan Analisis Butir Soal*. Jakarta: Direktorat Pembinaan SMA.
+- Goodman, D. P., & Hambleton, R. K. (2004). Student test score reports and interpretive guides. *Applied Measurement in Education, 17*(2), 145–220.
+- Hambleton, R. K., & Zenisky, A. L. (2013). Reporting test scores in more meaningful ways. Dalam *APA Handbook of Testing and Assessment in Psychology*, Vol. 3.
+- Lord, F. M. (1952). The relation of the reliability of multiple-choice tests to the distribution of item difficulties. *Psychometrika, 17*, 181–194.
+- Pusmenjar. (2020). *Desain Pengembangan Soal Asesmen Kompetensi Minimum*. Jakarta: Kemendikbud.

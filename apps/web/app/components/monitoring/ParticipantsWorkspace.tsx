@@ -234,7 +234,7 @@ export function ParticipantsWorkspace({
         if (next === 'analisis' && analysis?.examId !== analysisKey) void loadAnalysis(analysisKey);
     };
 
-    const exportResults = async (format: 'excel' | 'pdf') => {
+    const exportResults = async (format: 'excel' | 'pdf-soal' | 'pdf-siswa') => {
         if (!focusId) return;
         setExportOpen(false);
         setBusy(true);
@@ -246,13 +246,13 @@ export function ParticipantsWorkspace({
             if (freshAttempts.some(a => a.status !== 'belum') && (freshAnalysis.questions.length || freshAttempts.some(a => (a.total_questions || 0) > 0)) && !freshAnalysis.detailed) {
                 throw new Error('Analisis rinci belum tersedia. Coba kembali setelah layanan penilaian tersedia.');
             }
-            if (format === 'pdf') {
+            if (format !== 'excel') {
                 if (!freshAnalysis.detailed?.matrix?.length) throw new Error('Belum ada jawaban peserta yang dapat dianalisis.');
                 const { exportAnalysisToPdf } = await import('@/lib/export-analysis-pdf');
                 await exportAnalysisToPdf({
                     exam: focusExam, attempts: freshAttempts, detailedAnalysis: freshAnalysis.detailed, timeZone,
-                    questions: freshAnalysis.questions, answers: freshAnalysis.answers, irt: freshAnalysis.irt ?? null, profile: freshAnalysis.profilSekolah ?? null,
-                });
+                    questions: freshAnalysis.questions, answers: freshAnalysis.answers, irt: freshAnalysis.irt ?? null,
+                }, format === 'pdf-soal' ? 'soal' : 'siswa');
             } else await exportDetailedAnalysisToExcel({
                 exam: focusExam, attempts: freshAttempts, analysis: [], detailedAnalysis: freshAnalysis.detailed, timeZone,
                 questions: freshAnalysis.questions, answers: freshAnalysis.answers, irt: freshAnalysis.irt ?? null,
@@ -460,7 +460,8 @@ export function ParticipantsWorkspace({
                         </Button>
                         {exportOpen && <div role="menu" aria-label="Export hasil" className="absolute right-0 z-20 mt-1.5 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
                             {([['excel', 'Excel (data lengkap)', 'Rekap nilai, jawaban siswa, analisis butir, pengecoh, parameter IRT'],
-                                ['pdf', 'PDF Laporan Analisis', 'Analisis kelas (reliabilitas, butir, materi) dan laporan tiap peserta dalam satu berkas']] as const)
+                                ['pdf-soal', 'PDF Analisis Soal', 'Ringkasan kelas, hasil per bentuk soal, materi, dan kualitas tiap soal'],
+                                ['pdf-siswa', 'PDF Laporan Siswa', 'Satu halaman per siswa untuk siswa dan orang tua']] as const)
                                 .map(([format, label, hint]) => <button key={format} type="button" role="menuitem" onClick={() => void exportResults(format)}
                                     className="flex w-full flex-col items-start rounded-lg px-3 py-2 text-left hover:bg-slate-50">
                                     <span className="text-sm font-medium text-slate-800">{label}</span>

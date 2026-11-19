@@ -159,6 +159,8 @@ export interface DistractorStat { optionId: string; letter: string; text: string
 export interface ItemStat {
     id: string; number: number; type: string; topic: string; text: string; maxScore: number; keyDisplay: string;
     graded: number; omitted: number; ungraded: number;
+    /** Bagian jawaban yang sudah dinilai: skor penuh, sebagian (0 < x < 1), dan nol (termasuk kosong). */
+    fullShare: number | null; partialShare: number | null; zeroShare: number | null;
     p: number | null; difficulty: ItemDifficultyCategory | null;
     ritc: number | null; d: number | null; discrimination: string; alphaIfDeleted: number | null;
     irt: ReportIrtItem | null;
@@ -168,7 +170,7 @@ export interface ItemStat {
 }
 export interface TopicStat { name: string; questionCount: number; percent: number | null; band: ReturnType<typeof masteryBand> }
 export interface StudentTopic { name: string; percent: number | null; earned: number; max: number; band: ReturnType<typeof masteryBand> }
-export interface StudentItem { id: string; number: number; status: ReportCell['status']; credit: number | null; answer: string; key: string; topic: string; p: number | null }
+export interface StudentItem { id: string; number: number; type: string; maxScore: number; status: ReportCell['status']; credit: number | null; answer: string; key: string; topic: string; p: number | null }
 export interface StudentReport {
     attemptId: string; name: string; nis: string; className: string;
     score: number | null; band: ReturnType<typeof masteryBand>; percentile: number | null;
@@ -325,6 +327,9 @@ export function buildAssessmentReport(input: AssessmentReportInput): AssessmentR
             text: plain(question.question_text), maxScore: question.maxScore,
             keyDisplay: input.keyDisplay?.[question.id] || '-',
             graded: graded.length, omitted, ungraded,
+            fullShare: graded.length ? round(graded.filter(value => value >= 1).length / graded.length) : null,
+            partialShare: graded.length ? round(graded.filter(value => value > 0 && value < 1).length / graded.length) : null,
+            zeroShare: graded.length ? round(graded.filter(value => value <= 0).length / graded.length) : null,
             p: p != null ? round(p) : null, difficulty: classicalDifficulty(p),
             ritc: ritc != null ? round(ritc) : null, d: d != null ? round(d) : null, discrimination: discriminationCategory(d),
             alphaIfDeleted: alphaIfDeleted != null ? round(alphaIfDeleted) : null,
@@ -384,7 +389,7 @@ export function buildAssessmentReport(input: AssessmentReportInput): AssessmentR
         const band = masteryBand(score);
         const studentItems: StudentItem[] = questions.map((question, column) => {
             const cell = row.items[question.id];
-            return { id: question.id, number: question.number, status: cell?.status ?? 'unanswered', credit: credit[index][column],
+            return { id: question.id, number: question.number, type: question.type, maxScore: question.maxScore, status: cell?.status ?? 'unanswered', credit: credit[index][column],
                 answer: plain(cell?.display_answer || '-').slice(0, 60) || '-', key: plain(input.keyDisplay?.[question.id] || '-').slice(0, 60),
                 topic: question.topicName, p: pById.get(question.id) ?? null };
         });
