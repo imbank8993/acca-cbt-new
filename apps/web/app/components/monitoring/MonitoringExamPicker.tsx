@@ -43,7 +43,7 @@ function memberLabel(exam: OrganizationExam, members: OrganizationExam[]): strin
  * yang dikelompokkan menurut status. Tampilan Per ruang hanya memakai tingkat pertama karena
  * ruang dipilih di papan ruang.
  */
-export default function MonitoringExamPicker({ exams, now, value, onChange, hideContext = false, folderLevel = false }: {
+export default function MonitoringExamPicker({ exams, now, value, onChange, hideContext = false, folderLevel = false, slotRef }: {
     /** Tidak dipakai lagi; dipertahankan agar pemanggil lama tetap valid. */
     detailsOnRight?: boolean;
     /** Tampilan Per ruang folder ASAS/AM: cukup pilih folder, bukan satu bank soal. */
@@ -55,6 +55,8 @@ export default function MonitoringExamPicker({ exams, now, value, onChange, hide
     now: number;
     value: string;
     onChange: (value: unknown) => void;
+    /** Tempat pemilih tambahan sebaris (mis. Ruang · Sesi pada tampilan Per ruang). */
+    slotRef?: (element: HTMLDivElement | null) => void;
 }) {
     const { timeZone, error } = useSchoolTimeZone();
     const [openDetailsFor, setOpenDetailsFor] = useState<string | null>(null);
@@ -151,8 +153,9 @@ export default function MonitoringExamPicker({ exams, now, value, onChange, hide
                     {group.items.map(exam => <option key={exam.id} value={exam.id}>{memberLabel(exam, members)}</option>)}
                 </optgroup>)}
             </InlineSelect>}
+            {slotRef && <div ref={slotRef} className="monitoring-exam-picker__slot" />}
         </div>
-        {selected && !hideContext && <div ref={detailsRef} className="monitoring-exam-picker__status" aria-live="polite">
+        {selected && !hideContext && showMembers && <div ref={detailsRef} className="monitoring-exam-picker__status" aria-live="polite">
             {showMembers ? <>
                 <span className={`monitoring-exam-picker__phase monitoring-exam-picker__phase--${phase}`}>{PHASE_LABELS[phase]}</span>
                 {schedule(selected) && <span className="monitoring-exam-picker__schedule">{schedule(selected)}</span>}
@@ -162,7 +165,7 @@ export default function MonitoringExamPicker({ exams, now, value, onChange, hide
                     onClick={() => setOpenDetailsFor(detailsOpen ? null : value)}>
                     <Info size={14} aria-hidden="true" /> Detail
                 </button>
-            </> : <span className="monitoring-exam-picker__schedule">Semua mapel dan ruang pada asesmen ini</span>}
+            </> : null}
             {detailsOpen && <div id="monitoring-exam-detail-popover" role="dialog" aria-labelledby="monitoring-exam-detail-title"
                 className="monitoring-exam-picker__detail-popover">
                 <div className="monitoring-exam-picker__detail-head">

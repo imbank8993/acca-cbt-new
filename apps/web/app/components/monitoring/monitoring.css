@@ -297,7 +297,7 @@
 
 .monitoring-participant-name { text-align: left; overflow-wrap: anywhere; }
 .monitoring-participant-name:focus-visible { outline: 2px solid #3083ff; outline-offset: 3px; border-radius: 3px; }
-.monitoring-actions-trigger { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 6px 10px; border: 1px solid var(--monitoring-line, #e2e8f0); border-radius: 8px; background: var(--monitoring-surface, #fff); color: var(--monitoring-muted, #64748b); font-size: 14px; font-weight: 500; white-space: nowrap; cursor: pointer; }
+.monitoring-actions-trigger { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 10px; border: 1px solid var(--monitoring-line, #e2e8f0); border-radius: 8px; background: var(--monitoring-surface, #fff); color: var(--monitoring-muted, #64748b); font-size: 13px; font-weight: 500; white-space: nowrap; cursor: pointer; }
 .monitoring-actions-trigger > svg:first-child { display: none; }
 .monitoring-actions-trigger > svg:last-child { transition: transform .2s ease; }
 .monitoring-actions-trigger:hover { color: var(--monitoring-text, #334155); }
@@ -329,7 +329,7 @@
   .monitoring-actions-trigger > svg:first-child { display: inline-flex; }
   .monitoring-actions-trigger > svg:last-child { display: none; }
   .monitoring-actions-badge { position: absolute; top: -5px; right: -6px; min-width: 16px; height: 16px; font-size: 10px; }
-  .monitoring-status-filters { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; padding: 5px 0; gap: 8px; scrollbar-width: none; }
+  .monitoring-status-filters { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; padding: 0; gap: 2px; scrollbar-width: none; }
   .monitoring-status-filters > button { position: relative; flex: 0 0 auto; height: 34px; min-height: 34px; padding: 0 10px; white-space: nowrap; }
   .monitoring-status-filters > button::after { content: ''; position: absolute; inset: -5px 0; }
   .monitoring-participant-name { font-size: 13px; line-height: 1.5; font-weight: 600; }
@@ -374,6 +374,41 @@
   .dark .monitoring-page .monitoring-workspace__picker .ss__trigger { background: var(--monitoring-control) !important; border-color: var(--monitoring-line) !important; }
   .dark .monitoring-page .monitoring-workspace__picker .ss__mainInput { background: transparent !important; color: var(--monitoring-text) !important; }
   .dark .monitoring-page .monitoring-workspace__picker .ss__mainInput::placeholder { color: var(--monitoring-text) !important; }
-  .dark .monitoring-page .monitoring-view-toggle button[aria-pressed="true"],
-  .dark .monitoring-page .monitoring-status-filters button[aria-pressed="false"]:not([class*="border-amber"]) { background: var(--monitoring-surface) !important; color: var(--monitoring-text) !important; border-color: var(--monitoring-line) !important; }
+  .dark .monitoring-page .monitoring-view-toggle button[aria-pressed="true"] { background: var(--monitoring-surface) !important; color: var(--monitoring-text) !important; border-color: var(--monitoring-line) !important; }
+  .dark .monitoring-page .monitoring-status-filters { border-color: var(--monitoring-line) !important; }
+  .dark .monitoring-page .monitoring-status-filters button[aria-pressed="false"]:not([class*="text-amber"]) { background: transparent !important; color: var(--monitoring-muted) !important; }
+  .dark .monitoring-page .monitoring-status-filters button[aria-pressed="true"] { background: rgba(59, 130, 246, .14) !important; color: #93c5fd !important; border-color: #60a5fa !important; }
+}
+
+/* Kartu ruang (Per ruang): status sesi, pengawas, mapel ringkas, dan kehadiran. */
+.monitoring-room-card { padding: 14px 16px; border: 1px solid var(--monitoring-line, #e2e8f0); border-radius: 12px; background: var(--monitoring-surface, #fff); }
+.monitoring-room-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.monitoring-room-card__title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.monitoring-room-card__title h2 { margin: 0; color: var(--monitoring-text, #0f172a); font-size: 17px; font-weight: 700; }
+.monitoring-room-card__phase { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.monitoring-room-card__phase::before { content: ''; width: 7px; height: 7px; border-radius: 999px; background: currentColor; }
+.monitoring-room-card__phase--running { background: #dcfce7; color: #15803d; }
+.monitoring-room-card__phase--upcoming { background: #fef3c7; color: #b45309; }
+.monitoring-room-card__phase--done { background: #f1f5f9; color: #64748b; }
+.monitoring-room-card__meta { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 6px 0 0; color: var(--monitoring-muted, #64748b); font-size: 12px; }
+.monitoring-room-card__meta > span { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+.monitoring-room-card__refresh { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex-shrink: 0; border: 1px solid var(--monitoring-line, #e2e8f0); border-radius: 8px; background: transparent; color: var(--monitoring-muted, #64748b); cursor: pointer; }
+.monitoring-room-card__refresh:hover { background: #f8fafc; color: var(--monitoring-text, #334155); }
+.monitoring-room-card__refresh:disabled { opacity: .5; cursor: default; }
+.monitoring-room-card__progress { height: 4px; margin-top: 12px; overflow: hidden; border-radius: 999px; background: #e2e8f0; }
+.monitoring-room-card__progress > span { display: block; height: 100%; border-radius: 999px; background: #16a34a; transition: width .4s ease; }
+.monitoring-room-card__foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-top: 12px; }
+.monitoring-room-card__subjects { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; margin: 0; padding: 0; list-style: none; }
+.monitoring-room-card__subjects > li { padding: 3px 10px; border-radius: 999px; background: #f1f5f9; color: #475569; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.monitoring-room-card__counts { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--monitoring-muted, #64748b); }
+.monitoring-room-card__counts b { color: var(--monitoring-text, #0f172a); font-size: 15px; font-weight: 700; }
+.monitoring-room-card__attention { padding: 3px 10px; border-radius: 999px; background: #fee2e2; color: #b91c1c; font-weight: 600; }
+.dark .monitoring-room-card__phase--running { background: rgba(22, 163, 74, .18); color: #4ade80; }
+.dark .monitoring-room-card__phase--upcoming { background: rgba(217, 119, 6, .18); color: #fbbf24; }
+.dark .monitoring-room-card__phase--done, .dark .monitoring-room-card__subjects > li { background: rgba(148, 163, 184, .16); color: #cbd5e1; }
+.dark .monitoring-room-card__progress { background: rgba(148, 163, 184, .2); }
+.dark .monitoring-room-card__attention { background: rgba(220, 38, 38, .2); color: #fca5a5; }
+@media (max-width: 639px) {
+  .monitoring-room-card { padding: 12px; }
+  .monitoring-room-card__subjects > li { white-space: normal; }
 }

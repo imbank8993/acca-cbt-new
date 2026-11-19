@@ -6,6 +6,7 @@ import { activeMonitoringRows } from '@/lib/active-monitoring';
 import { hasMonitoringAdministration } from '@/lib/monitoring-tabs';
 import MonitoringExamPicker from './MonitoringExamPicker';
 import { CancelExamButton } from './CancelExamModal';
+import { MonitoringPickerSlotContext } from './MonitoringPickerSlot';
 import './monitoring.css';
 
 interface MonitoringWorkspaceHeaderProps {
@@ -36,6 +37,8 @@ export function MonitoringWorkspaceHeader({
     const [clock, setClock] = useState<{ sample?: string; elapsed: number }>({ elapsed: 0 });
     const elapsed = clock.sample === sample ? clock.elapsed : 0;
     const tabsRef = useRef<HTMLElement>(null);
+    /** Select tambahan dari bagian bawah (Ruang · Sesi) dipasang sebaris dengan select Asesmen. */
+    const [pickerSlot, setPickerSlot] = useState<HTMLDivElement | null>(null);
 
     useEffect(() => {
         const started = performance.now();
@@ -77,6 +80,7 @@ export function MonitoringWorkspaceHeader({
                         }}
                         compactContext
                         folderLevel={folderLevel}
+                        slotRef={folderLevel ? setPickerSlot : undefined}
                     />
                 </div>
                 {headerAction && <div className="monitoring-workspace__action">{headerAction}</div>}
@@ -85,7 +89,7 @@ export function MonitoringWorkspaceHeader({
                     <CancelExamButton exam={exams.find(exam => exam.id === value)} attempts={selectedAttempts} onDone={onRefresh} />
                 </div>}
             </header>
-            {value && hideDetails && children}
+            {value && hideDetails && <MonitoringPickerSlotContext.Provider value={folderLevel ? pickerSlot : null}>{children}</MonitoringPickerSlotContext.Provider>}
             {value && !hideDetails && <>
                     <dl className="monitoring-summary" aria-label="Ringkasan peserta ujian">
                         {stats.map(stat => <div key={stat.label} className={stat.attention && stat.value > 0 ? 'monitoring-summary__attention' : undefined}>

@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AlertCircle, ArrowLeft, Clock, DoorOpen, Loader2, RefreshCw, ShieldCheck, Users } from 'lucide-react';
+import { MonitoringPickerSlot, useMonitoringPickerSlot } from '@/app/components/monitoring/MonitoringPickerSlot';
 import { MonitoringPASAdministrationPanel } from '@/app/components/monitoring/MonitoringPASAdministrationPanel';
 import { ParticipantsWorkspace, WorkspaceError, type WorkspaceSection } from '@/app/components/monitoring/ParticipantsWorkspace';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
 import { REFRESH_INTERVAL, useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { listPASMonitoringSlots, type PASMonitoringSlot } from '@/lib/api/pas';
 import { getExamAttemptsAction, listOrganizationExams, type ExamAttemptRecord, type OrganizationExam } from '@/lib/api/proctor';
+import { activeMonitoringRows } from '@/lib/active-monitoring';
+import { cleanBankTitle, compactClasses, sessionStatus } from '@/lib/room-labels';
 import { schoolTodayDate, utcToSchoolLocalDateTime } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import './monitoring.css';
@@ -133,27 +136,58 @@ function RoomMonitor({ slot, userRole, attemptBasePath, onBack, trailing }: {
 
     const attempts = useMemo(() => slotAttempts(slot, attemptsByExam), [slot, attemptsByExam]);
     const examOptions = useMemo(() => roomExams.map(exam => ({ exam_id: exam.exam_id, label: `${exam.bank_title} · ${exam.class_name}` })), [roomExams]);
+    const { timeZone } = useSchoolTimeZone();
+    // Jam dinding untuk status sesi; diperbarui tiap 30 detik.
+    const [clock, setClock] = useState(() => Date.now());
+    useEffect(() => {
+        const timer = window.setInterval(() => setClock(Date.now()), 30_000);
+        return () => window.clearInterval(timer);
+    }, []);
+    const local = utcToSchoolLocalDateTime(new Date(clock).toISOString(), timeZone);
+    const status = sessionStatus(slot.date, slot.session.start_time, slot.session.end_time, local.slice(0, 10), local.slice(11, 16));
+    const present = attempts.filter(attempt => attempt.status !== 'belum').length;
+    const seats = Math.max(attempts.length, slot.student_ids.length);
+    const attention = activeMonitoringRows(attempts, 'attention').length;
+    const subjects = roomExams.map(exam => ({ key: exam.exam_id, label: `${cleanBankTitle(exam.bank_title)} · ${compactClasses(exam.class_name)}`, full: `${exam.bank_title} · ${exam.class_name}` }));
+    const shownSubjects = subjects.slice(0, 3), hiddenSubjects = subjects.slice(3);
     const administrationExam = {
         id: roomExams[0]?.exam_id, exam_type: slot.period.type, title: slot.period.name,
         metadata: { pas_period_id: slot.period.id, pas_schedule_id: roomExams[0]?.schedule_id },
     } as unknown as OrganizationExam;
 
+    const phaseText = status.phase === 'running' ? `Berlangsung · sisa ${status.minutesLeft} menit`
+        : status.phase === 'upcoming' ? `Belum dimulai · mulai ${hm(slot.session.start_time)}` : 'Selesai';
     return <section className="space-y-4" aria-label={`Monitoring ${slot.room.name} ${slot.session.name}`}>
-        <div className="space-y-2">
-            {onBack && <button type="button" onClick={onBack} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline"><ArrowLeft size={13} />Semua ruang</button>}
-            <div className="flex flex-wrap items-start justify-between gap-3">
+        {onBack && <button type="button" onClick={onBack} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline"><ArrowLeft size={13} />Semua ruang</button>}
+        <div className="monitoring-room-card">
+            <div className="monitoring-room-card__head">
                 <div className="min-w-0">
-                    <h2 className="text-base font-bold text-slate-900">{slot.room.name} · {slot.session.name}</h2>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                        <Clock size={12} className="mr-1 inline" />{formatSlotDate(slot.date)} · {hm(slot.session.start_time)}–{hm(slot.session.end_time)}
-                        <span className="mx-1.5 text-slate-300" aria-hidden="true">·</span>
-                        <ShieldCheck size={12} className="mr-1 inline" />{slot.invigilators.length ? slot.invigilators.map(person => person.full_name).join(', ') : 'Pengawas belum diatur'}
+                    <div className="monitoring-room-card__title">
+                        <h2>{slot.room.name} · {slot.session.name}</h2>
+                        <span className={`monitoring-room-card__phase monitoring-room-card__phase--${status.phase}`}>{phaseText}</span>
+                    </div>
+                    <p className="monitoring-room-card__meta">
+                        <span><Clock size={13} aria-hidden="true" />{formatSlotDate(slot.date)} · {hm(slot.session.start_time)}–{hm(slot.session.end_time)}</span>
+                        <span><ShieldCheck size={13} aria-hidden="true" />{slot.invigilators.length ? slot.invigilators.map(person => person.full_name).join(', ') : 'Pengawas belum diatur'}</span>
                     </p>
-                    <p className="mt-0.5 truncate text-xs text-slate-500">{examOptions.map(option => option.label).join(' · ')}</p>
                 </div>
-                <button type="button" onClick={() => void load(false)} disabled={loading} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50" aria-label="Perbarui data ruang">
-                    <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />Perbarui
+                <button type="button" onClick={() => void load(false)} disabled={loading} className="monitoring-room-card__refresh" aria-label="Perbarui data ruang" title="Perbarui data ruang">
+                    <RefreshCw size={15} className={loading ? 'animate-spin' : ''} aria-hidden="true" />
                 </button>
+            </div>
+            {status.phase === 'running' && <div className="monitoring-room-card__progress" role="progressbar" aria-label="Waktu sesi berjalan"
+                aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(status.progress * 100)}>
+                <span style={{ width: `${Math.round(status.progress * 100)}%` }} />
+            </div>}
+            <div className="monitoring-room-card__foot">
+                <ul className="monitoring-room-card__subjects" aria-label="Mata pelajaran di ruang ini">
+                    {shownSubjects.map(subject => <li key={subject.key} title={subject.full}>{subject.label}</li>)}
+                    {hiddenSubjects.length > 0 && <li title={hiddenSubjects.map(subject => subject.label).join('\n')}>+{hiddenSubjects.length} lainnya</li>}
+                </ul>
+                <div className="monitoring-room-card__counts">
+                    <span><b>{loading && !attempts.length ? '…' : `${present}/${seats}`}</b> hadir</span>
+                    {attention > 0 && <span className="monitoring-room-card__attention">{attention} perlu perhatian</span>}
+                </div>
             </div>
         </div>
 
@@ -257,8 +291,18 @@ export default function PASSlotMonitoring({ periodId, userRole, attemptBasePath,
             || sessions.find(group => group.start > nowTime) || sessions[0])?.key || 'all';
     }, [sessionFilter, sessions, date, timeZone]);
     const visibleSessions = activeSession === 'all' ? sessions : sessions.filter(group => group.key === activeSession);
+    // Di halaman Monitoring: select "Ruang · Sesi" sebaris dengan select Asesmen menggantikan tautan "Semua ruang".
+    const pickerSlot = useMonitoringPickerSlot();
+    const roomPicker = <InlineSelect aria-label="Ruang dan sesi" title="Pilih ruang" className="monitoring-exam-picker__tier" minWidth="200px" height="42px"
+        value={selected?.key || ''} onChange={value => setSelectedKey(value || null)} disabled={!slots.length}>
+        <option value="">{slots.length ? (invigilatorView ? 'Ruang yang saya awasi' : 'Semua ruang') : 'Belum ada ruang'}</option>
+        {sessions.map(group => <optgroup key={group.key} label={group.label}>
+            {group.slots.map(slot => <option key={slot.key} value={slot.key}>{`${slot.room.name} · ${slot.session.name}${slot.is_mine ? ' · tugas saya' : ''}`}</option>)}
+        </optgroup>)}
+    </InlineSelect>;
 
     return <div className="space-y-4">
+        {pickerSlot && <MonitoringPickerSlot fallback={false}>{roomPicker}</MonitoringPickerSlot>}
         {(!embedded || !selected) && <div className="flex flex-wrap items-center gap-3">
             {!embedded && <div>
                 <h2 className="text-sm font-bold text-slate-900">{invigilatorView ? 'Ruang yang Saya Awasi' : 'Pelaksanaan per Ruang'}</h2>
@@ -281,7 +325,7 @@ export default function PASSlotMonitoring({ periodId, userRole, attemptBasePath,
             <button type="button" className="ml-auto font-semibold underline" onClick={() => void load(date)}>Coba lagi</button></div>}
 
         {selected ? <RoomMonitor key={selected.key} slot={selected} userRole={userRole} trailing={trailing}
-            attemptBasePath={attemptBasePath} onBack={slots.length > 1 || !invigilatorView ? () => setSelectedKey(null) : undefined} />
+            attemptBasePath={attemptBasePath} onBack={!pickerSlot && (slots.length > 1 || !invigilatorView) ? () => setSelectedKey(null) : undefined} />
             : loading ? <div className="flex min-h-40 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-500"><Loader2 size={16} className="animate-spin" />Memuat ruang ujian…</div>
             : !slots.length ? <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
                 <Users size={28} className="mx-auto text-slate-300" />

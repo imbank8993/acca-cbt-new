@@ -137,3 +137,5 @@
     .monitoring-exam-picker__tier, .monitoring-exam-picker__tier--grow { flex: 1 1 100%; }
     .monitoring-exam-picker__status .monitoring-exam-picker__detail-trigger { height: 32px; }
 }
+/* Select tambahan sebaris (Ruang · Sesi pada Per ruang); kosong bila tidak dipakai. */
+.monitoring-exam-picker__slot { display: contents; }

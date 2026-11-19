@@ -395,13 +395,14 @@ export function ParticipantsWorkspace({
             attemptIds={room || klass || query ? scoped.map(row => row.id) : undefined} />
         : loading && !attempts.length ? <Placeholder text="Memuat peserta…" />
         : activeSection === 'peserta' ? <div className="monitoring-participants-list">
-            <div role="group" aria-label="Filter status" className="monitoring-status-filters flex flex-wrap gap-1.5">
+            {/* Gaya tab: garis bawah tebal + latar lembut untuk yang dipilih, tanpa badge. */}
+            <div role="group" aria-label="Filter status" className="monitoring-status-filters flex flex-wrap gap-1 border-b border-slate-200">
                 {STATUS_FILTERS.map(([id, label]) => <button key={id} type="button" aria-pressed={effectiveStatus === id} onClick={() => setStatus(id)}
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${effectiveStatus === id
-                        ? 'border-blue-600 bg-blue-600 text-white'
-                        : id === 'attention' && statusCount.attention > 0 ? 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
-                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>
-                    {label}<span className={`rounded-full px-1.5 text-[10px] tabular-nums ${effectiveStatus === id ? 'bg-white/25' : 'bg-slate-100'}`}>{statusCount[id]}</span>
+                    className={`-mb-px inline-flex items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-[13px] font-medium transition-colors ${effectiveStatus === id
+                        ? 'border-blue-600 bg-blue-50/70 text-blue-700'
+                        : id === 'attention' && statusCount.attention > 0 ? 'border-transparent text-amber-700 hover:bg-amber-50/70'
+                        : 'border-transparent text-slate-500 hover:bg-slate-100/70 hover:text-slate-800'}`}>
+                    {label}<span className={`tabular-nums ${effectiveStatus === id ? 'font-semibold' : 'text-slate-400'}`}>{statusCount[id]}</span>
                 </button>)}
             </div>
             {effectiveStatus === 'working' || effectiveStatus === 'attention'

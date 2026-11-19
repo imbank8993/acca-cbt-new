@@ -67,7 +67,9 @@ test('picker: asesmen lalu mapel dan kelas (InlineSelect) dengan status dan deta
     assert.match(other,/<optgroup label="Akan datang"><option value="daily"[^>]*>Ulangan Harian<\/option>/);
     const room=renderToStaticMarkup(React.createElement(mod.exports.default,{exams,now,value:'math-b',folderLevel:true,onChange:()=>{}}));
     assert.doesNotMatch(room,/Mata pelajaran dan kelas/);
-    assert.match(room,/Semua mapel dan ruang pada asesmen ini/);
+    assert.doesNotMatch(room,/Semua mapel dan ruang|Lihat detail ujian/, 'Per ruang: tanpa baris pengisi; status ada di kartu ruang');
+    const slotted=renderToStaticMarkup(React.createElement(mod.exports.default,{exams,now,value:'math-b',folderLevel:true,slotRef:()=>{},onChange:()=>{}}));
+    assert.match(slotted,/class="monitoring-exam-picker__slot"/);
     // Satu mapel, dua bank soal: nama bank ikut tampil agar pilihan dapat dibedakan.
     const twins=[makeExam({id:'bi-wajib',subject:'Bahasa Indonesia',metadata:{bank_title:'B. Indonesia Wajib',pas_period_id:'p1'},description:'B. Indonesia Wajib • Kelas XI D | 2026/2027 | PAS 1'}),
         makeExam({id:'bi-minat',subject:'Bahasa Indonesia',metadata:{bank_title:'B. Indonesia Peminatan',pas_period_id:'p1'},description:'B. Indonesia Peminatan • Kelas XI D | 2026/2027 | PAS 1'}),
