@@ -35,7 +35,7 @@ export function BulkPendingRecoveryPanel({ attempts, onRefresh }: { attempts: Ex
         if (!chosen.length || !reason.trim()) return;
         const ok = await confirmDialog({
             title: `Pulihkan ${chosen.length} peserta?`,
-            text: `Pengerjaan dibuka kembali selama ${minutes} menit dalam mode kirim salinan saja. Siswa membuka ujian di perangkat yang sama; jawaban lokal terkirim otomatis dan jawaban tidak dapat diubah.`,
+            text: `Pengerjaan dibuka kembali selama ${minutes} menit dalam mode kirim salinan saja. Siswa membuka ujian di perangkat, browser, dan profil yang sama; salinan lokal terkirim otomatis dan jawaban tidak dapat diubah.`,
             confirmText: 'Ya, pulihkan', cancelText: 'Batal',
         });
         if (!ok) return;
@@ -74,7 +74,7 @@ export function BulkPendingRecoveryPanel({ attempts, onRefresh }: { attempts: Ex
             </span>
         </span>
         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${possibleOnly ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-800'}`}>
-            {possibleOnly ? 'Tanpa kontak saat ditutup' : `${uncountedAnswers(attempt)} jawaban tertahan`}
+            {possibleOnly ? 'Tanpa kontak saat ditutup' : `${uncountedAnswers(attempt)} perubahan tertunda`}
         </span>
     </label>;
 
@@ -84,8 +84,9 @@ export function BulkPendingRecoveryPanel({ attempts, onRefresh }: { attempts: Ex
             <div className="min-w-0">
                 <h2 className="text-sm font-bold text-slate-800">Pulihkan jawaban tertunda</h2>
                 <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                    Untuk peserta yang jawabannya masih tersimpan di perangkat tetapi belum masuk server. Pengerjaan dibuka kembali
-                    dalam mode <strong>kirim salinan saja</strong>: siswa membuka ujian di <strong>perangkat yang sama</strong>, jawaban
+                    Untuk peserta yang perubahan jawabannya masih tersimpan di perangkat tetapi belum masuk server. Jumlah jawaban di server
+                    bisa saja penuh jika yang tertahan adalah perubahan pada nomor yang sudah dijawab. Pengerjaan dibuka kembali
+                    dalam mode <strong>kirim salinan saja</strong>: siswa membuka ujian di <strong>perangkat, browser, dan profil yang sama</strong>, jawaban
                     terkirim otomatis, dan jawaban tidak dapat diubah.
                 </p>
             </div>

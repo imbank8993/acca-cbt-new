@@ -54,5 +54,15 @@ test('extend marks the attempt so the student sees "Waktu ditambah", and screens
     assert.doesNotMatch(page, /Pemulihan pengumpulan aktif/);
     assert.doesNotMatch(page, /Pengumpulan belum dapat dikonfirmasi/);
     assert.doesNotMatch(page, /\$\{localCount\} jawaban tersimpan di perangkat ini/, 'tidak menyebut semua jawaban lokal sebagai tertahan');
-    assert.match(page, /Perangkat ini tidak menyimpan jawaban tambahan\. Jawaban yang sudah tersimpan di server tetap aman dan dinilai\./);
+    // Tanpa salinan lokal, pemulihan kirim-saja tidak menawarkan pengumpulan jawaban server saja.
+    assert.match(page, /Salinan Jawaban Tidak Ditemukan/);
+    assert.match(page, /Jawaban yang sudah sampai di server tetap aman/);
+});
+
+test('submit-only without a local copy locks the exam screen instead of leaving questions editable', () => {
+    const page = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/questions/ExamPage.tsx'), 'utf8');
+    // Pemulihan yang dibuka dari daftar jadwal maupun yang diubah proktor saat sesi berjalan.
+    assert.match(page, /setMissingRecoveryCopy\(recoverySubmitOnly && !hasRecoveryCopy\)/);
+    assert.match(page, /if \(Object\.keys\(answersRef\.current\)\.length > 0\) setWaitingForSyncAndSubmit\(true\);\s*else setMissingRecoveryCopy\(true\);/);
+    assert.match(page, /if \(submissionOnly && missingRecoveryCopy\) return;/, 'tidak mengumpulkan jawaban server saja');
 });

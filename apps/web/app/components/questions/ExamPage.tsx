@@ -230,6 +230,7 @@ export default function ExamPage() {
     const pendingSecurityEventsRef = useRef(new Map<string, QueuedSecurityEvent>());
     const frozenSnapshotRef = useRef<ExamAnswerSnapshot | null>(null);
     const [submissionOnly, setSubmissionOnly] = useState(false);
+    const [missingRecoveryCopy, setMissingRecoveryCopy] = useState(false);
     const [submissionIssue, setSubmissionIssue] = useState<string | null>(null);
     const pendingAssignmentRef = useRef<{ documentUrl?: string; videoUrl?: string } | undefined>(undefined);
     const autoRetryCountRef = useRef(0);
@@ -920,13 +921,12 @@ export default function ExamPage() {
                     localSnapshot.doubtfulAnswers.forEach(id => savedD.add(id));
                     localAnswerIds = Object.keys(localSnapshot.answers);
                 }
-                // Pemulihan pengumpulan dibuka untuk mengirim salinan lokal. Dulu
-                // layar "Jawaban Terkunci" menunggu siswa menekan tombol; bila
-                // tidak ditekan sebelum jendela pemulihan habis, ujian ditutup lagi
-                // hanya dengan jawaban server. Kirim otomatis selama tersambung.
-                if (recoverySubmitOnly && localSnapshot && Object.keys(localSnapshot.answers || {}).length > 0) {
-                    setWaitingForSyncAndSubmit(true);
-                }
+                // Pemulihan hanya dapat mengirim perubahan yang benar-benar ada di
+                // browser asal. Tanpa salinan lokal, jangan menawarkan pengumpulan
+                // jawaban server saja: itu dapat menyembunyikan perubahan tertunda.
+                const hasRecoveryCopy = !!localSnapshot && Object.keys(localSnapshot.answers || {}).length > 0;
+                setMissingRecoveryCopy(recoverySubmitOnly && !hasRecoveryCopy);
+                if (recoverySubmitOnly) setWaitingForSyncAndSubmit(hasRecoveryCopy);
 
                 answersRef.current = savedA;
                 doubtfulRef.current = savedD;
@@ -1063,6 +1063,7 @@ export default function ExamPage() {
         // Ref-based guard (not the async `submitting` state) so a second call in the same
         // tick — or an auto-submit retry after a failure — can't slip through.
         if (!ownsEditorLockRef.current || !user || submitInFlightRef.current || terminationReasonRef.current) return;
+        if (submissionOnly && missingRecoveryCopy) return;
         if (!opts?.isAuto && !submissionOnly && !frozenSnapshotRef.current &&
             exam?.metadata?.screenshot_enabled === true && !screenSharingRef.current) return;
 
@@ -1213,7 +1214,7 @@ export default function ExamPage() {
             submitInFlightRef.current = false;
             scheduleAutoRetry();
         }
-    }, [user, examId, exam, router, toast, attempt, scheduleAutoRetry, screenSharingRef, submissionOnly, handleExamCancelled]);
+    }, [user, examId, exam, router, toast, attempt, scheduleAutoRetry, screenSharingRef, submissionOnly, missingRecoveryCopy, handleExamCancelled]);
 
     // Simpan referensi terbaru agar retry terjadwal selalu memanggil versi
     // dengan closure `answers` termutakhir (bukan snapshot saat gagal).
@@ -1902,7 +1903,10 @@ export default function ExamPage() {
                 setSubmissionOnly(true);
                 // Proktor mengubah sesi berjalan menjadi "kirim jawaban saja":
                 // kunci dan kirim salinan perangkat sekarang, jangan menunggu klik.
+                // Tanpa jawaban di perangkat ini, tampilkan layar salinan tidak
+                // ditemukan; jangan biarkan soal tampak masih bisa dijawab.
                 if (Object.keys(answersRef.current).length > 0) setWaitingForSyncAndSubmit(true);
+                else setMissingRecoveryCopy(true);
                 return;
             }
             const securityResult = await flushSecurityEvents().catch(() => null);
@@ -2258,17 +2262,13 @@ export default function ExamPage() {
         </div>;
     }
 
-    if (submissionOnly && !waitingForSyncAndSubmit) {
+    if (submissionOnly && missingRecoveryCopy) {
         return <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
             <div className="max-w-md w-full rounded-xl bg-white p-8 text-center border border-slate-200">
-                <h1 className="text-xl font-bold mb-3">Kirim Jawaban</h1>
-                <p className="text-slate-600 mb-5">Pengawas membuka ujian Anda untuk mengirim jawaban yang tersimpan. Jawaban dan lampiran tidak dapat diubah.</p>
-                {Object.keys(answers).length === 0 && <p className="text-sm text-slate-600 mb-4">Perangkat ini tidak menyimpan jawaban tambahan. Jawaban yang sudah tersimpan di server tetap aman dan dinilai.</p>}
-                {recoverySummary && <p className="text-sm font-semibold text-slate-700 mb-4">Kirim sebelum pukul {formatSchoolClock(recoverySummary.until, schoolTimeZone, schoolZoneLabel)}.</p>}
-                {storageWarning && <p className="text-sm text-amber-700 mb-4">{storageWarning}</p>}
-                <button disabled={submitting} onClick={() => void handleSubmitExam()} className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white disabled:opacity-50">
-                    {submitting ? 'Mengirim jawaban...' : 'Kirim Jawaban'}
-                </button>
+                <h1 className="text-xl font-bold mb-3">Salinan Jawaban Tidak Ditemukan</h1>
+                <p className="text-slate-600 mb-4">Browser ini tidak menyimpan salinan jawaban yang hendak dipulihkan. Jawaban yang sudah sampai di server tetap aman, tetapi perubahan terakhir di browser asal belum dapat dikirim dari sini.</p>
+                <p className="text-sm text-slate-600 mb-5">Buka ujian di perangkat, browser, dan profil yang dipakai saat mengerjakan. Jika salinannya tetap tidak ditemukan, hubungi pengawas untuk memeriksa jawaban di server.</p>
+                <button type="button" onClick={() => window.location.reload()} className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white">Periksa Salinan Lagi</button>
             </div>
         </div>;
     }

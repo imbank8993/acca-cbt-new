@@ -43,7 +43,8 @@ test('the old message no longer tells the student a plain reset moves the exam',
     const { attempts } = fixture();
     const refused = await attempts.start(user, 'exam', 'device-two');
     assert.equal(refused.started, false);
-    assert.match(refused.error, /lanjutkan di sana/);
+    // Mengarahkan ke browser/profil asal, tempat perubahan yang belum terkirim tersimpan.
+    assert.match(refused.error, /Buka dengan browser dan profil asal/);
     assert.match(refused.error, /segera lapor pengawas/);
     assert.doesNotMatch(refused.error, /minta pengawas melakukan "Reset"/);
 });

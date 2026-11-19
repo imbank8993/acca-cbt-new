@@ -94,8 +94,11 @@ test('a makeup restart forgets superseded deadlines', async () => {
 
 test('the locked recovery screen submits a local copy automatically and shows the recovery deadline', () => {
     const page = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/questions/ExamPage.tsx'), 'utf8');
-    assert.match(page, /if \(recoverySubmitOnly && localSnapshot && Object\.keys\(localSnapshot\.answers \|\| \{\}\)\.length > 0\) \{\s*setWaitingForSyncAndSubmit\(true\);/);
-    assert.match(page, /Kirim sebelum pukul/);
+    assert.match(page, /if \(recoverySubmitOnly\) setWaitingForSyncAndSubmit\(hasRecoveryCopy\)/);
+    assert.match(page, /setMissingRecoveryCopy\(recoverySubmitOnly && !hasRecoveryCopy\)/);
+    assert.match(page, /if \(submissionOnly && missingRecoveryCopy\)/);
+    assert.match(page, /if \(submissionOnly && missingRecoveryCopy\) return;/);
+    assert.doesNotMatch(page, /if \(submissionOnly && !waitingForSyncAndSubmit\)/);
     assert.match(page, /Batas pengiriman pukul \{formatSchoolClock\(recoverySummary\.until, schoolTimeZone, schoolZoneLabel\)\}/);
 });
 

@@ -397,7 +397,7 @@ function ResetExamForm({
                     <input type="radio" name="recovery-kind" className="mt-0.5" checked={submitOnly} onChange={() => chooseSubmitOnly(true)} />
                     <span className="leading-snug">
                       <span className="font-semibold text-slate-800">Kirim ulang jawaban saja</span>
-                      <span className="block text-[11px] text-slate-500">Kirim jawaban dari perangkat siswa tanpa mengubah isinya.</span>
+                      <span className="block text-[11px] text-slate-500">Buka dari perangkat, browser, dan profil asal; salinan jawaban terkirim otomatis tanpa bisa diubah.</span>
                     </span>
                   </label>
                   <label className="flex items-start gap-2 cursor-pointer">
@@ -425,7 +425,7 @@ function ResetExamForm({
                     <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] leading-snug text-amber-800">
                       Melanjutkan <strong>{savedAnswers} jawaban di server</strong>.
                       {offline?.uncounted_local_answers
-                        ? ` ${offline.uncounted_local_answers.count} jawaban di perangkat lama tidak ikut pindah.`
+                        ? ` ${offline.uncounted_local_answers.count} perubahan jawaban lokal tidak ikut pindah.`
                         : ' Jawaban yang belum terkirim dari perangkat lama tidak ikut pindah.'}
                     </p>
                   )}

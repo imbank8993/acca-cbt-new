@@ -369,13 +369,13 @@ test('the exam page stops before sending or deleting data when freezing detects 
     const snapshot = { answers: { q: 'newer' }, revisions: { q: 2 }, doubtfulAnswers: [] };
     const context = {
         useCallback: fn => fn, user: { id: 'student' }, examId: 'exam', exam: {}, attempt: { id: 'a' },
-        screenSharingRef: { current: true }, submissionOnly: false,
+        screenSharingRef: { current: true }, submissionOnly: false, missingRecoveryCopy: false,
         ownsEditorLockRef: { current: true }, submitInFlightRef: { current: false }, terminationReasonRef: { current: null },
         frozenSnapshotRef: { current: snapshot }, attemptRef: { current: { id: 'a' } },
         pendingAssignmentRef: { current: undefined }, storageStateRef: { current: 'healthy' },
         autoRetryCountRef: { current: 0 },
         freezeExamSnapshot: async () => { throw new ExamSnapshotConflictError(); }, ExamSnapshotConflictError,
-        setSubmissionOnly: () => {}, setWaitingForSyncAndSubmit: () => {}, setAccessDenied: value => { state.denied = value; },
+        setSubmissionOnly: () => {}, setMissingRecoveryCopy: () => {}, setWaitingForSyncAndSubmit: () => {}, setAccessDenied: value => { state.denied = value; },
         setSubmissionIssue: () => {},
         setAccessError: value => { state.message = value; }, setStorageWarning: () => {},
         navigator: { onLine: true }, submitExamAction: async () => { state.sent++; return { success: true }; },
@@ -412,7 +412,7 @@ test('submit-only reload preserves the original local snapshot when question con
             assignmentRef: { current: {} }, assignmentRevisionRef: { current: 0 },
             setAnswers: value => { state.answers = value; }, setDoubtfulAnswers: () => {},
             writeExamSnapshot: async () => { state.writes = (state.writes || 0) + 1; },
-            setWaitingForSyncAndSubmit: value => { state.waiting = value; },
+            setMissingRecoveryCopy: () => {}, setWaitingForSyncAndSubmit: value => { state.waiting = value; },
         };
         const code = '(async () => {' + source.slice(start, end) + '})()';
         await vm.runInNewContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText, sandbox);
@@ -445,7 +445,7 @@ for (const scenario of ['online', 'offline', 'lost-response', 'recovery-required
         const sandbox = {
             useCallback: fn => fn, useEffect: fn => fn(),
             user: { id: 'student' }, examId: 'exam', exam: { exam_type: 'daily' }, attempt,
-            screenSharingRef: { current: true }, submissionOnly: false,
+            screenSharingRef: { current: true }, submissionOnly: false, missingRecoveryCopy: false,
             loading: false, accessDenied: false, isCompleted: false, submitting: false, timeLeft: 0, isOffline: scenario === 'offline',
             ownsEditorLockRef: { current: true }, submitInFlightRef: { current: false }, terminationReasonRef: { current: null },
             frozenSnapshotRef: { current: null }, attemptRef: { current: attempt },
@@ -457,7 +457,7 @@ for (const scenario of ['online', 'offline', 'lost-response', 'recovery-required
             pendingSecurityEventsRef: { current: new Map() }, submissionSucceededRef: { current: false },
             freezeExamSnapshot: api.freezeExamSnapshot, ExamSnapshotConflictError: api.ExamSnapshotConflictError,
             readSecurityEvents: async () => [], retryExamEvidence: async () => {},
-            setSubmissionOnly: () => {}, setWaitingForSyncAndSubmit: value => { state.waiting = value; },
+            setSubmissionOnly: () => {}, setMissingRecoveryCopy: () => {}, setWaitingForSyncAndSubmit: value => { state.waiting = value; },
             setSubmissionIssue: value => { state.issue = value; },
             setAccessDenied: value => { state.denied = value; }, setAccessError: value => { state.error = value; },
             setStorageWarning: () => {}, setSubmitting: () => {}, getErrorMessage: error => error.message,
@@ -523,7 +523,7 @@ test('an offline device-clock expiry neither freezes nor submits until the serve
     let serverRemaining = 120;
     const sandbox = {
         useCallback: fn => fn, user: { id: 'student' }, examId: 'exam', exam: { exam_type: 'daily' }, attempt,
-        screenSharingRef: { current: true }, submissionOnly: false,
+        screenSharingRef: { current: true }, submissionOnly: false, missingRecoveryCopy: false,
         ownsEditorLockRef: { current: true }, submitInFlightRef: { current: false }, terminationReasonRef: { current: null },
         frozenSnapshotRef: { current: null }, attemptRef: { current: attempt }, clockFromDeviceRef: { current: true },
         answersRef: { current: answer.answers }, revisionsRef: { current: answer.revisions }, doubtfulRef: { current: new Set() },
@@ -532,7 +532,7 @@ test('an offline device-clock expiry neither freezes nor submits until the serve
         offlineRecoveryRef: { current: true }, pendingSecurityEventsRef: { current: new Map() }, submissionSucceededRef: { current: false },
         freezeExamSnapshot: api.freezeExamSnapshot, ExamSnapshotConflictError: api.ExamSnapshotConflictError,
         readSecurityEvents: async () => [], retryExamEvidence: async () => {}, removeSecurityEvent: async () => {},
-        setSubmissionOnly: () => {}, setWaitingForSyncAndSubmit: value => { state.waiting = value; }, setSubmissionIssue: () => {},
+        setSubmissionOnly: () => {}, setMissingRecoveryCopy: () => {}, setWaitingForSyncAndSubmit: value => { state.waiting = value; }, setSubmissionIssue: () => {},
         setAccessDenied: () => {}, setAccessError: () => {}, setStorageWarning: () => {}, setSubmitting: () => {},
         getErrorMessage: error => error.message, navigator: { onLine: false },
         submitExamAction: async () => { state.sent++; return { success: true, submissionVerified: true }; },

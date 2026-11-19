@@ -33,7 +33,7 @@ test('the student list exposes an active recovery after the exam window closed',
     const [exam] = await new StudentsService(fixture()).listExams(user);
     assert.equal(exam.recoveryUntil, '2026-10-24T05:15:00Z');
     assert.equal(exam.recoverySubmitOnly, true);
-    assert.equal(recoveryLabel(exam).button, 'Kirim Jawaban');
+    assert.equal(recoveryLabel(exam).button, 'Buka Pemulihan');
     const now = Date.parse(NOW);
     assert.equal(recoveryActive(exam, now), true);
     assert.equal(scheduleState(exam, now), 'open');
@@ -65,7 +65,7 @@ test('submit-only recovery does not require screen sharing; a working session st
     await assert.rejects(new ExamAttemptsService(working, {}, {}).start(user, 'exam', 'device-one', false), /Bagikan seluruh layar/);
 });
 
-test('dashboard and schedule show the recovery deadline and a send button', () => {
+test('dashboard and schedule show the recovery deadline and an entry to automatic recovery', () => {
     for (const file of ['app/dashboard/siswa/page.tsx', 'app/dashboard/siswa/schedule/page.tsx']) {
         const page = web(file);
         assert.match(page, /recoveryActive\(/, file);

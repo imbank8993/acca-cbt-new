@@ -492,10 +492,12 @@ export class ExamAttemptsService {
                 const since = holder.since ? `sejak pukul ${utcToLocalClock(holder.since, timeZone)} ${getSchoolTimeZoneLabel(timeZone)}` : '';
                 const where = [label, since].filter(Boolean).join(', ');
                 return this.refuse(
-                    `Ujian ini sudah dibuka di perangkat lain${where ? ` (${where})` : ''}. ` +
-                        'Jika itu perangkat Anda, lanjutkan di sana: jawaban yang belum terkirim hanya tersimpan di perangkat itu. ' +
-                        'Jika Anda tidak pernah membukanya di perangkat tersebut, segera lapor pengawas. ' +
-                        'Jangan mencoba dari perangkat lain lagi.',
+                    `Sesi ujian ini terikat ke browser/perangkat yang dipakai saat mulai${where ? ` (${where})` : ''}. ` +
+                        'Buka dengan browser dan profil asal: perubahan jawaban yang belum terkirim hanya tersimpan di sana. ' +
+                        'Jika browser asal tidak tersedia, segera lapor pengawas untuk memeriksa jawaban di server. ' +
+                        // Penanda akun dipakai orang lain: siswa yang tidak pernah membuka
+                        // ujian di perangkat tersebut harus terdorong melapor.
+                        'Jika Anda tidak pernah membukanya di perangkat tersebut, segera lapor pengawas.',
                 );
             }
         }

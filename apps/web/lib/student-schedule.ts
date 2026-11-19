@@ -9,7 +9,7 @@ export function recoveryActive(exam: StudentScheduledExam, now: number): boolean
 export function recoveryLabel(exam: StudentScheduledExam): { badge: string; action: string; button: string } {
     // Kirim-saja didahulukan: susulan yang kemudian dipulihkan untuk pengiriman
     // tidak boleh tampil sebagai "Kerjakan Susulan".
-    if (exam.recoverySubmitOnly) return { badge: 'Pemulihan', action: 'Kirim jawaban', button: 'Kirim Jawaban' };
+    if (exam.recoverySubmitOnly) return { badge: 'Pemulihan', action: 'Buka pemulihan', button: 'Buka Pemulihan' };
     if (exam.isMakeup) return { badge: 'Susulan', action: 'Kerjakan', button: 'Kerjakan Susulan' };
     return { badge: 'Pemulihan', action: 'Lanjutkan', button: 'Lanjutkan' };
 }

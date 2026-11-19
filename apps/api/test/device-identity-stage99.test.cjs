@@ -39,7 +39,7 @@ test('the first device is recorded and a second device gets a neutral message na
 
     const refused = await attempts.start(user, 'exam', 'device-phone', false, phone);
     assert.equal(refused.started, false);
-    assert.match(refused.error, /sudah dibuka di perangkat lain \(Chrome 120 · Windows, sejak pukul 08:10/);
+    assert.match(refused.error, /terikat ke browser\/perangkat yang dipakai saat mulai \(Chrome 120 · Windows, sejak pukul 08:10/);
     assert.match(refused.error, /Jika Anda tidak pernah membukanya di perangkat tersebut, segera lapor pengawas/);
     assert.doesNotMatch(refused.error, /10\.0\.0\.5/, 'IP tidak ditampilkan ke siswa');
     const log = db.tables.cbt_attempt_security_logs.find(entry => entry.event_type === 'DEVICE_SWITCH_BLOCKED');
@@ -78,7 +78,7 @@ test('two devices opening an unbound attempt at the same time: only one wins', a
     assert.deepEqual(results.map(result => result.started).sort(), [false, true]);
     const winner = results[0].started ? 'device-laptop' : 'device-phone';
     assert.equal(db.tables.cbt_exam_attempts[0].device_fingerprint, winner);
-    assert.match(results.find(result => !result.started).error, /sudah dibuka di perangkat lain/);
+    assert.match(results.find(result => !result.started).error, /terikat ke browser\/perangkat yang dipakai saat mulai/);
 });
 
 test('monitoring shows the holder and the rejected device; releasing the device forgets the old holder', async () => {

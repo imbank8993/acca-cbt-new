@@ -69,8 +69,8 @@ test('a lapsed recovery window says to reopen recovery, not "closed by violation
         error => /membuka pemulihan/.test(error.message) && !/pelanggaran/.test(error.message));
 });
 
-test('a makeup attempt under send-only recovery is labelled "Kirim Jawaban"', () => {
-    assert.equal(recoveryLabel({ isMakeup: true, recoverySubmitOnly: true }).button, 'Kirim Jawaban');
+test('a makeup attempt under send-only recovery opens the automatic recovery flow', () => {
+    assert.equal(recoveryLabel({ isMakeup: true, recoverySubmitOnly: true }).button, 'Buka Pemulihan');
     assert.equal(recoveryLabel({ isMakeup: true }).button, 'Kerjakan Susulan');
 });
 
