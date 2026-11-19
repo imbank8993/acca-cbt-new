@@ -138,3 +138,10 @@ test('active table stays compact and detail panel uses the latest roster data', 
     assert.match(text(tree),/Tidak ada peserta aktif yang memerlukan perhatian\./);
     assert.match(text(tree),/0 peserta/);
 });
+
+test('exam start forwards the browser and network address like heartbeat, so blocked devices are identifiable', () => {
+    const fs = require('node:fs');
+    const route = fs.readFileSync(path.resolve(__dirname, '../../web/app/api/students/exams/[examId]/attempts/route.ts'), 'utf8');
+    assert.match(route, /headers: examClientHeaders\(request\.headers, process\.env\.INTERNAL_API_KEY \|\| ''\)/);
+    assert.match(route, /method: 'POST', body: await request\.text\(\)/);
+});
