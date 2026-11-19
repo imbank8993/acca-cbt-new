@@ -451,7 +451,7 @@ export async function buildAnalysisWorkbook({
                 'Menjawab': item.total_answered,
                 'Benar': item.total_correct,
                 'Salah': item.total_incorrect,
-                'Belum Ternilai': item.total_ungraded ?? 0,
+                'Belum Dinilai': item.total_ungraded ?? 0,
                 'Kosong': item.total_unanswered,
                 '% Benar (peserta mulai)': item.total_participants ? (item.total_correct / item.total_participants * 100).toFixed(1) + '%' : '-',
                 '% Kosong (peserta mulai)': item.total_participants ? (item.total_unanswered / item.total_participants * 100).toFixed(1) + '%' : '-',

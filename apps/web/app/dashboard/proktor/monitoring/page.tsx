@@ -570,15 +570,14 @@ function MonitoringContent() {
                                                 <th className="p-4 text-center font-bold text-[#3083FF] w-14">No</th>
                                                 <th className="p-4 text-left font-bold text-[#3083FF]">Soal</th>
                                                 <th className="p-4 text-center font-bold text-[#3083FF]">Menjawab</th>
-                                                <th className="p-4 text-center font-bold text-[#3083FF]">Benar</th>
-                                                <th className="p-4 text-center font-bold text-[#3083FF]">Salah</th>
-                                                <th className="p-4 text-center font-bold text-[#3083FF]">Belum Ternilai</th>
+                                                <th className="p-4 text-center font-bold text-[#3083FF] whitespace-nowrap">Benar / Salah</th>
+                                                <th className="p-4 text-center font-bold text-[#3083FF]">Belum Dinilai</th>
                                                 <th className="p-4 text-right font-bold text-[#3083FF]">% Salah</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {analysis.length === 0 ? (
-                                                <tr><td colSpan={7} className="p-12 text-center text-slate-400 font-medium">Belum ada data</td></tr>
+                                                <tr><td colSpan={6} className="p-12 text-center text-slate-400 font-medium">Belum ada data</td></tr>
                                             ) : (
                                                 pagedAnalysis.map((anl) => {
                                                     const isCritical = anl.incorrectPercentage > 50;
@@ -590,21 +589,17 @@ function MonitoringContent() {
                                                                     <div className="relative max-h-[3.5rem] overflow-hidden font-medium text-slate-700 [mask-image:linear-gradient(to_bottom,black_50%,transparent_100%)]">
                                                                         <LatexRenderer text={getQuestionSnippet(anl.qText, 160)} className="!text-[12px] !leading-relaxed line-clamp-3" />
                                                                     </div>
-                                                                    <Button
+                                                                    <button
                                                                         type="button"
-                                                                        variant="primary"
-                                                                        size="sm"
-                                                                        icon="preview"
                                                                         onClick={() => { setViewQuestion(anl); setViewQuestionFilter('salah'); }}
-                                                                        className="mt-2"
+                                                                        className="mt-1.5 -ml-1.5 inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-semibold text-blue-600 hover:bg-blue-50"
                                                                     >
                                                                         Detail
-                                                                    </Button>
+                                                                    </button>
                                                                 </div>
                                                             </td>
                                                             <td className="p-4 text-center font-bold text-slate-500 text-[11px]">{anl.total}</td>
-                                                            <td className="p-4 text-center"><span className="font-bold text-emerald-600 text-[11px]">{anl.correct}</span></td>
-                                                            <td className="p-4 text-center"><span className="font-bold text-red-500 text-[11px]">{anl.incorrect}</span></td>
+                                                            <td className="p-4 text-center whitespace-nowrap text-[11px] font-bold"><span className="text-emerald-600">{anl.correct}</span><span className="mx-1 text-slate-300" aria-hidden="true">/</span><span className="text-red-500">{anl.incorrect}</span></td>
                                                             <td className="p-4 text-center"><span className="font-bold text-slate-400 text-[11px]">{anl.ungraded ?? 0}</span></td>
                                                             <td className="p-4 text-right">
                                                                 <div className="flex flex-col items-end">
@@ -698,7 +693,7 @@ function MonitoringContent() {
                                 <button onClick={() => setViewQuestionFilter('benar')} className={`px-2.5 py-1 rounded-lg border transition-colors ${viewQuestionFilter === 'benar' ? 'bg-emerald-100 text-emerald-800 border-emerald-300 ring-2 ring-emerald-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'}`}>Benar {viewQuestion.correct}</button>
                                 <button onClick={() => setViewQuestionFilter('salah')} className={`px-2.5 py-1 rounded-lg border transition-colors ${viewQuestionFilter === 'salah' ? 'bg-red-100 text-red-800 border-red-300 ring-2 ring-red-200' : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'}`}>Salah {viewQuestion.incorrect}</button>
                                 {(viewQuestion.ungraded ?? 0) > 0 && (
-                                    <span className="px-2.5 py-1 bg-amber-50 text-amber-700 rounded-lg border border-amber-200">Belum Ternilai {viewQuestion.ungraded}</span>
+                                    <span className="px-2.5 py-1 bg-amber-50 text-amber-700 rounded-lg border border-amber-200">Belum Dinilai {viewQuestion.ungraded}</span>
                                 )}
                             </div>
                             {viewQuestionFilter === 'salah' && (viewQuestion.wrongStudents?.length ?? 0) > 0 && (

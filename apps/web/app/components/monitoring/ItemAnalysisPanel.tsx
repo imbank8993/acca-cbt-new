@@ -179,17 +179,16 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
                             <th className="p-4 text-center font-bold text-[#3083FF] w-14">No</th>
                             <th className="p-4 text-left font-bold text-[#3083FF]">Soal</th>
                             <th className="p-4 text-center font-bold text-[#3083FF] w-20">Tipe</th>
-                            <th className="p-4 text-center font-bold text-[#3083FF] w-28">Kesukaran</th>
+                            <th className="p-4 text-center font-bold text-[#3083FF] w-36">Kesukaran</th>
                             <th className="p-4 text-center font-bold text-[#3083FF]">Menjawab</th>
-                            <th className="p-4 text-center font-bold text-[#3083FF]">Benar</th>
-                            <th className="p-4 text-center font-bold text-[#3083FF]">Salah</th>
-                            <th className="p-4 text-center font-bold text-[#3083FF]">Belum Ternilai</th>
+                            <th className="p-4 text-center font-bold text-[#3083FF] whitespace-nowrap">Benar / Salah</th>
+                            <th className="p-4 text-center font-bold text-[#3083FF]">Belum Dinilai</th>
                             <th className="p-4 text-right font-bold text-[#3083FF]">% Salah</th>
                         </tr>
                     </thead>
                     <tbody>
                         {filteredAnalysis.length === 0 ? (
-                            <tr><td colSpan={9} className="p-12 text-center text-slate-400 font-medium">{emptyText}</td></tr>
+                            <tr><td colSpan={8} className="p-12 text-center text-slate-400 font-medium">{emptyText}</td></tr>
                         ) : (
                             pagedAnalysis.map((anl) => {
                                 const isCritical = anl.incorrectPercentage > 50;
@@ -204,19 +203,16 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
                                                 <div className="relative max-h-[3.5rem] overflow-hidden font-medium text-slate-700 [mask-image:linear-gradient(to_bottom,black_50%,transparent_100%)]">
                                                     <LatexRenderer text={anl.qText} className="!text-[12px] !leading-relaxed" />
                                                 </div>
-                                                <Button
+                                                <button
                                                     type="button"
-                                                    variant="primary"
-                                                    size="sm"
-                                                    icon="preview"
                                                     onClick={() => {
                                                         setViewQuestion(anl);
                                                         setModalActiveTab('soal');
                                                     }}
-                                                    className="mt-2"
+                                                    className="mt-1.5 -ml-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold text-blue-600 hover:bg-blue-50"
                                                 >
-                                                    Detail
-                                                </Button>
+                                                    <Eye size={12} aria-hidden="true" />Detail
+                                                </button>
                                             </div>
                                         </td>
                                         <td className="p-4 text-center">
@@ -226,7 +222,7 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
                                         </td>
                                         <td className="p-4 text-center">
                                             {anl.difficultyLabel ? (
-                                                <span className={`px-2 py-0.5 border rounded text-[11px] font-bold uppercase ${diffColor}`}>
+                                                <span className={`inline-block whitespace-nowrap px-2 py-0.5 border rounded text-[11px] font-bold uppercase ${diffColor}`}>
                                                     {anl.difficultyLabel}
                                                 </span>
                                             ) : (
@@ -235,28 +231,33 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
                                         </td>
                                         <td className="p-4 text-center font-bold text-slate-500 text-[11px]">{anl.total}</td>
                                         <td className="p-4 text-center">
-                                            <button
-                                                onClick={() => {
-                                                    setViewQuestion(anl);
-                                                    setModalActiveTab('benar');
-                                                }}
-                                                className="px-2.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 font-bold transition-all text-[11px]"
-                                                title="Klik untuk melihat siswa yang menjawab benar"
-                                            >
-                                                {anl.correct}
-                                            </button>
-                                        </td>
-                                        <td className="p-4 text-center">
-                                            <button
-                                                onClick={() => {
-                                                    setViewQuestion(anl);
-                                                    setModalActiveTab('salah');
-                                                }}
-                                                className="px-2.5 py-0.5 rounded bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-bold transition-all text-[11px]"
-                                                title="Klik untuk melihat siswa yang menjawab salah"
-                                            >
-                                                {anl.incorrect}
-                                            </button>
+                                            <div className="inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-bold">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setViewQuestion(anl);
+                                                        setModalActiveTab('benar');
+                                                    }}
+                                                    className="px-2 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 transition-all"
+                                                    title="Klik untuk melihat siswa yang menjawab benar"
+                                                    aria-label={`${anl.correct} benar`}
+                                                >
+                                                    {anl.correct}
+                                                </button>
+                                                <span className="text-slate-300" aria-hidden="true">/</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setViewQuestion(anl);
+                                                        setModalActiveTab('salah');
+                                                    }}
+                                                    className="px-2 py-0.5 rounded bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 transition-all"
+                                                    title="Klik untuk melihat siswa yang menjawab salah"
+                                                    aria-label={`${anl.incorrect} salah`}
+                                                >
+                                                    {anl.incorrect}
+                                                </button>
+                                            </div>
                                         </td>
                                         <td className="p-4 text-center"><span className="font-bold text-slate-400 text-[11px]">{anl.ungraded ?? 0}</span></td>
                                         <td className="p-4 text-right">
