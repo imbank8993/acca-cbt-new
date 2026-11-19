@@ -213,6 +213,74 @@ export class ExamScreenshotsService implements OnModuleInit, OnModuleDestroy {
         return this.authz.assertProktor(user, exam.organization_id).then(() => true, () => false);
     }
     /**
+     * Semua screenshot satu ujian untuk tab Screenshot di monitoring. Pengawas
+     * ruang hanya melihat peserta di ruang tugasnya (aturan sama dengan per peserta).
+     */
+    async listForExam(user: AuthUser, examId: string) {
+        const students = await this.authz.assertExamMonitoring(user, examId);
+        let attemptsQuery = this.db.from('cbt_exam_attempts').select('id, user_id').eq('exam_id', examId);
+        if (students) {
+            if (!students.length) return [];
+            attemptsQuery = attemptsQuery.in('user_id', students);
+        }
+        const { data: attempts, error } = await attemptsQuery;
+        if (error) throw new ServiceUnavailableException('Daftar screenshot belum dapat dibaca.');
+        const rows = ((attempts || []) as Array<{ id: string; user_id: string }>).filter(attempt => attempt.user_id !== user.id);
+        if (!rows.length) return [];
+        const ownerByAttempt = new Map(rows.map(attempt => [attempt.id, attempt.user_id]));
+        const shots: Array<{ id: string; attempt_id: string; event_type: string; byte_size: number | null;
+            created_at: string; expires_at: string; deleted_at: string | null }> = [];
+        const ids = [...ownerByAttempt.keys()];
+        for (let i = 0; i < ids.length; i += 200) {
+            const { data, error: readError } = await this.db.from('cbt_exam_screenshots')
+                .select('id, attempt_id, event_type, byte_size, created_at, expires_at, deleted_at')
+                .in('attempt_id', ids.slice(i, i + 200)).order('created_at', { ascending: false });
+            if (readError) throw new ServiceUnavailableException('Daftar screenshot belum dapat dibaca.');
+            shots.push(...((data || []) as typeof shots));
+        }
+        const userIds = [...new Set(shots.map(shot => ownerByAttempt.get(shot.attempt_id)!))];
+        const names = new Map<string, { full_name: string | null; identity_number: string | null }>();
+        for (let i = 0; i < userIds.length; i += 200) {
+            const { data } = await this.db.from('cbt_profiles').select('id, full_name, identity_number').in('id', userIds.slice(i, i + 200));
+            for (const profile of (data || []) as Array<{ id: string; full_name: string | null; identity_number: string | null }>) names.set(profile.id, profile);
+        }
+        const now = Date.now();
+        return shots
+            .sort((a, b) => b.created_at.localeCompare(a.created_at))
+            .map(shot => {
+                const profile = names.get(ownerByAttempt.get(shot.attempt_id)!);
+                // Field dipilih satu per satu: lokasi objek penyimpanan tidak boleh sampai ke browser.
+                return { id: shot.id, attempt_id: shot.attempt_id, event_type: shot.event_type, byte_size: shot.byte_size,
+                    created_at: shot.created_at, expires_at: shot.expires_at, deleted_at: shot.deleted_at,
+                    student_name: profile?.full_name || null, student_number: profile?.identity_number || null,
+                    available: !shot.deleted_at && Date.parse(shot.expires_at) > now };
+            });
+    }
+    /** Proktor/Admin sekolah ujian ini; sama dengan `canDelete` per peserta. */
+    async canDeleteForExam(user: AuthUser, examId: string): Promise<boolean> {
+        const { data: exam } = await this.db.from('cbt_exams').select('organization_id').eq('id', examId).maybeSingle();
+        if (!exam) return false;
+        return this.authz.assertProktor(user, exam.organization_id).then(() => true, () => false);
+    }
+    /**
+     * Hapus beberapa gambar sekaligus. Setiap gambar melewati pemeriksaan izin
+     * yang sama dengan hapus satu per satu, sehingga id dari ujian lain atau di
+     * luar ruang tugas ditolak per butir tanpa membatalkan yang sah.
+     */
+    async removeMany(user: AuthUser, ids: string[]) {
+        let deleted = 0;
+        const failed: Array<{ id: string; error: string }> = [];
+        for (const id of [...new Set(ids)]) {
+            try {
+                await this.remove(user, id);
+                deleted++;
+            } catch (error) {
+                failed.push({ id, error: error instanceof Error ? error.message : 'Screenshot belum dapat dihapus.' });
+            }
+        }
+        return { deleted, failed };
+    }
+    /**
      * Hapus gambar (bukan catatan kejadiannya). Baris tetap ada dengan deleted_at
      * sebagai jejak, objek terenkripsi dihapus, dan kuota 20 MB peserta pulih.
      */

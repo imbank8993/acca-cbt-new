@@ -38,6 +38,7 @@ import { formatStudentName } from '@/lib/monitoring-health';
 import { getSchoolTimeZone } from '@/lib/school-time';
 import { exportDetailedAnalysisToExcel } from '@/lib/export-excel-analysis';
 import { useMemoryState } from '@/lib/useMemoryState';
+import { ExamScreenshotsPanel } from '@/app/components/monitoring/ExamScreenshotsPanel';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
 AlertTriangle,
@@ -101,7 +102,7 @@ function MonitoringContent() {
     const [topicAnalysis, setTopicAnalysis] = useState<{ examId: string; data: TopicAnalysis | null } | null>(null);
     const [, setDetailedAnalysis] = useMemoryState<DetailedItemAnalysisResponse | null>('guru_monitoring_detailedAnalysis', null);
 
-    const [activeTab, setActiveTab] = useMonitoringFilterState<'live' | 'results' | 'answers' | 'analysis' | 'reset' | 'administration'>('activeTab', 'live');
+    const [activeTab, setActiveTab] = useMonitoringFilterState<'live' | 'results' | 'answers' | 'analysis' | 'reset' | 'administration' | 'screenshots'>('activeTab', 'live');
     const [loadError, setLoadError] = useState<string | null>(null);
     const examRequestGenerationRef = useRef(0);
     const [viewQuestion, setViewQuestion] = useState<ItemAnalysis | null>(null);
@@ -386,6 +387,7 @@ function MonitoringContent() {
                     { id: 'answers', label: 'Jawaban' },
                     { id: 'results', label: 'Hasil' },
                     { id: 'analysis', label: 'Analisis' },
+                    { id: 'screenshots', label: 'Screenshot' },
                     { id: 'reset', label: 'Reset massal' },
                     ...(hasMonitoringAdministration(selectedExam) ? [{ id: 'administration', label: 'Administrasi' }] : []),
                 ]}
@@ -494,6 +496,12 @@ function MonitoringContent() {
                         )}
 
                         {/* === ANALISIS TAB === */}
+                        {activeTab === 'screenshots' && selectedExamId && (
+                            <motion.div key="screenshots" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                                <ExamScreenshotsPanel key={`screenshots-${selectedExamId}`} examId={selectedExamId} />
+                            </motion.div>
+                        )}
+
                         {activeTab === 'analysis' && (
                             <motion.div
                                 key="analysis"

@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Res, UseGuards } from '@nestjs/common';
-import { IsString, IsUUID, Length, MaxLength } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsString, IsUUID, Length, MaxLength } from 'class-validator';
 import type { AuthUser } from '@acca-cbt/shared';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -11,6 +11,10 @@ export class UploadScreenshotDto {
     @IsUUID() clientEventId!: string;
     @IsString() @Length(8, 200) deviceId!: string;
     @IsString() @MaxLength(273068) imageBase64!: string;
+}
+
+export class DeleteScreenshotsDto {
+    @IsArray() @ArrayMinSize(1) @ArrayMaxSize(200) @IsUUID('all', { each: true }) ids!: string[];
 }
 
 @Controller('proctoring')
@@ -27,6 +31,16 @@ export class ExamScreenshotsController {
         const [screenshots, canDelete] = await Promise.all([
             this.screenshots.list(user, attemptId), this.screenshots.canDelete(user, attemptId)]);
         return { screenshots, canDelete };
+    }
+    @Get('exams/:examId/screenshots')
+    async listForExam(@CurrentUser() user: AuthUser, @Param('examId', ParseUUIDPipe) examId: string) {
+        const screenshots = await this.screenshots.listForExam(user, examId);
+        return { screenshots, canDelete: await this.screenshots.canDeleteForExam(user, examId) };
+    }
+    @RateLimit({ name: 'proctoring-screenshot-delete', limit: 30, windowMs: 60_000 })
+    @Post('screenshots/delete')
+    removeMany(@CurrentUser() user: AuthUser, @Body() dto: DeleteScreenshotsDto) {
+        return this.screenshots.removeMany(user, dto.ids);
     }
     @Delete('screenshots/:id')
     remove(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
