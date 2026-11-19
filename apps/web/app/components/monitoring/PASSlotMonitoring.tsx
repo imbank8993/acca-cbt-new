@@ -22,6 +22,10 @@ export const formatSlotDate = (date: string) => isDay(date)
     ? new Date(`${date}T00:00:00Z`).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
     : date;
 const hm = (value: string) => String(value || '').slice(0, 5);
+/** Tanggal ringkas untuk select: "Kamis, 19 Nov". */
+const shortSlotDate = (date: string) => isDay(date)
+    ? new Date(`${date}T00:00:00Z`).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' })
+    : date;
 
 /** Tanggal awal: hari ini bila ada, lalu tanggal terdekat berikutnya, lalu tanggal terakhir. */
 export function pickSlotDate(dates: string[], today: string): string {
@@ -235,6 +239,8 @@ export default function PASSlotMonitoring({ periodId, userRole, attemptBasePath,
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const autoSelected = useRef(false);
+    /** Ruang & sesi yang sedang dibuka saat tanggal diganti: dibuka lagi pada tanggal baru bila ada. */
+    const keepRoom = useRef<{ roomId: string; sessionId: string } | null>(null);
     const request = useRef(0);
     const invigilatorView = userRole === 'pengawas';
 
@@ -252,6 +258,10 @@ export default function PASSlotMonitoring({ periodId, userRole, attemptBasePath,
             setSlots(result.slots);
             setSelectedKey(previous => {
                 if (previous && result.slots.some(slot => slot.key === previous)) return previous;
+                const keep = keepRoom.current;
+                keepRoom.current = null;
+                const same = keep && result.slots.find(slot => slot.room.id === keep.roomId && slot.session.id === keep.sessionId);
+                if (same) return same.key;
                 if (invigilatorView && !autoSelected.current) {
                     autoSelected.current = true;
                     const nowTime = utcToSchoolLocalDateTime(new Date().toISOString(), timeZone).slice(11, 16);
@@ -293,6 +303,17 @@ export default function PASSlotMonitoring({ periodId, userRole, attemptBasePath,
     const visibleSessions = activeSession === 'all' ? sessions : sessions.filter(group => group.key === activeSession);
     // Di halaman Monitoring: select "Ruang · Sesi" sebaris dengan select Asesmen menggantikan tautan "Semua ruang".
     const pickerSlot = useMonitoringPickerSlot();
+    const today = schoolTodayDate(timeZone);
+    const changeDate = (value: string) => {
+        if (!value || value === date) return;
+        keepRoom.current = selected ? { roomId: selected.room.id, sessionId: selected.session.id } : null;
+        setSelectedKey(null);
+        setSessionFilter(null);
+        void load(value);
+    };
+    const datePicker = <InlineSelect aria-label="Tanggal ujian" title="Pilih tanggal" className="monitoring-exam-picker__tier" minWidth="190px" height="42px"
+        value={date} onChange={changeDate} disabled={!dates.length || loading}
+        options={dates.length ? dates.map(item => ({ value: item, label: `${shortSlotDate(item)}${item === today ? ' (hari ini)' : ''}` })) : [{ value: '', label: 'Belum ada jadwal' }]} />;
     const roomPicker = <InlineSelect aria-label="Ruang dan sesi" title="Pilih ruang" className="monitoring-exam-picker__tier" minWidth="200px" height="42px"
         value={selected?.key || ''} onChange={value => setSelectedKey(value || null)} disabled={!slots.length}>
         <option value="">{slots.length ? (invigilatorView ? 'Ruang yang saya awasi' : 'Semua ruang') : 'Belum ada ruang'}</option>
@@ -302,7 +323,7 @@ export default function PASSlotMonitoring({ periodId, userRole, attemptBasePath,
     </InlineSelect>;
 
     return <div className="space-y-4">
-        {pickerSlot && <MonitoringPickerSlot fallback={false}>{roomPicker}</MonitoringPickerSlot>}
+        {pickerSlot && <MonitoringPickerSlot fallback={false}>{datePicker}{roomPicker}</MonitoringPickerSlot>}
         {(!embedded || !selected) && <div className="flex flex-wrap items-center gap-3">
             {!embedded && <div>
                 <h2 className="text-sm font-bold text-slate-900">{invigilatorView ? 'Ruang yang Saya Awasi' : 'Pelaksanaan per Ruang'}</h2>
@@ -310,7 +331,7 @@ export default function PASSlotMonitoring({ periodId, userRole, attemptBasePath,
                     ? 'Semua siswa di ruang Anda tampil dalam satu daftar, apa pun kelas dan bank soalnya.'
                     : 'Pilih tanggal, lalu buka ruang untuk memantau seluruh siswanya sekaligus.'}</p>
             </div>}
-            {!selected && <label className={`flex items-center gap-2 text-xs font-medium text-slate-600 ${embedded ? '' : 'ml-auto'}`}>Tanggal
+            {!selected && !pickerSlot && <label className={`flex items-center gap-2 text-xs font-medium text-slate-600 ${embedded ? '' : 'ml-auto'}`}>Tanggal
                 <InlineSelect value={date} onChange={value => { setSelectedKey(null); setSessionFilter(null); void load(value); }} disabled={!dates.length || loading} minWidth="220px" aria-label="Tanggal ujian"
                     options={dates.length ? dates.map(item => ({ value: item, label: formatSlotDate(item) })) : [{ value: '', label: 'Belum ada jadwal' }]} />
             </label>}
