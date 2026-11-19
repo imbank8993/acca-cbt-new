@@ -30,14 +30,13 @@ test('same PAS folder reveals bank and class without renaming exams or changing 
     assert.equal(helpers.monitoringExamLabel(makeExam({metadata:{bank_title:42}})),'Matematika XI · Kelas XI A');
 });
 
-test('picker shows the folder name and reveals normalized period details on demand', async () => {
-    let props;
+test('picker: asesmen lalu mapel dan kelas (InlineSelect) dengan status dan detail sesuai permintaan', async () => {
+    const selects={};
     const source=fs.readFileSync(path.resolve(__dirname,'../../web/app/components/monitoring/MonitoringExamPicker.tsx'),'utf8');
     const code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
     const dependencies={
         'react': React,
-        '@/app/components/ui/inlineselect':{InlineSelect:p=>React.createElement('select',{'aria-label':p['aria-label']},p.options.map(o=>React.createElement('option',{key:o.value},o.label)))},
-        '@/components/ui/SearchableSelect':{__esModule:true,default:p=>{props=p;return React.createElement('div',null,'Selector')}},
+        '@/app/components/ui/inlineselect':{InlineSelect:p=>{selects[p['aria-label']]=p;return React.createElement('select',{'aria-label':p['aria-label'],value:p.value,onChange:()=>{}},p.children)}},
         '@/lib/monitoring-exams':helpers,
         'lucide-react':{Info:()=>React.createElement('svg'),X:()=>React.createElement('svg')},
         '@/lib/school-time':{formatSchoolDateTime:(value,zone)=>value+' '+zone},
@@ -46,22 +45,40 @@ test('picker shows the folder name and reveals normalized period details on dema
     };
     const mod={exports:{}};
     new Function('require','module','exports',code)(name=>{assert.ok(name in dependencies,name);return dependencies[name]},mod,mod.exports);
-    const exams=[makeExam({}),makeExam({id:'math-b',description:'Matematika XI • Kelas XI B | 2026/2027 | PAS 1',subject:'Matematika',questionCreatorNames:['Guru Bank'],examCreatorName:'Pembuat Folder'})];
+    const folder={bank_title:'Matematika XI',pas_period_id:'p1'};
+    const exams=[makeExam({metadata:folder}),makeExam({id:'math-b',metadata:folder,description:'Matematika XI • Kelas XI B | 2026/2027 | PAS 1',subject:'Matematika',questionCreatorNames:['Guru Bank'],examCreatorName:'Pembuat Folder'}),
+        makeExam({id:'daily',title:'Ulangan Harian',exam_type:'daily',metadata:null,description:null,start_time:'2026-12-01T00:00:00Z'})];
     let chosen;
-    const html=renderToStaticMarkup(React.createElement(mod.exports.default,{exams,now:Date.parse('2026-10-17T00:01:00Z'),value:'math-b',onChange:v=>chosen=v}));
-    assert.match(html,/Lihat detail folder ujian/);
+    const now=Date.parse('2026-10-17T00:01:00Z');
+    const html=renderToStaticMarkup(React.createElement(mod.exports.default,{exams,now,value:'math-b',onChange:v=>chosen=v}));
+    assert.equal(selects['Asesmen'].value,'p1');
+    assert.match(html,/<option value="p1"[^>]*>● ASAS Ganjil<\/option>/);
+    assert.match(html,/<option value="__other__">Ujian lainnya<\/option>/);
+    assert.match(html,/<optgroup label="Sedang berlangsung"><option value="math-a">Matematika XI · Kelas XI A<\/option><option value="math-b"[^>]*>Matematika · Kelas XI B<\/option><\/optgroup>/);
+    assert.doesNotMatch(html,/Ulangan Harian/, 'ujian lain tidak dicampur ke daftar mapel folder');
+    assert.match(html,/Sedang berlangsung<\/span>/);
+    assert.match(html,/90 menit/);
+    assert.match(html,/Lihat detail ujian/);
     assert.doesNotMatch(html,/PAS 1|2026\/2027|ASAS\/ASAT/);
-    assert.equal(props.value,'math-b');
-    assert.equal(props.options[0].label,'ASAS Ganjil');
-    assert.equal(props.options[1].label,'ASAS Ganjil');
-    assert.match(props.options[0].subLabel,/Matematika XI · Kelas XI A · .*90 menit/);
-    assert.match(props.options[1].subLabel,/Kelas XI B/);
-    assert.equal(props.options[0].badge,undefined);
-    props.onChange('math-a'); assert.equal(chosen,'math-a');
-    assert.match(props.searchPlaceholder,/kelas/);
+    selects['Mata pelajaran dan kelas'].onChange('math-a'); assert.equal(chosen,'math-a');
+    selects['Asesmen'].onChange('__other__'); assert.equal(chosen,'daily');
+
+    const other=renderToStaticMarkup(React.createElement(mod.exports.default,{exams,now,value:'daily',onChange:()=>{}}));
+    assert.match(other,/<optgroup label="Akan datang"><option value="daily"[^>]*>Ulangan Harian<\/option>/);
+    const room=renderToStaticMarkup(React.createElement(mod.exports.default,{exams,now,value:'math-b',folderLevel:true,onChange:()=>{}}));
+    assert.doesNotMatch(room,/Mata pelajaran dan kelas/);
+    assert.match(room,/Semua mapel dan ruang pada asesmen ini/);
+    // Satu mapel, dua bank soal: nama bank ikut tampil agar pilihan dapat dibedakan.
+    const twins=[makeExam({id:'bi-wajib',subject:'Bahasa Indonesia',metadata:{bank_title:'B. Indonesia Wajib',pas_period_id:'p1'},description:'B. Indonesia Wajib • Kelas XI D | 2026/2027 | PAS 1'}),
+        makeExam({id:'bi-minat',subject:'Bahasa Indonesia',metadata:{bank_title:'B. Indonesia Peminatan',pas_period_id:'p1'},description:'B. Indonesia Peminatan • Kelas XI D | 2026/2027 | PAS 1'}),
+        makeExam({id:'mtk',subject:'Matematika',metadata:{bank_title:'Matematika XI',pas_period_id:'p1'}})];
+    const twinHtml=renderToStaticMarkup(React.createElement(mod.exports.default,{exams:twins,now,value:'bi-wajib',onChange:()=>{}}));
+    assert.match(twinHtml,/>Bahasa Indonesia — B\. Indonesia Wajib · Kelas XI D</);
+    assert.match(twinHtml,/>Bahasa Indonesia — B\. Indonesia Peminatan · Kelas XI D</);
+    assert.match(twinHtml,/>Matematika · Kelas XI A</, 'mapel yang tidak kembar tetap ringkas');
     const unsafe=makeExam({description:'<img src=x onerror=alert(1)>'});
     const escaped=renderToStaticMarkup(React.createElement(mod.exports.default,{exams:[unsafe],now:0,value:unsafe.id,onChange:()=>{}}));
-    assert.doesNotMatch(escaped,/<img/); assert.match(escaped,/&lt;img/);
+    assert.doesNotMatch(escaped,/<img/);
 
     const document=require('jsdom').jsdom('<div id="root"></div>');
     const dom={window:document.defaultView};
@@ -72,7 +89,7 @@ test('picker shows the folder name and reveals normalized period details on dema
     const root=createRoot(dom.window.document.getElementById('root'));
     try {
         await React.act(async()=>root.render(React.createElement(mod.exports.default,{exams,now:0,value:'math-b',onChange:()=>{}})));
-        const trigger=dom.window.document.querySelector('[aria-label="Lihat detail folder ujian"]');
+        const trigger=dom.window.document.querySelector('[aria-label="Lihat detail ujian"]');
         assert.equal(trigger.getAttribute('aria-expanded'),'false');
         await React.act(async()=>trigger.dispatchEvent(new dom.window.MouseEvent('click',{bubbles:true})));
         const popup=dom.window.document.querySelector('[role="dialog"]');

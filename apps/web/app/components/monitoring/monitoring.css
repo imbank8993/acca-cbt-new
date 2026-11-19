@@ -297,11 +297,11 @@
 
 .monitoring-participant-name { text-align: left; overflow-wrap: anywhere; }
 .monitoring-participant-name:focus-visible { outline: 2px solid #3083ff; outline-offset: 3px; border-radius: 3px; }
-.monitoring-actions-trigger { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 8px 10px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--monitoring-muted, #64748b); font-size: 14px; font-weight: 500; white-space: nowrap; cursor: pointer; }
+.monitoring-actions-trigger { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 6px 10px; border: 1px solid var(--monitoring-line, #e2e8f0); border-radius: 8px; background: var(--monitoring-surface, #fff); color: var(--monitoring-muted, #64748b); font-size: 14px; font-weight: 500; white-space: nowrap; cursor: pointer; }
 .monitoring-actions-trigger > svg:first-child { display: none; }
 .monitoring-actions-trigger > svg:last-child { transition: transform .2s ease; }
 .monitoring-actions-trigger:hover { color: var(--monitoring-text, #334155); }
-.monitoring-actions-trigger[aria-expanded="true"] { color: var(--primary, #3083ff); border-bottom-color: var(--primary, #3083ff); font-weight: 600; }
+.monitoring-actions-trigger[aria-expanded="true"] { color: var(--primary, #3083ff); border-color: var(--primary, #3083ff); }
 .monitoring-actions-trigger:focus-visible { outline: 2px solid var(--primary, #3083ff); outline-offset: 2px; }
 /* Jumlah peserta dengan jawaban tertahan (Pulihkan jawaban tertunda). */
 .monitoring-actions-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: #dc2626; color: #fff; font-size: 11px; font-weight: 700; line-height: 1; }

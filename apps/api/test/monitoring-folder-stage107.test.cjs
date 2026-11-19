@@ -135,7 +135,7 @@ test('MF-07: Ruang dan Pengawas satu tab dengan tombol Tambah pengawas; Sesi tab
     assert.match(web('app/components/pas/CompactExamPeriodWorkspace.tsx'), /className="cp-summary-card"/);
 });
 
-test('MF-08: pilihan Per bank soal | Per ruang di pojok kanan atas; filter peserta memakai FilterToolbar', () => {
+test('MF-08: pilihan Per mapel | Per ruang di pojok kanan atas; filter peserta memakai FilterToolbar', () => {
     const header = web('app/components/monitoring/MonitoringWorkspaceHeader.tsx');
     assert.match(header, /<\/div>\s*\{headerAction && <div className="monitoring-workspace__action">/);
     assert.match(header, /compactContext/);
@@ -148,7 +148,10 @@ test('MF-08: pilihan Per bank soal | Per ruang di pojok kanan atas; filter peser
     assert.match(workspace, /<button type="button" aria-haspopup="menu" className="monitoring-actions-trigger"/);
     assert.match(workspace, /aria-expanded=\{menuOpen\} onClick=\{\(\) => setMenuOpen\(open => !open\)\}/);
     const styles = web('app/components/monitoring/monitoring.css');
-    assert.match(styles, /\.monitoring-actions-trigger \{[^}]*border: 0;[^}]*background: transparent;/);
+    // Tindakan berupa tombol berbingkai di ujung kanan, bukan tab.
+    assert.match(styles, /\.monitoring-actions-trigger \{[^}]*border: 1px solid[^}]*border-radius: 8px;/);
+    assert.match(workspace, /<div className="ml-auto flex items-center gap-2 pb-1\.5">/);
+    assert.match(web('app/components/monitoring/FolderExamMonitor.tsx'), /'Per mapel'/);
 });
 
 test('MF-09: analisis bank soal menggabungkan ujian per kelas tanpa filter kelas', async () => {

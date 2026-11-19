@@ -317,7 +317,7 @@ export function ParticipantsWorkspace({
                     {SECTION_LABELS[id]}
                 </button>)}
             </nav>
-            {(actions.length > 0 || trailing) && <div className="flex items-center gap-2">
+            {(actions.length > 0 || trailing) && <div className="ml-auto flex items-center gap-2 pb-1.5">
             {actions.length > 0 && <div className="relative">
                 <button type="button" aria-haspopup="menu" className="monitoring-actions-trigger" aria-label="Tindakan" aria-expanded={menuOpen} onClick={() => setMenuOpen(open => !open)}>
                     <MoreHorizontal size={18} aria-hidden="true" />

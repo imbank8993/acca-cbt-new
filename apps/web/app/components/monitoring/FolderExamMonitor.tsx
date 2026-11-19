@@ -25,14 +25,14 @@ export function folderViews(role: FolderMonitorRole, invigilator = false): Folde
     return role === 'guru' && !invigilator ? ['bank'] : ['bank', 'room'];
 }
 
-/** Pilihan Per bank soal | Per ruang; dipasang di pojok kanan atas, sebaris dengan pemilih ujian. */
+/** Pilihan Per mapel (satu bank soal) | Per ruang; dipasang di pojok kanan atas, sebaris dengan pemilih ujian. */
 export function FolderViewToggle({ role, value, onChange, invigilator = false }: { role: FolderMonitorRole; value: FolderMonitorView; onChange: (view: FolderMonitorView) => void; invigilator?: boolean }) {
     const views = folderViews(role, invigilator);
     if (views.length < 2) return null;
     return <div role="group" aria-label="Tampilan monitoring" className="monitoring-view-toggle inline-flex shrink-0 rounded-full border border-slate-200 bg-slate-100 p-0.5 text-xs font-semibold">
         {views.map(id => <button key={id} type="button" aria-pressed={value === id} onClick={() => onChange(id)}
             className={`whitespace-nowrap rounded-full px-3.5 py-1.5 transition-colors ${value === id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
-            {id === 'bank' ? 'Per bank soal' : role === 'guru' ? 'Ruang saya' : 'Per ruang'}
+            {id === 'bank' ? 'Per mapel' : role === 'guru' ? 'Ruang saya' : 'Per ruang'}
         </button>)}
     </div>;
 }
