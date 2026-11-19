@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { runsBackgroundJobs } from '../common/api-cluster';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { GradingService } from './grading.service';
 
@@ -13,6 +14,8 @@ export class GradingRetryWorker implements OnModuleInit, OnModuleDestroy {
     constructor(private readonly db: DbService, private readonly grading: GradingService) {}
 
     onModuleInit() {
+        // Mode cluster: cukup satu proses yang menilai ulang, supaya tidak berjalan ganda.
+        if (!runsBackgroundJobs()) return;
         this.timer = setInterval(() => void this.run(), 30_000);
         this.timer.unref();
         void this.run();

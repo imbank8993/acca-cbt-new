@@ -6,6 +6,7 @@ import { AuthorizationService } from '../auth/authorization.service';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { StorageService } from '../storage/storage.service';
 import { advisoryTransactionLock } from '../common/transaction-lock';
+import { runsBackgroundJobs } from '../common/api-cluster';
 
 /**
  * Kuota per peserta per sesi (reset/susulan memulai sesi baru): bukan jumlah
@@ -253,6 +254,8 @@ export class ExamScreenshotsService implements OnModuleInit, OnModuleDestroy {
         if (process.env.NODE_ENV === 'production' && !this.config.get<string>('SCREENSHOT_ENCRYPTION_KEY')) {
             this.logger.error('SCREENSHOT_ENCRYPTION_KEY kosong: screenshot ujian akan DITOLAK sampai kunci khusus dikonfigurasi.');
         }
+        // Mode cluster: pembersihan bukti cukup dijalankan satu proses.
+        if (!runsBackgroundJobs()) return;
         this.timer = setInterval(() => void this.cleanup(), 60 * 60 * 1000); this.timer.unref(); void this.cleanup();
     }
     onModuleDestroy() { if (this.timer) clearInterval(this.timer); }

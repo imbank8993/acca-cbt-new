@@ -54,6 +54,8 @@ COPY --from=builder /app/apps/web/public ./apps/web/public
 # Salin hasil kompilasi standalone dan static chunks Next.js
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
+# Peluncur cluster: WEB_WORKERS>1 menjalankan beberapa proses server.js agar memakai lebih dari satu core.
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/scripts/cluster-server.cjs ./apps/web/cluster-server.cjs
 
 USER nextjs
 
@@ -62,5 +64,6 @@ EXPOSE 3008
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD curl -f -L http://127.0.0.1:3008/ || exit 1
 
-CMD ["sh", "-c", "node apps/web/server.js 2>/dev/null || node server.js"]
+# Tanpa WEB_WORKERS (atau =1) perilakunya sama dengan `node server.js`.
+CMD ["node", "apps/web/cluster-server.cjs"]
 

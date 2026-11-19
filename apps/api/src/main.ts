@@ -1,9 +1,12 @@
+import { cluster } from './common/node-cluster';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
+import { configuredApiWorkers, startApiCluster } from './common/api-cluster';
+import { serveClusterRateLimits } from './common/rate-limit';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
@@ -63,4 +66,14 @@ async function bootstrap() {
   logger.log(`Dokumentasi Swagger: http://${host}:${port}/api/docs`);
 }
 
-void bootstrap();
+// API_WORKERS > 1: proses induk hanya mengelola proses anak dan penghitung
+// batas laju bersama; setiap proses anak menjalankan API lengkap di port yang
+// sama (Node membagi koneksi masuk di antara mereka).
+const workers = configuredApiWorkers();
+if (workers > 1 && cluster.isPrimary) {
+  const logger = new Logger('Cluster');
+  serveClusterRateLimits();
+  startApiCluster(workers, message => logger.log(message));
+} else {
+  void bootstrap();
+}

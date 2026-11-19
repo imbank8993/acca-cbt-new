@@ -6,14 +6,14 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthService } from './auth.service';
 import { LoginDto, SsoTicketDto } from './dto/login.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
-import { RateLimiter, tooManyRequests } from '../common/rate-limit';
+import { SharedRateLimiter, tooManyRequests } from '../common/rate-limit';
 
 /** Gagal login per akun: cukup untuk salah ketik, terlalu sedikit untuk menebak NIS/sandi. */
 const ACCOUNT_FAILURE_LIMIT = 10;
 /** Per IP lebih longgar: satu sekolah sering keluar lewat satu IP NAT yang sama. */
 const IP_FAILURE_LIMIT = 200;
 const FAILURE_WINDOW_MS = 15 * 60_000;
-export const loginFailures = new RateLimiter();
+export const loginFailures = new SharedRateLimiter('login-failures');
 
 @ApiTags('auth')
 @Controller('auth')
@@ -28,20 +28,23 @@ export class AuthController {
     const ua = dto.userAgent || req.headers['user-agent'];
     const accountKey = `account:${String(dto.email || '').trim().toLowerCase()}`;
     const ipKey = `ip:${ip || 'unknown'}`;
-    const wait = Math.max(loginFailures.blocked(accountKey, ACCOUNT_FAILURE_LIMIT),
-      loginFailures.blocked(ipKey, IP_FAILURE_LIMIT));
-    if (wait) {
-      throw tooManyRequests(wait, `Terlalu banyak percobaan login gagal. Coba lagi dalam ${Math.ceil(wait / 60)} menit.`);
-    }
+    const tooMany = (wait: number) =>
+      tooManyRequests(wait, `Terlalu banyak percobaan login gagal. Coba lagi dalam ${Math.ceil(wait / 60)} menit.`);
+    const ipWait = await loginFailures.blocked(ipKey, IP_FAILURE_LIMIT);
+    if (ipWait) throw tooMany(ipWait);
+    // Percobaan per akun dicatat SEBELUM sandi diperiksa. Bila dicatat sesudah
+    // gagal, puluhan tebakan yang dikirim bersamaan lolos semua dari pemeriksaan
+    // sebelum satu pun tercatat. Login yang berhasil menghapus catatannya.
+    const accountWait = await loginFailures.hit(accountKey, ACCOUNT_FAILURE_LIMIT, FAILURE_WINDOW_MS);
+    if (accountWait) throw tooMany(accountWait);
     try {
       const result = await this.authService.login(dto.email, dto.password, ip, ua);
-      loginFailures.reset(accountKey);
+      await loginFailures.reset(accountKey);
       return result;
     } catch (error) {
-      if (error instanceof UnauthorizedException) {
-        loginFailures.hit(accountKey, ACCOUNT_FAILURE_LIMIT, FAILURE_WINDOW_MS);
-        loginFailures.hit(ipKey, IP_FAILURE_LIMIT, FAILURE_WINDOW_MS);
-      }
+      // Per IP tetap hanya menghitung kegagalan: ratusan siswa satu sekolah
+      // berbagi satu IP NAT dan login hampir bersamaan.
+      if (error instanceof UnauthorizedException) await loginFailures.hit(ipKey, IP_FAILURE_LIMIT, FAILURE_WINDOW_MS);
       throw error;
     }
   }

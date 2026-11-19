@@ -1,3 +1,5 @@
+import { configuredApiWorkers } from '../common/api-cluster';
+
 /**
  * Lengkapi DATABASE_URL dengan ukuran pool koneksi Prisma yang layak untuk ujian.
  *
@@ -8,8 +10,11 @@
  * selalu dihormati; bawaan ini hanya mengisi yang kosong.
  *
  * Dapat diatur lewat env:
- *   DB_CONNECTION_LIMIT (bawaan 30) — pastikan di bawah `max_connections`
- *     PostgreSQL dikurangi kebutuhan aplikasi lain (mis. acca-new).
+ *   DB_CONNECTION_LIMIT (bawaan 30) — TOTAL koneksi seluruh API. Dalam mode
+ *     cluster (API_WORKERS > 1) dibagi rata ke setiap proses, karena tiap proses
+ *     punya pool sendiri; tanpa pembagian, 3 proses diam-diam membuka 90 koneksi.
+ *     Pastikan di bawah `max_connections` PostgreSQL dikurangi kebutuhan
+ *     aplikasi lain (mis. acca-new).
  *   DB_POOL_TIMEOUT     (bawaan 20 detik) — lama query menunggu koneksi kosong.
  *
  * String URL tidak di-parse ulang supaya kata sandi dengan karakter khusus tidak
@@ -17,6 +22,8 @@
  */
 export const DEFAULT_DB_CONNECTION_LIMIT = 30;
 export const DEFAULT_DB_POOL_TIMEOUT_SECONDS = 20;
+/** Batas bawah pool per proses supaya proses cluster tidak kekurangan koneksi. */
+export const MIN_DB_CONNECTIONS_PER_WORKER = 5;
 
 function positiveInt(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
@@ -31,9 +38,10 @@ export function withPoolDefaults(
 
   const additions: string[] = [];
   if (!/[?&]connection_limit=/i.test(url)) {
-    additions.push(
-      `connection_limit=${positiveInt(env.DB_CONNECTION_LIMIT, DEFAULT_DB_CONNECTION_LIMIT)}`,
-    );
+    const total = positiveInt(env.DB_CONNECTION_LIMIT, DEFAULT_DB_CONNECTION_LIMIT);
+    const workers = configuredApiWorkers(env.API_WORKERS);
+    const perProcess = workers > 1 ? Math.max(MIN_DB_CONNECTIONS_PER_WORKER, Math.ceil(total / workers)) : total;
+    additions.push(`connection_limit=${perProcess}`);
   }
   if (!/[?&]pool_timeout=/i.test(url)) {
     additions.push(
