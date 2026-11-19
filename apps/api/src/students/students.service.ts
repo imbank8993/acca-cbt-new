@@ -385,7 +385,7 @@ export class StudentsService {
             if (error || ids.length === 0) return null;
             const { data: classes, error: classError } = await this.db
                 .from('cbt_classes')
-                .select('id, name, organization_id, school_year')
+                .select('id, name, organization_id, school_year, program')
                 .in('id', ids);
             if (classError) return null;
             const rows = (classes as StudentClassRow[] | null) || [];

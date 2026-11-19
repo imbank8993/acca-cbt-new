@@ -43,6 +43,33 @@ test('readCurrentClass: kelas tahun ajaran aktif, bukan kelas tahun lalu', async
     assert.equal(await readCurrentClass(db, 'tanpa-kelas', 'org'), null);
 });
 
+test('readCurrentClass: kelas wali (Reguler) mengalahkan UTBK/Tambahan di tahun ajaran yang sama', async () => {
+    // Kasus nyata: siswa XII D juga anggota UTBK A (2026/2027) dan masih tercatat di XI D (2025/2026).
+    const db = fakeDb({
+        cbt_class_members: [{ user_id: 's1', class_id: 'xi' }, { user_id: 's1', class_id: 'utbk' }, { user_id: 's1', class_id: 'xii' }],
+        cbt_classes: [{ id: 'xi', name: 'XI D', organization_id: 'org', school_year: '2025/2026', program: 'Reguler' },
+            { id: 'utbk', name: 'UTBK A', organization_id: 'org', school_year: '2026/2027', program: 'UTBK' },
+            { id: 'xii', name: 'XII D', organization_id: 'org', school_year: '2026/2027', program: 'Reguler' }],
+        school_years: [],
+        master_tahun_ajaran: [{ tahun_ajaran: '2026/2027', is_active: true }],
+    });
+    const current = await readCurrentClass(db, 's1', 'org');
+    assert.equal(current.name, 'XII D');
+    assert.equal(gradeFromClassName(current.name), '12');
+});
+
+test('pickCurrentClass: kelas tanpa program (data lama) dipakai sebelum Peminatan/UTBK, Reguler paling utama', () => {
+    const { pickCurrentClass } = require('../src/students/student-class.ts');
+    const legacy = { id: 'a', name: 'XII B', school_year: '2026/2027', program: null };
+    const elective = { id: 'b', name: 'Fisika XII', school_year: '2026/2027', program: 'Peminatan' };
+    const utbk = { id: 'c', name: 'UTBK A', school_year: '2026/2027', program: 'UTBK' };
+    assert.equal(pickCurrentClass([utbk, elective, legacy]).id, 'a');
+    assert.equal(pickCurrentClass([utbk, { ...legacy, program: 'Reguler' }, elective]).id, 'a');
+    assert.equal(pickCurrentClass([utbk]).id, 'c', 'satu-satunya kelas tetap dipakai');
+    // Ujian yang menyasar kelas UTBK tetap menampilkan kelas wali di kepala ujian.
+    assert.equal(pickCurrentClass([utbk, { ...legacy, program: 'Reguler' }], { targetClassIds: ['c'] }).id, 'a');
+});
+
 test('learning list returns the student grade; page shows own class first and colors cards per subject', () => {
     const service = fs.readFileSync(path.resolve(__dirname, '../src/learning/learning.service.ts'), 'utf8');
     assert.match(service, /const myClass = canManage \? null : await readCurrentClass\(this\.db, user\.id, org\)/);

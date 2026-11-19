@@ -10,12 +10,18 @@ import type { DbService } from '../prisma/prisma-db-adapter';
  *   2. kelas di tahun ajaran aktif;
  *   3. kelas dengan tahun ajaran terbaru;
  * dan di setiap langkah kelas di sekolah penyelenggara ujian diutamakan.
+ *
+ * Sebelum itu, hanya kelas wali (program "Reguler") yang dipertimbangkan. Siswa juga
+ * menjadi anggota kelas Peminatan, UTBK, atau Tambahan pada tahun ajaran yang sama;
+ * kelas seperti "UTBK A" tidak menunjukkan tingkat kelas siswa. Kelas tanpa program
+ * (data lama) dipakai bila tidak ada kelas Reguler, dan program lain paling akhir.
  */
 export interface StudentClassRow {
     id: string;
     name?: string | null;
     organization_id?: string | null;
     school_year?: string | null;
+    program?: string | null;
 }
 
 /** "2026/2027" > "2025/2026"; tahun kosong dianggap paling lama. */
@@ -29,7 +35,13 @@ export function pickCurrentClass(
 ): StudentClassRow | null {
     const named = classes.filter(row => (row.name || '').trim());
     const inSchool = options.organizationId ? named.filter(row => row.organization_id === options.organizationId) : [];
-    const pool = inSchool.length ? inSchool : named;
+    const candidates = inSchool.length ? inSchool : named;
+    const rank = (row: StudentClassRow) => {
+        const program = String(row.program || '').trim().toLowerCase();
+        return program === 'reguler' ? 0 : program ? 2 : 1;
+    };
+    const best = Math.min(...candidates.map(rank));
+    const pool = candidates.filter(row => rank(row) === best);
     if (pool.length <= 1) return pool[0] || null;
 
     const targets = new Set(options.targetClassIds || []);
@@ -75,7 +87,7 @@ export async function readCurrentClass(db: ClassDb, userId: string, organization
         const ids = [...new Set(((memberships as { class_id?: string | null }[] | null) || [])
             .map(row => row.class_id).filter((id): id is string => Boolean(id)))];
         if (error || !ids.length) return null;
-        const { data: classes, error: classError } = await db.from('cbt_classes').select('id, name, organization_id, school_year').in('id', ids);
+        const { data: classes, error: classError } = await db.from('cbt_classes').select('id, name, organization_id, school_year, program').in('id', ids);
         if (classError) return null;
         const rows = (classes as StudentClassRow[] | null) || [];
         if (rows.filter(row => (row.name || '').trim()).length <= 1) return pickCurrentClass(rows, { organizationId });
