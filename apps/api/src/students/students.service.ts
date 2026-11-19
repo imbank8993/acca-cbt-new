@@ -1,4 +1,5 @@
 import { assertAnswerKeysReleased } from '../common/answer-key-release';
+import { pickCurrentClass, type StudentClassRow } from './student-class';
 import { withQuestionTopics } from '../common/exam-question-topics';
 import { examBankInfo } from '../common/exam-subjects';
 import { readExamQuestionVersion } from '../common/exam-question-snapshots';
@@ -330,7 +331,7 @@ export class StudentsService {
                 .select('full_name, identity_number')
                 .eq('id', user.id)
                 .maybeSingle(),
-            this.regularClassName(user.id, (data as { organization_id?: string | null }).organization_id ?? null),
+            this.regularClassName(user.id, (data as { organization_id?: string | null }).organization_id ?? null, examId),
         ]);
 
         // Pemeriksaan ini hanya membaca status; membuka layar persiapan tidak
@@ -368,10 +369,12 @@ export class StudentsService {
     /**
      * Nama kelas reguler siswa untuk kepala layar ujian (bukan ruang PAS dan
      * bukan kelas tambahan). Bila siswa tercatat di lebih dari satu kelas
-     * reguler, kelas di sekolah penyelenggara ujian diutamakan. Hanya untuk
-     * tampilan: kegagalan membaca kelas tidak boleh menghalangi ujian.
+     * reguler (mis. kelas tahun ajaran lama setelah naik kelas), yang dipilih
+     * adalah kelas sasaran ujian ini, lalu kelas di tahun ajaran aktif, lalu
+     * tahun ajaran terbaru (lihat `pickCurrentClass`). Hanya untuk tampilan:
+     * kegagalan membaca kelas tidak boleh menghalangi ujian.
      */
-    private async regularClassName(userId: string, organizationId: string | null): Promise<string | null> {
+    private async regularClassName(userId: string, organizationId: string | null, examId?: string): Promise<string | null> {
         try {
             const { data: memberships, error } = await this.db
                 .from('cbt_class_members')
@@ -382,16 +385,43 @@ export class StudentsService {
             if (error || ids.length === 0) return null;
             const { data: classes, error: classError } = await this.db
                 .from('cbt_classes')
-                .select('id, name, organization_id')
+                .select('id, name, organization_id, school_year')
                 .in('id', ids);
             if (classError) return null;
-            const rows = ((classes as { name?: string | null; organization_id?: string | null }[] | null) || [])
-                .filter(row => (row.name || '').trim());
-            const chosen = rows.find(row => organizationId && row.organization_id === organizationId) || rows[0];
-            return chosen?.name?.trim() || null;
+            const rows = (classes as StudentClassRow[] | null) || [];
+            // Data tambahan hanya dibaca bila memang ada lebih dari satu kelas untuk dipilih.
+            if (rows.filter(row => (row.name || '').trim()).length <= 1) {
+                return pickCurrentClass(rows, { organizationId })?.name?.trim() || null;
+            }
+            const [targetClassIds, activeYears] = await Promise.all([
+                examId ? this.examTargetClassIds(examId) : Promise.resolve([] as string[]),
+                this.activeSchoolYears(organizationId),
+            ]);
+            return pickCurrentClass(rows, { organizationId, targetClassIds, activeYears })?.name?.trim() || null;
         } catch {
             return null;
         }
+    }
+
+    private async examTargetClassIds(examId: string): Promise<string[]> {
+        const { data, error } = await this.db.from('cbt_exam_targets').select('class_id').eq('exam_id', examId);
+        if (error) return [];
+        return ((data as { class_id?: string | null }[] | null) || []).map(row => row.class_id).filter((id): id is string => Boolean(id));
+    }
+
+    /** Tahun ajaran aktif sekolah (`school_years`), ditambah master ACCA (`master_tahun_ajaran`). */
+    private async activeSchoolYears(organizationId: string | null): Promise<string[]> {
+        const [school, master] = await Promise.all([
+            organizationId
+                ? this.db.from('school_years').select('year').eq('organization_id', organizationId).eq('is_active', true)
+                : Promise.resolve({ data: [], error: null }),
+            this.db.from('master_tahun_ajaran').select('tahun_ajaran').eq('is_active', true),
+        ]);
+        const years = [
+            ...(school.error ? [] : ((school.data as { year?: string | null }[] | null) || []).map(row => row.year)),
+            ...(master.error ? [] : ((master.data as { tahun_ajaran?: string | null }[] | null) || []).map(row => row.tahun_ajaran)),
+        ];
+        return [...new Set(years.filter((year): year is string => Boolean(year && year.trim())))];
     }
 
     // ── Hasil ────────────────────────────────────────────────────────────────
