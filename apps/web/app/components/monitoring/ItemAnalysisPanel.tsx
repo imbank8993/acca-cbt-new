@@ -435,33 +435,6 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
                                         </div>
                                     )}
 
-                                    {viewQuestion.keyDisplay && !viewQuestion.keyParts?.length && (
-                                        <div className="bg-blue-50/60 p-4 rounded-xl border border-blue-200 flex items-center justify-between text-xs text-blue-900">
-                                            <span className="font-semibold">Kunci Jawaban Resmi:</span>
-                                            <div className="font-bold bg-white px-3 py-1 rounded border border-blue-200">
-                                                <LatexRenderer text={viewQuestion.keyDisplay} className="!font-sans !text-xs !leading-normal [&_p]:!m-0 [&_p]:inline" />
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                                        <div className="bg-white p-3 rounded-xl border border-slate-200">
-                                            <div className="text-[10px] font-bold text-slate-400 uppercase">Total Menjawab</div>
-                                            <div className="text-xl font-bold text-slate-700 mt-1">{viewQuestion.total}</div>
-                                        </div>
-                                        <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200">
-                                            <div className="text-[10px] font-bold text-emerald-600 uppercase">Jawaban Benar</div>
-                                            <div className="text-xl font-bold text-emerald-700 mt-1">{viewQuestion.correct}</div>
-                                        </div>
-                                        <div className="bg-red-50 p-3 rounded-xl border border-red-200">
-                                            <div className="text-[10px] font-bold text-red-600 uppercase">Jawaban Salah</div>
-                                            <div className="text-xl font-bold text-red-700 mt-1">{viewQuestion.incorrect}</div>
-                                        </div>
-                                        <div className="bg-amber-50 p-3 rounded-xl border border-amber-200">
-                                            <div className="text-[10px] font-bold text-amber-600 uppercase">Belum Dinilai</div>
-                                            <div className="text-xl font-bold text-amber-700 mt-1">{viewQuestion.ungraded ?? 0}</div>
-                                        </div>
-                                    </div>
                                 </div>
                             )}
 
@@ -622,12 +595,7 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
                         </ModalBody>
 
                     {/* Modal Footer */}
-                    <ModalFooter align="between">
-                        <div className="text-xs text-slate-500">
-                            {viewQuestion.discriminationLabel && (
-                                <span>Daya Beda: <strong className="text-slate-700">{viewQuestion.discriminationLabel}</strong> ({viewQuestion.discriminationIndex?.toFixed(2) ?? '-'})</span>
-                            )}
-                        </div>
+                    <ModalFooter align="end">
                         <Button
                             type="button"
                             variant="cancel"
