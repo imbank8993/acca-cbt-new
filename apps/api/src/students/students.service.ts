@@ -1,5 +1,5 @@
 import { assertAnswerKeysReleased } from '../common/answer-key-release';
-import { pickCurrentClass, type StudentClassRow } from './student-class';
+import { pickCurrentClass, readActiveSchoolYears, type StudentClassRow } from './student-class';
 import { withQuestionTopics } from '../common/exam-question-topics';
 import { examBankInfo } from '../common/exam-subjects';
 import { readExamQuestionVersion } from '../common/exam-question-snapshots';
@@ -410,18 +410,8 @@ export class StudentsService {
     }
 
     /** Tahun ajaran aktif sekolah (`school_years`), ditambah master ACCA (`master_tahun_ajaran`). */
-    private async activeSchoolYears(organizationId: string | null): Promise<string[]> {
-        const [school, master] = await Promise.all([
-            organizationId
-                ? this.db.from('school_years').select('year').eq('organization_id', organizationId).eq('is_active', true)
-                : Promise.resolve({ data: [], error: null }),
-            this.db.from('master_tahun_ajaran').select('tahun_ajaran').eq('is_active', true),
-        ]);
-        const years = [
-            ...(school.error ? [] : ((school.data as { year?: string | null }[] | null) || []).map(row => row.year)),
-            ...(master.error ? [] : ((master.data as { tahun_ajaran?: string | null }[] | null) || []).map(row => row.tahun_ajaran)),
-        ];
-        return [...new Set(years.filter((year): year is string => Boolean(year && year.trim())))];
+    private activeSchoolYears(organizationId: string | null): Promise<string[]> {
+        return readActiveSchoolYears(this.db, organizationId);
     }
 
     // ── Hasil ────────────────────────────────────────────────────────────────

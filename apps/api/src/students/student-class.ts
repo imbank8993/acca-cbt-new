@@ -1,3 +1,5 @@
+import type { DbService } from '../prisma/prisma-db-adapter';
+
 /**
  * Memilih kelas reguler "saat ini" dari semua keanggotaan kelas siswa.
  *
@@ -39,4 +41,46 @@ export function pickCurrentClass(
     if (current.length) return current[0];
 
     return [...pool].sort(newestFirst)[0];
+}
+
+/** Tingkat kelas dari nama kelas: "XI D" → "11", "X Al Razi" → "10", "12 IPA 1" → "12". */
+export function gradeFromClassName(name: string | null | undefined): string | null {
+    const first = String(name || '').trim().split(/[\s\-_.]+/)[0]?.toUpperCase() || '';
+    const roman: Record<string, string> = { VII: '7', VIII: '8', IX: '9', X: '10', XI: '11', XII: '12' };
+    if (roman[first]) return roman[first];
+    return /^(7|8|9|10|11|12)$/.test(first) ? first : null;
+}
+
+type ClassDb = Pick<DbService, 'from'>;
+
+/** Tahun ajaran aktif sekolah (school_years), ditambah master_tahun_ajaran sebagai cadangan. */
+export async function readActiveSchoolYears(db: ClassDb, organizationId: string | null): Promise<string[]> {
+    const [school, master] = await Promise.all([
+        organizationId
+            ? db.from('school_years').select('year').eq('organization_id', organizationId).eq('is_active', true)
+            : Promise.resolve({ data: [], error: null }),
+        db.from('master_tahun_ajaran').select('tahun_ajaran').eq('is_active', true),
+    ]);
+    const years = [
+        ...(school.error ? [] : ((school.data as { year?: string | null }[] | null) || []).map(row => row.year)),
+        ...(master.error ? [] : ((master.data as { tahun_ajaran?: string | null }[] | null) || []).map(row => row.tahun_ajaran)),
+    ];
+    return [...new Set(years.filter((year): year is string => Boolean(year && year.trim())))];
+}
+
+/** Kelas reguler siswa saat ini (tanpa konteks ujian). Gagal membaca → null. */
+export async function readCurrentClass(db: ClassDb, userId: string, organizationId: string | null): Promise<StudentClassRow | null> {
+    try {
+        const { data: memberships, error } = await db.from('cbt_class_members').select('class_id').eq('user_id', userId);
+        const ids = [...new Set(((memberships as { class_id?: string | null }[] | null) || [])
+            .map(row => row.class_id).filter((id): id is string => Boolean(id)))];
+        if (error || !ids.length) return null;
+        const { data: classes, error: classError } = await db.from('cbt_classes').select('id, name, organization_id, school_year').in('id', ids);
+        if (classError) return null;
+        const rows = (classes as StudentClassRow[] | null) || [];
+        if (rows.filter(row => (row.name || '').trim()).length <= 1) return pickCurrentClass(rows, { organizationId });
+        return pickCurrentClass(rows, { organizationId, activeYears: await readActiveSchoolYears(db, organizationId) });
+    } catch {
+        return null;
+    }
 }

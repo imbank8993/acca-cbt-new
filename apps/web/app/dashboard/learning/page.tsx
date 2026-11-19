@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { subjectStyle } from '@/lib/learning-subject-colors';
 import { ArrowRight, BookOpen, CheckCircle2, ChevronDown, Code2, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { deleteMaterial, learningRequest, type LearningMaterial } from '@/lib/learning-api';
 import { groupLearningChapters, learningGradeLabel, learningGrades, learningKey, type LearningChapter } from '@/lib/learning-catalog';
@@ -17,16 +18,24 @@ const SUBJECT_ABBR: Record<string, string> = {
     'bahasa indonesia': 'BIN', 'bahasa inggris': 'BIG', 'bahasa arab': 'BAR',
     sejarah: 'SEJ', geografi: 'GEO', ekonomi: 'EKO', sosiologi: 'SOS',
 };
-const SUBJECT_HUES = [217, 160, 262, 24, 330, 190, 45, 290];
-
-/** Penanda kartu BAB: singkatan dan rona warna yang selalu sama untuk satu mata pelajaran. */
+/** Penanda kartu BAB: singkatan dan warna (gradasi) yang selalu sama untuk satu mata pelajaran. */
 function subjectMark(subject: string): { abbr: string; style: CSSProperties } {
     const key = learningKey(subject);
     const words = key.split(' ').filter(Boolean);
     const abbr = (SUBJECT_ABBR[key] || (words.length > 1 ? words.slice(0, 3).map(word => word[0]).join('') : key.slice(0, 3))).toUpperCase() || '—';
-    let hash = 0;
-    for (const char of key) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-    return { abbr, style: { '--mark-hue': SUBJECT_HUES[hash % SUBJECT_HUES.length] } as CSSProperties };
+    return { abbr, style: subjectStyle(subject) };
+}
+
+/** Kelompok mapel dalam satu kelas, urut nama mapel; BAB di dalamnya tetap urut seperti semula. */
+function groupBySubject(chapters: LearningChapter[]): Array<{ subject: string; chapters: LearningChapter[] }> {
+    const groups = new Map<string, { subject: string; chapters: LearningChapter[] }>();
+    for (const chapter of chapters) {
+        const key = learningKey(chapter.subject);
+        const group = groups.get(key) ?? { subject: chapter.subject || 'Lainnya', chapters: [] };
+        group.chapters.push(chapter);
+        groups.set(key, group);
+    }
+    return [...groups.values()].sort((a, b) => a.subject.localeCompare(b.subject, 'id'));
 }
 
 function chapterStatus(chapter: LearningChapter, manage: boolean): { label: string; tone: 'idle' | 'progress' | 'done' | 'draft' } {
@@ -49,7 +58,9 @@ function LearningLibraryContent({ manage, setManage }: { manage: boolean; setMan
     const [materials, setMaterials] = useState<LearningMaterial[]>([]);
     const [canManage, setCanManage] = useState(false);
     const [query, setQuery] = useState('');
-    const [grade, setGrade] = useState('all');
+    /** null = belum dipilih: siswa langsung melihat kelasnya sendiri, selain itu "Semua". */
+    const [chosenGrade, setGrade] = useState<string | null>(null);
+    const [myGrade, setMyGrade] = useState<string | null>(null);
     const [subject, setSubject] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -62,8 +73,8 @@ function LearningLibraryContent({ manage, setManage }: { manage: boolean; setMan
         const controller = new AbortController(); request.current = controller;
         setLoading(true); setError('');
         try {
-            const data = await learningRequest<{ materials: LearningMaterial[]; canManage: boolean }>(manage ? '?manage=1' : '', { signal: controller.signal });
-            if (!controller.signal.aborted) { setMaterials(data.materials); setCanManage(data.canManage); }
+            const data = await learningRequest<{ materials: LearningMaterial[]; canManage: boolean; myGrade?: string | null }>(manage ? '?manage=1' : '', { signal: controller.signal });
+            if (!controller.signal.aborted) { setMaterials(data.materials); setCanManage(data.canManage); setMyGrade(data.myGrade || null); }
         } catch (err) { if (!controller.signal.aborted) setError((err as Error).message); }
         finally { if (!controller.signal.aborted) setLoading(false); }
     }, [manage]);
@@ -76,20 +87,30 @@ function LearningLibraryContent({ manage, setManage }: { manage: boolean; setMan
         finally { setDeletingId(null); }
     };
     const chapters = useMemo(() => groupLearningChapters(materials), [materials]);
+    // Kelas siswa sendiri (bila ada BAB untuk kelas itu) menjadi pilihan awal dan tampil paling depan.
+    const ownGrade = !manage && myGrade && chapters.some(chapter => chapter.grade === myGrade) ? myGrade : null;
+    const grade = chosenGrade ?? ownGrade ?? 'all';
     const subjects = [...new Set(materials.filter(item => grade === 'all' || (item.grade_level || '') === grade).map(item => item.subject).filter(Boolean))].sort();
     const visible = chapters.filter(chapter => (grade === 'all' || chapter.grade === grade) && (!subject || learningKey(chapter.subject) === learningKey(subject)) &&
         learningKey([chapter.title, chapter.subject, ...chapter.items.map(item => `${item.title} ${item.subtopic} ${item.description}`)].join(' ')).includes(learningKey(query)));
-    const gradeGroups = [...new Set(visible.map(chapter => chapter.grade))];
-    const gradeChoices = [{ value: 'all', label: 'Semua' }, ...learningGrades,
+    const gradeGroups = [...new Set(visible.map(chapter => chapter.grade))].sort((a, b) => Number(b === ownGrade) - Number(a === ownGrade));
+    const allGrades = [...learningGrades,
         ...[...new Set(materials.map(item => item.grade_level).filter(value => value && !learningGrades.some(item => item.value === value)))].map(value => ({ value, label: learningGradeLabel(value) }))];
+    const ownChoice = ownGrade ? allGrades.find(item => item.value === ownGrade) : null;
+    const gradeChoices = [...(ownChoice ? [{ ...ownChoice, label: `${ownChoice.label} · kelas saya` }] : []), { value: 'all', label: 'Semua' },
+        ...allGrades.filter(item => item.value !== ownGrade)]
+        // Siswa: tab kosong disembunyikan agar tidak ramai; guru tetap melihat semua tingkat.
+        .filter(item => canManage || item.value === 'all' || item.value === grade || chapters.some(chapter => chapter.grade === item.value));
     // Kartu "Lanjutkan": BAB yang sedang dipelajari, atau BAB pertama yang belum selesai.
     const resume = useMemo(() => {
         if (manage) return null;
-        const inProgress = chapters.find(chapter => chapter.completed > 0 && chapter.completed < chapter.items.length);
-        const chapter = inProgress || chapters.find(chapter => chapter.completed < chapter.items.length);
+        // BAB kelas siswa sendiri didahulukan.
+        const ordered = ownGrade ? [...chapters.filter(chapter => chapter.grade === ownGrade), ...chapters.filter(chapter => chapter.grade !== ownGrade)] : chapters;
+        const inProgress = ordered.find(chapter => chapter.completed > 0 && chapter.completed < chapter.items.length);
+        const chapter = inProgress || ordered.find(chapter => chapter.completed < chapter.items.length);
         if (!chapter) return null;
         return { chapter, item: chapter.items.find(item => !item.completed) || chapter.items[0], started: Boolean(inProgress) };
-    }, [chapters, manage]);
+    }, [chapters, manage, ownGrade]);
     const resumeMark = resume ? subjectMark(resume.chapter.subject) : null;
 
     return <main className="learning learn-library">
@@ -101,7 +122,7 @@ function LearningLibraryContent({ manage, setManage }: { manage: boolean; setMan
                 {manage && <button type="button" className="learn-primary lc-add" onClick={() => setCreating({})}><Plus size={16} />Tambah subbab</button>}
         </div>}
 
-        {!loading && resume && resumeMark && <section className="lc-continue" aria-label="Lanjutkan belajar">
+        {!loading && resume && resumeMark && <section className="lc-continue" style={resumeMark.style} aria-label="Lanjutkan belajar">
             <span className="lc-mark" style={resumeMark.style} aria-hidden="true">{resumeMark.abbr}</span>
             <div className="lc-continue-text">
                 <span>{resume.started ? 'Lanjutkan belajar' : 'Mulai dari sini'}</span>
@@ -126,8 +147,10 @@ function LearningLibraryContent({ manage, setManage }: { manage: boolean; setMan
 
         {error && <div className="learn-error" role="alert">{error}<button type="button" onClick={() => void load()}>Coba lagi</button></div>}
         {loading ? <div className="learn-loading" role="status">Memuat ruang belajar…</div> : visible.length ? gradeGroups.map(group => <section key={group} className="lc-section" aria-label={learningGradeLabel(group)}>
-            <header className="lc-section-heading"><h2>{learningGradeLabel(group)}</h2><span>{visible.filter(chapter => chapter.grade === group).length} BAB</span></header>
-            <div className="lc-grid">{visible.filter(chapter => chapter.grade === group).map((chapter, index) => {
+            <header className="lc-section-heading"><h2>{learningGradeLabel(group)}{group === ownGrade ? ' · kelas saya' : ''}</h2><span>{visible.filter(chapter => chapter.grade === group).length} BAB</span></header>
+            {groupBySubject(visible.filter(chapter => chapter.grade === group)).map((subjectGroup, _index, subjectGroups) => <div key={subjectGroup.subject} className="lc-subject-group">
+            {subjectGroups.length > 1 && <h3 className="lc-subject-heading" style={subjectStyle(subjectGroup.subject)}><span aria-hidden="true" />{subjectGroup.subject}<small>{subjectGroup.chapters.length} BAB</small></h3>}
+            <div className="lc-grid">{subjectGroup.chapters.map(chapter => {
                 const isOpen = expanded.has(chapter.key) || !!query.trim();
                 const percent = Math.round(chapter.completed / chapter.items.length * 100);
                 const next = chapter.items.find(item => !item.completed) || chapter.items[0];
@@ -135,7 +158,7 @@ function LearningLibraryContent({ manage, setManage }: { manage: boolean; setMan
                 const mark = subjectMark(chapter.subject);
                 const listId = `subchapters-${chapter.items[0].id}`;
                 const toggle = () => setExpanded(previous => { const copy = new Set(previous); if (copy.has(chapter.key)) copy.delete(chapter.key); else copy.add(chapter.key); return copy; });
-                return <article className={`lc-card lc-tone-${index % 4}${isOpen ? ' is-open' : ''}`} key={chapter.key}>
+                return <article className={`lc-card${isOpen ? ' is-open' : ''}`} style={mark.style} key={chapter.key}>
                     <div className="lc-card-banner">
                         <div className="lc-card-main">
                             <span className="lc-mark" style={mark.style} aria-hidden="true">{mark.abbr}</span>
@@ -173,6 +196,7 @@ function LearningLibraryContent({ manage, setManage }: { manage: boolean; setMan
                     </li>)}</ol>}
                 </article>;
             })}</div>
+            </div>)}
         </section>) : !error && <div className="learn-empty"><BookOpen size={36} /><h2>{query || subject ? 'BAB tidak ditemukan' : 'Belum ada BAB untuk kelas ini'}</h2><p>{manage ? 'Tambahkan subbab pertama, lalu pilih nama BAB-nya.' : 'BAB dan subbab yang diterbitkan guru akan muncul di sini.'}</p>{query || subject ? <button type="button" onClick={() => { setQuery(''); setSubject(''); }}>Hapus pencarian</button> : null}</div>}
         {htmlEditing && <HtmlSourceEditorModal materialId={htmlEditing.id} title={htmlEditing.title} onClose={() => setHtmlEditing(null)}
             onSaved={saved => setMaterials(previous => previous.map(row => row.id === saved.id ? { ...row, ...saved, canEdit: row.canEdit, completed: row.completed } : row))} />}

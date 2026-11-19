@@ -6,6 +6,7 @@ import { AuthorizationService } from '../auth/authorization.service';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { MAX_UPLOAD_BYTES, StorageService } from '../storage/storage.service';
 import { ActivityDto, CreateMaterialDto, UpdateMaterialDto } from './learning.dto';
+import { gradeFromClassName, readCurrentClass } from '../students/student-class';
 
 export interface MaterialRow {
     id: string; organization_id: string; created_by: string; title: string; description: string;
@@ -57,7 +58,10 @@ export class LearningService {
         const ids = rows.map(row => row.id);
         const progress = ids.length ? await this.db.from('cbt_learning_progress').select('material_id, completed, completed_version').eq('user_id', user.id).in('material_id', ids) : { data: [], error: null };
         if (progress.error) throw new InternalServerErrorException('Gagal membaca progres belajar.');
-        return { materials: rows.map(row => {
+        // Siswa: tingkat kelasnya saat ini agar bahan ajar kelasnya tampil paling atas.
+        const myClass = canManage ? null : await readCurrentClass(this.db, user.id, org);
+        const myGrade = gradeFromClassName(myClass?.name);
+        return { myGrade, myClassName: myClass?.name?.trim() || null, materials: rows.map(row => {
             const p = (progress.data || []).find((item: { material_id: string }) => item.material_id === row.id);
             const updated = !!p?.completed && (p.completed_version || 1) !== (row.content_version || 1);
             // Sama dengan `editable()`: guru hanya pemilik materinya; Admin boleh semua.

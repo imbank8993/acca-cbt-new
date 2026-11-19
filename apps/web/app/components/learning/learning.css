@@ -178,7 +178,7 @@
 .learning .lc-segmented button:hover{color:var(--lc-text)}
 .learning .lc-segmented button[aria-pressed=true]{background:var(--lc-surface);color:var(--lc-text);box-shadow:0 1px 2px rgba(15,23,42,.08),0 0 0 1px var(--lc-line)}
 .learning .lc-add{padding:8px 14px;border-radius:9px;box-shadow:none}
-.lc-continue{position:relative;isolation:isolate;display:flex;align-items:center;gap:16px;overflow:hidden;padding:18px 20px;margin-bottom:24px;border:0;border-radius:16px;background:linear-gradient(125deg,#3b82f6,#4f46e5 58%,#7c3aed);box-shadow:0 8px 22px rgba(79,70,229,.18);color:#fff}
+.lc-continue{position:relative;isolation:isolate;display:flex;align-items:center;gap:16px;overflow:hidden;padding:18px 20px;margin-bottom:24px;border:0;border-radius:16px;background:var(--lc-grad,linear-gradient(125deg,#3b82f6,#4f46e5 58%,#7c3aed));box-shadow:0 8px 22px hsl(var(--mark-hue,232) 60% 45% / .18);color:#fff}
 .lc-continue::before,.lc-card-banner::before{content:'';position:absolute;z-index:0;top:-36px;right:-30px;width:128px;height:128px;border-radius:50%;background:rgba(255,255,255,.1);pointer-events:none}
 .lc-continue>*{position:relative;z-index:1}
 .lc-continue-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
@@ -215,10 +215,12 @@
 .lc-card:hover,.lc-card.is-open{border-color:var(--lc-line-strong)}
 .lc-card:hover{box-shadow:0 8px 20px rgba(15,23,42,.13)}
 .lc-card-banner{position:relative;isolation:isolate;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;min-height:146px;color:#fff}
-.lc-tone-0 .lc-card-banner{background:linear-gradient(125deg,#3b82f6,#4f46e5 58%,#7c3aed)}
-.lc-tone-1 .lc-card-banner{background:linear-gradient(125deg,#059669,#0d9488 58%,#0891b2)}
-.lc-tone-2 .lc-card-banner{background:linear-gradient(125deg,#d97706,#ea580c 58%,#e11d48)}
-.lc-tone-3 .lc-card-banner{background:linear-gradient(125deg,#0ea5e9,#2563eb 58%,#4f46e5)}
+/* Gradasi per mata pelajaran (lib/learning-subject-colors.ts lewat --lc-grad). */
+.lc-card-banner{background:var(--lc-grad,linear-gradient(125deg,#3b82f6,#4f46e5 58%,#7c3aed))}
+.lc-subject-group+.lc-subject-group{margin-top:18px}
+.learning .lc-subject-heading{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:13px;font-weight:650;color:var(--lc-text)}
+.lc-subject-heading>span{width:10px;height:10px;border-radius:999px;background:var(--lc-grad)}
+.lc-subject-heading>small{font-size:12px;font-weight:500;color:var(--lc-muted)}
 .lc-card-banner>*{position:relative;z-index:1}
 .lc-card-main{position:relative;display:flex;gap:14px;align-items:flex-start;padding:18px 18px 14px}
 .lc-card-body{min-width:0;flex:1}
