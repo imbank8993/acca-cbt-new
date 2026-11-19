@@ -176,11 +176,12 @@ function loadRoomTabs() {
     return mod.exports.roomSections;
 }
 
-test('SET-07: monitoring ruang ASAS/AM ringkas: 4 bagian, reset & pengecualian layar di menu Tindakan', () => {
+test('SET-07: monitoring ruang ASAS/AM ringkas: bagian tetap, reset & pengecualian layar di menu Tindakan', () => {
     const roomSections = loadRoomTabs();
-    assert.deepEqual(roomSections('proktor'), ['peserta', 'jawaban', 'hasil', 'berita']);
-    assert.deepEqual(roomSections('admin'), ['peserta', 'jawaban', 'hasil', 'berita']);
-    assert.deepEqual(roomSections('pengawas'), ['peserta', 'jawaban', 'berita']);
+    assert.deepEqual(roomSections('proktor'), ['peserta', 'jawaban', 'hasil', 'screenshot', 'berita']);
+    assert.deepEqual(roomSections('admin'), ['peserta', 'jawaban', 'hasil', 'screenshot', 'berita']);
+    // Pengawas melihat screenshot peserta ruangnya (tanpa hapus), tetapi tidak melihat Hasil.
+    assert.deepEqual(roomSections('pengawas'), ['peserta', 'jawaban', 'screenshot', 'berita']);
     const workspace = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/monitoring/ParticipantsWorkspace.tsx'), 'utf8');
     assert.match(workspace, /\['reset', 'Reset massal'\]/);
     assert.match(workspace, /\['screen', 'Pengecualian layar'\]/);

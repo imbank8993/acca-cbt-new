@@ -19,6 +19,7 @@ import { ItemAnalysisPanel } from '@/app/components/monitoring/ItemAnalysisPanel
 import { MonitoringResultsTable } from '@/app/components/monitoring/MonitoringResultsTable';
 import { ResetExamModal } from '@/app/components/monitoring/ResetExamModal';
 import { ScreenShareExceptionsPanel } from '@/app/components/monitoring/ScreenShareExceptionsPanel';
+import { ExamScreenshotsPanel } from './ExamScreenshotsPanel';
 import { Button } from '@/app/components/ui/button';
 import { FilterSearch, FilterSelect, FilterToggle, FilterToolbar } from '@/app/components/ui/filtertoolbar';
 import './monitoring.css';
@@ -40,11 +41,11 @@ import { formatStudentName } from '@/lib/monitoring-health';
 import { effectiveRoomFilter, matchesRoomFilter, monitoringRoomOptions } from '@/lib/monitoring-rooms';
 import { getSchoolTimeZone } from '@/lib/school-time';
 
-export type WorkspaceSection = 'peserta' | 'jawaban' | 'hasil' | 'analisis' | 'berita';
+export type WorkspaceSection = 'peserta' | 'jawaban' | 'hasil' | 'analisis' | 'screenshot' | 'berita';
 export type WorkspaceRole = 'admin' | 'proktor' | 'pengawas' | 'guru';
 
 const SECTION_LABELS: Record<WorkspaceSection, string> = {
-    peserta: 'Peserta', jawaban: 'Jawaban', hasil: 'Hasil', analisis: 'Analisis', berita: 'Berita Acara',
+    peserta: 'Peserta', jawaban: 'Jawaban', hasil: 'Hasil', analisis: 'Analisis', screenshot: 'Screenshot', berita: 'Berita Acara',
 };
 const FINISHED = ['submitted', 'auto_submitted', 'finished', 'completed', 'selesai'];
 
@@ -286,7 +287,7 @@ export function ParticipantsWorkspace({
     };
 
     const hasIrt = String(focusExam?.scoring_type || '').split(',').some(type => type.trim().startsWith('irt'));
-    const showFilters = !action && ['peserta', 'jawaban', 'hasil'].includes(activeSection);
+    const showFilters = !action && ['peserta', 'jawaban', 'hasil', 'screenshot'].includes(activeSection);
     // Peserta dengan jawaban lokal tertahan (dilaporkan perangkat). Tidak ikut filter
     // kelas/ruang/pencarian, supaya tidak ada yang terlewat oleh proktor.
     const recoverable = anyReset ? attempts.filter(row => canReset(row.exam_id)) : [];
@@ -388,6 +389,10 @@ export function ParticipantsWorkspace({
                     {analysisSelector => <ItemAnalysisPanel key={analysisKey} analysis={analysis?.examId === analysisKey ? analysis.items : []} analysisSelector={analysisSelector} />}
                 </MonitoringAnalysisView>}
         </div>
+        // Screenshot mengikuti filter kelas/ruang/pencarian; tanpa filter, semua yang
+        // boleh dilihat pengguna ini (server membatasi Pengawas pada ruangnya).
+        : activeSection === 'screenshot' ? <ExamScreenshotsPanel examIds={examOptions.map(option => option.exam_id)}
+            attemptIds={room || klass || query ? scoped.map(row => row.id) : undefined} />
         : loading && !attempts.length ? <Placeholder text="Memuat peserta…" />
         : activeSection === 'peserta' ? <div className="monitoring-participants-list">
             <div role="group" aria-label="Filter status" className="monitoring-status-filters flex flex-wrap gap-1.5">

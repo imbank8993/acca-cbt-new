@@ -17,6 +17,8 @@ interface ExamScreenshot {
     available: boolean;
     student_name: string | null;
     student_number: string | null;
+    /** Diisi panel: boleh dihapus pengguna ini (Proktor/Admin sekolah ujiannya). */
+    canDelete?: boolean;
 }
 
 const PAGE_SIZE = 48;
@@ -24,13 +26,18 @@ const PAGE_SIZE = 48;
 const REFRESH_MS = 30_000;
 
 /**
- * Tab Screenshot di monitoring: semua bukti screenshot satu ujian. Proktor/Admin
- * dapat memilih beberapa gambar lalu menghapusnya; Guru pengawas hanya melihat.
+ * Tab Screenshot di monitoring: bukti screenshot satu ujian, atau beberapa ujian
+ * sekaligus (folder ASAS/AM). Proktor/Admin dapat memilih beberapa gambar lalu
+ * menghapusnya; Guru dan Pengawas hanya melihat, dan server membatasi Pengawas
+ * pada peserta ruangnya. `attemptIds` (opsional) mengikuti filter peserta yang
+ * sedang aktif di ruang kerja monitoring (kelas, ruang, pencarian).
  * Menghapus hanya membuang gambar; catatan kejadiannya tetap tersimpan.
  */
-export function ExamScreenshotsPanel({ examId }: { examId: string }) {
+export function ExamScreenshotsPanel({ examId, examIds, attemptIds }: { examId?: string; examIds?: string[]; attemptIds?: string[] }) {
     const { timeZone } = useSchoolTimeZone();
-    const [data, setData] = useState<{ examId: string; rows: ExamScreenshot[]; canDelete: boolean } | null>(null);
+    const ids = useMemo(() => [...new Set(examIds?.length ? examIds : examId ? [examId] : [])].sort(), [examId, examIds]);
+    const key = ids.join(',');
+    const [data, setData] = useState<{ key: string; rows: ExamScreenshot[] } | null>(null);
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
     const [loading, setLoading] = useState(false);
@@ -44,17 +51,22 @@ export function ExamScreenshotsPanel({ examId }: { examId: string }) {
 
     useEffect(() => {
         let active = true;
-        const fetchRows = () => apiGet<{ screenshots: ExamScreenshot[]; canDelete?: boolean }>(
-            `/api/proctoring/exams/${encodeURIComponent(examId)}/screenshots`,
-        ).then(result => {
+        const examList = key ? key.split(',') : [];
+        const fetchRows = () => Promise.all(examList.map(id => apiGet<{ screenshots: ExamScreenshot[]; canDelete?: boolean }>(
+            `/api/proctoring/exams/${encodeURIComponent(id)}/screenshots`,
+        ))).then(results => {
             if (!active) return;
             setLoading(false);
-            if (!result.success) {
-                setError(result.error || 'Daftar screenshot belum dapat dimuat.');
+            const failed = results.find(result => !result.success);
+            if (failed && !failed.success) {
+                setError(failed.error || 'Daftar screenshot belum dapat dimuat.');
                 return;
             }
             setError('');
-            setData({ examId, rows: result.screenshots || [], canDelete: result.canDelete === true });
+            const rows = results.flatMap(result => result.success
+                ? (result.screenshots || []).map(row => ({ ...row, canDelete: result.canDelete === true })) : []);
+            rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
+            setData({ key, rows });
         }).catch(() => {
             if (!active) return;
             setLoading(false);
@@ -65,16 +77,22 @@ export function ExamScreenshotsPanel({ examId }: { examId: string }) {
             if (document.visibilityState === 'visible') void fetchRows();
         }, REFRESH_MS);
         return () => { active = false; window.clearInterval(timer); };
-    }, [examId, reloadToken]);
+    }, [key, reloadToken]);
 
     const refresh = () => {
         setLoading(true);
         setReloadToken(value => value + 1);
     };
 
-    const current = data?.examId === examId ? data : null;
-    const rows = useMemo(() => current?.rows || [], [current]);
-    const canDelete = current?.canDelete === true;
+    const current = data?.key === key ? data : null;
+    const attemptKey = attemptIds ? [...attemptIds].sort().join(',') : null;
+    const rows = useMemo(() => {
+        const all = current?.rows || [];
+        if (attemptKey === null) return all;
+        const allowed = new Set(attemptKey ? attemptKey.split(',') : []);
+        return all.filter(row => allowed.has(row.attempt_id));
+    }, [current, attemptKey]);
+    const canDelete = rows.some(row => row.canDelete);
 
     const visible = useMemo(() => {
         const needle = query.trim().toLowerCase();
@@ -84,11 +102,12 @@ export function ExamScreenshotsPanel({ examId }: { examId: string }) {
             securityViolationLabel(row.event_type).toLowerCase().includes(needle)));
     }, [rows, query, showRemoved]);
     const shown = visible.slice(0, limit);
-    const selectable = shown.filter(row => row.available);
+    const selectable = shown.filter(row => row.available && row.canDelete);
 
     // Pilihan hanya untuk gambar yang masih ada di daftar terbaru.
     const availableIds = useMemo(() => new Set(rows.filter(row => row.available).map(row => row.id)), [rows]);
-    const chosen = [...selected].filter(id => availableIds.has(id));
+    const deletableIds = useMemo(() => new Set(rows.filter(row => row.available && row.canDelete).map(row => row.id)), [rows]);
+    const chosen = [...selected].filter(id => deletableIds.has(id));
     const allShownChosen = selectable.length > 0 && selectable.every(row => selected.has(row.id));
     const storedBytes = rows.reduce((total, row) => total + (row.available ? Number(row.byte_size) || 0 : 0), 0);
     const removedCount = rows.length - availableIds.size;
@@ -187,7 +206,7 @@ export function ExamScreenshotsPanel({ examId }: { examId: string }) {
 
         {!current && !error && <p className="text-sm text-slate-500">Memuat screenshot…</p>}
         {current && visible.length === 0 && <p className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
-            {rows.length === 0 ? 'Belum ada screenshot untuk ujian ini.' : 'Tidak ada screenshot yang cocok dengan pencarian.'}
+            {rows.length === 0 ? 'Belum ada screenshot untuk peserta yang ditampilkan.' : 'Tidak ada screenshot yang cocok dengan pencarian.'}
         </p>}
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -205,7 +224,7 @@ export function ExamScreenshotsPanel({ examId }: { examId: string }) {
                         </a> : <p className="flex h-44 items-center justify-center bg-slate-50 p-4 text-center text-xs text-slate-500 dark:bg-slate-950">
                             {row.deleted_at ? 'Gambar telah dihapus.' : 'Masa simpan gambar telah berakhir.'}
                         </p>}
-                        {canDelete && row.available && <label className="absolute left-2 top-2 inline-flex cursor-pointer items-center rounded-md bg-white/90 p-1.5 shadow dark:bg-slate-900/90">
+                        {row.canDelete && row.available && <label className="absolute left-2 top-2 inline-flex cursor-pointer items-center rounded-md bg-white/90 p-1.5 shadow dark:bg-slate-900/90">
                             <span className="sr-only">Pilih screenshot {row.student_name || ''}</span>
                             <input type="checkbox" checked={isChosen} onChange={() => toggle(row.id)} />
                         </label>}
@@ -217,7 +236,7 @@ export function ExamScreenshotsPanel({ examId }: { examId: string }) {
                             <p>{securityViolationLabel(row.event_type)}</p>
                             <time dateTime={row.created_at} className="text-slate-400">{formatTime(row.created_at)}</time>
                         </div>
-                        {canDelete && row.available && <button type="button" onClick={() => void remove([row.id])} disabled={deleting}
+                        {row.canDelete && row.available && <button type="button" onClick={() => void remove([row.id])} disabled={deleting}
                             aria-label="Hapus screenshot" title="Hapus screenshot"
                             className="shrink-0 rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-500/30 dark:hover:bg-red-500/10">
                             <Trash2 size={14} aria-hidden="true" />

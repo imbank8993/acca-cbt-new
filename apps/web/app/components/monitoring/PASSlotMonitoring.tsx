@@ -70,7 +70,7 @@ function SlotRow({ slot, onSelect }: { slot: PASMonitoringSlot; onSelect: () => 
 
 /** Bagian monitoring ruang: Hasil hanya untuk Admin/Proktor; reset & pengecualian layar ada di menu Tindakan. */
 export function roomSections(userRole: StaffRole): WorkspaceSection[] {
-    return userRole === 'pengawas' ? ['peserta', 'jawaban', 'berita'] : ['peserta', 'jawaban', 'hasil', 'berita'];
+    return userRole === 'pengawas' ? ['peserta', 'jawaban', 'screenshot', 'berita'] : ['peserta', 'jawaban', 'hasil', 'screenshot', 'berita'];
 }
 
 /** Satu entri per ujian: ujian gabungan (satu bank soal, beberapa kelas) diringkas menjadi satu. */

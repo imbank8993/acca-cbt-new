@@ -25,6 +25,7 @@ getProctorOrganization,
 } from '@/lib/api/proctor';
 import { getSessionUser } from '@/lib/session';
 import { formatStudentName } from '@/lib/monitoring-health';
+import { ExamScreenshotsPanel } from '@/app/components/monitoring/ExamScreenshotsPanel';
 import {
 AlertTriangle,
 CheckCircle2,
@@ -172,6 +173,7 @@ function MonitoringContent() {
                     { id: 'answers', label: 'Jawaban' },
                     { id: 'results', label: 'Daftar peserta' },
                     { id: 'incidents', label: 'Insiden' },
+                    { id: 'screenshots', label: 'Screenshot' },
                     { id: 'reset', label: 'Reset massal' },
                     ...(hasMonitoringAdministration(selectedExam) ? [{ id: 'admin', label: 'Administrasi' }] : []),
                 ]}
@@ -359,6 +361,11 @@ function MonitoringContent() {
                         ))}
                     </ul>}
                 </section>
+            )}
+
+            {/* Pengawas hanya melihat (server membatasi pada peserta ruangnya); hapus khusus Proktor/Admin. */}
+            {activeTab === 'screenshots' && selectedExamId && (
+                <ExamScreenshotsPanel key={`screenshots-${selectedExamId}`} examId={selectedExamId} />
             )}
 
             {activeTab === 'reset' && <div className="space-y-4">

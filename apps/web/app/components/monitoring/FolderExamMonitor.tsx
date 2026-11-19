@@ -106,7 +106,7 @@ function BankMonitor({ group, userRole, attemptBasePath }: { group: FolderExamGr
             examOptions={examOptions}
             examRecords={examRecords}
             userRole={userRole}
-            sections={['peserta', 'jawaban', 'hasil', 'analisis']}
+            sections={['peserta', 'jawaban', 'hasil', 'analisis', 'screenshot']}
             loading={loading}
             attemptBasePath={attemptBasePath}
             onReload={() => load(true)}
