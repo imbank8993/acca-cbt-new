@@ -1,6 +1,7 @@
 "use client";
 import './question-editor-dark.css';
 import { hasQuestionContent } from '@/lib/question-content';
+import { findContentLinks } from '@/lib/exam-content-links';
 import { normalizeTrueFalseLabels,type TrueFalseLabels } from '@acca-cbt/shared';
 import { QuestionGroupPicker } from './QuestionGroupPicker';
 import type { QuestionGroupOption } from '@/lib/question-groups';
@@ -412,6 +413,7 @@ export default function QuestionEditorModal({
         setInitialPayload({ key: editorKey, payload: serializedPayload });
     }
     const isDirty = initialPayload.key === editorKey && serializedPayload !== initialPayload.payload;
+    const contentLinks = findContentLinks(questionText, ...options.map(opt => opt.text));
 
     useEffect(() => {
         if (!isDirty) return;
@@ -649,6 +651,18 @@ export default function QuestionEditorModal({
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* ── Peringatan link di isi soal ── */}
+            {contentLinks.length > 0 && (
+                <div className="bg-amber-50 border-b border-amber-100 shrink-0 px-6 py-3 flex items-start gap-3">
+                    <AlertCircle size={15} className="text-amber-500 shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-700 font-medium">
+                        Soal ini berisi tautan ({contentLinks.length}): {contentLinks.slice(0, 2).join(', ')}{contentLinks.length > 2 ? ', …' : ''}.
+                        {' '}Siswa tidak dapat membukanya selama ujian; tautan hanya tampil sebagai keterangan sumber.
+                        {' '}Bila bacaannya perlu dibaca siswa, tempel teksnya sebagai stimulus.
+                    </p>
+                </div>
+            )}
 
             {/* ── Body ── */}
             <div className="flex-1 flex flex-col xl:flex-row overflow-y-auto xl:overflow-hidden">
