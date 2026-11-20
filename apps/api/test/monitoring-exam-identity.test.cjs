@@ -30,13 +30,14 @@ test('same PAS folder reveals bank and class without renaming exams or changing 
     assert.equal(helpers.monitoringExamLabel(makeExam({metadata:{bank_title:42}})),'Matematika XI · Kelas XI A');
 });
 
-test('picker: asesmen lalu mapel dan kelas (InlineSelect) dengan status dan detail sesuai permintaan', async () => {
+test('picker: asesmen (InlineSelect) lalu mapel dan kelas (SearchableSelect, bisa diketik) dengan status dan detail sesuai permintaan', async () => {
     const selects={};
     const source=fs.readFileSync(path.resolve(__dirname,'../../web/app/components/monitoring/MonitoringExamPicker.tsx'),'utf8');
     const code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
     const dependencies={
         'react': React,
         '@/app/components/ui/inlineselect':{InlineSelect:p=>{selects[p['aria-label']]=p;return React.createElement('select',{'aria-label':p['aria-label'],value:p.value,onChange:()=>{}},p.children)}},
+        '@/app/components/ui/SearchableSelect':{SearchableSelect:p=>{selects[p.ariaLabel]=p;return React.createElement('select',{'aria-label':p.ariaLabel,value:p.value,onChange:()=>{}},p.options.map(o=>React.createElement('option',{key:o.value,value:o.value},o.label)))}},
         '@/lib/monitoring-exams':helpers,
         'lucide-react':{Info:()=>React.createElement('svg'),X:()=>React.createElement('svg')},
         '@/lib/school-time':{formatSchoolDateTime:(value,zone)=>value+' '+zone},
@@ -54,7 +55,11 @@ test('picker: asesmen lalu mapel dan kelas (InlineSelect) dengan status dan deta
     assert.equal(selects['Asesmen'].value,'p1');
     assert.match(html,/<option value="p1"[^>]*>● ASAS Ganjil<\/option>/);
     assert.match(html,/<option value="__other__">Ujian lainnya<\/option>/);
-    assert.match(html,/<optgroup label="Sedang berlangsung"><option value="math-a">Matematika XI · Kelas XI A<\/option><option value="math-b"[^>]*>Matematika · Kelas XI B<\/option><\/optgroup>/);
+    assert.deepEqual(selects['Mata pelajaran dan kelas'].options,[
+        {value:'math-a',label:'Matematika XI · Kelas XI A',badge:'Sedang berlangsung'},
+        {value:'math-b',label:'Matematika · Kelas XI B',badge:'Sedang berlangsung'},
+    ]);
+    assert.equal(selects['Mata pelajaran dan kelas'].value,'math-b');
     assert.doesNotMatch(html,/Ulangan Harian/, 'ujian lain tidak dicampur ke daftar mapel folder');
     assert.match(html,/Sedang berlangsung<\/span>/);
     assert.match(html,/90 menit/);
@@ -63,8 +68,8 @@ test('picker: asesmen lalu mapel dan kelas (InlineSelect) dengan status dan deta
     selects['Mata pelajaran dan kelas'].onChange('math-a'); assert.equal(chosen,'math-a');
     selects['Asesmen'].onChange('__other__'); assert.equal(chosen,'daily');
 
-    const other=renderToStaticMarkup(React.createElement(mod.exports.default,{exams,now,value:'daily',onChange:()=>{}}));
-    assert.match(other,/<optgroup label="Akan datang"><option value="daily"[^>]*>Ulangan Harian<\/option>/);
+    renderToStaticMarkup(React.createElement(mod.exports.default,{exams,now,value:'daily',onChange:()=>{}}));
+    assert.deepEqual(selects['Ujian'].options,[{value:'daily',label:'Ulangan Harian',badge:'Akan datang'}]);
     const room=renderToStaticMarkup(React.createElement(mod.exports.default,{exams,now,value:'math-b',folderLevel:true,onChange:()=>{}}));
     assert.doesNotMatch(room,/Mata pelajaran dan kelas/);
     assert.doesNotMatch(room,/Semua mapel dan ruang|Lihat detail ujian/, 'Per ruang: tanpa baris pengisi; status ada di kartu ruang');

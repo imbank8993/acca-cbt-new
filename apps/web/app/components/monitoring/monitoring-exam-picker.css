@@ -139,3 +139,8 @@
 }
 /* Select tambahan sebaris (Ruang · Sesi pada Per ruang); kosong bila tidak dipakai. */
 .monitoring-exam-picker__slot { display: contents; }
+
+/* Pemilih mapel/kelas yang bisa dicari: tampil seperti pemilih asesmen di sebelahnya. */
+.monitoring-exam-picker__search { min-width: 0; }
+.monitoring-exam-picker__search .ss__trigger { border-radius: 8px; }
+.monitoring-exam-picker__search .ss__mainInput { font-size: 14px; font-weight: 600; }

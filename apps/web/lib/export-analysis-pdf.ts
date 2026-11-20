@@ -1,19 +1,16 @@
 /**
  * Dua PDF dari Monitoring → Hasil → Export:
- *  - "Analisis Soal": analisis umum untuk guru dan sekolah (ringkasan, sebaran capaian, hasil per bentuk soal,
- *    penguasaan materi, analisis tiap soal, daftar nilai);
- *  - "Laporan Siswa": satu laporan per siswa yang dapat dibagikan kepada siswa dan orang tua.
+ *  - "Analisis Soal": ringkasan nilai, sebaran nilai, hasil per bentuk soal dan materi, statistik tiap soal, daftar nilai;
+ *  - "Laporan Siswa": satu halaman per siswa.
+ * Keduanya hanya menyajikan data dan angka: tanpa narasi, kategori, kesimpulan, atau saran.
  * Bahasa dan batas: lib/analysis-plain.ts; dasar riset: docs/laporan-analisis-hasil-pdf-2026-11-16.md.
  */
 import type { jsPDF } from 'jspdf';
 import { formatAnswerKey, formatStudentAnswer, type DisplayQuestion } from './answer-display';
-import {
-    RELIABILITY_PLAIN, classNarrative, missedByTopic, parentAdvice, percentText, readItem, resultText,
-    studentAdvice, studentNarrative, studentTypeRows, summarizeTypes, type ItemReading,
-} from './analysis-plain';
+import { missedByTopic, percentText, readItem, studentTypeRows, summarizeTypes, typeInfo } from './analysis-plain';
 import type { DetailedItemAnalysisResponse, ExamAnswerRecord, ExamAttemptRecord, OrganizationExam } from './api/proctor';
 import type { QuestionRecord } from './api/questions';
-import { MASTERY_BANDS, buildAssessmentReport, type AssessmentReport, type StudentReport } from './assessment-report';
+import { buildAssessmentReport, type AssessmentReport, type StudentReport } from './assessment-report';
 import type { IrtCalibration } from './irt-calibration';
 import { fitLogo, loadPublicImage, type KopLogo } from './school-logo';
 import { getSchoolTimeZoneLabel } from './school-time';
@@ -34,7 +31,6 @@ export const ACCA_LOGO_PATH = '/logo-sidebar.png';
 const L = 18, R = 192, W = R - L, TOP = 14, BOTTOM = 279;
 type RGB = [number, number, number];
 const INK: RGB = [30, 41, 59], MUTED: RGB = [100, 116, 139], BLUE: RGB = [31, 107, 240], LINE: RGB = [221, 227, 235], SOFT: RGB = [244, 247, 251];
-const GOOD: RGB = [222, 244, 231], WARN: RGB = [254, 243, 214], BAD: RGB = [253, 226, 226], INFO: RGB = [224, 236, 255];
 
 /** Font standar PDF hanya WinAnsi: ganti simbol yang tidak tersedia. */
 export function pdfSafe(text: unknown): string {
@@ -201,14 +197,16 @@ function footer(pdf: jsPDF, left: (page: number) => string) {
     }
 }
 
-const CONCLUSION_FILL: Record<string, RGB | null> = { 'Layak dipakai': GOOD, 'Perlu diperbaiki': WARN, 'Periksa ulang': BAD, 'Belum dapat disimpulkan': null };
-const bandFill = (id?: string | null): RGB | null => id === 'bimbingan' ? BAD : id === 'remedial' ? WARN : id === 'tuntas' ? GOOD : id === 'pengayaan' ? INFO : null;
-const BAND_RANGE: Record<string, string> = { bimbingan: '0-40', remedial: '41-65', tuntas: '66-85', pengayaan: '86-100' };
 const hasTopics = (report: AssessmentReport) => report.topics.some(topic => topic.name !== 'Tanpa materi');
+const SCORE_RANGES: Array<[string, (score: number) => boolean]> = [
+    ['0-40', score => score <= 40], ['41-65', score => score > 40 && score <= 65],
+    ['66-85', score => score > 65 && score <= 85], ['86-100', score => score > 85],
+];
 
 interface Meta { title: string; subject: string; classes: string; date: string; created: string }
 
-function classReport(w: Writer, report: AssessmentReport, readings: ItemReading[], meta: Meta, logo: KopLogo | null) {
+/** Laporan analisis soal: hanya data dan angka, tanpa narasi, kategori, atau kesimpulan. */
+function classReport(w: Writer, report: AssessmentReport, meta: Meta, logo: KopLogo | null) {
     drawKop(w, logo, 'Analisis Soal');
     titleBlock(w, 'LAPORAN ANALISIS SOAL', meta.title);
     w.details([
@@ -218,82 +216,57 @@ function classReport(w: Writer, report: AssessmentReport, readings: ItemReading[
     ]);
     w.y += 2;
     w.onNewPage = () => { drawKop(w, logo, `Analisis Soal - ${meta.title}`, true); };
-    if (report.warnings.length) {
-        w.y += 3;
-        w.paragraph(`Perhatian: ${report.warnings.join(' ')}`, 8.5, [146, 86, 18], 'italic');
-    }
 
     const d = report.descriptives;
-    const passed = report.bandCounts.tuntas + report.bandCounts.pengayaan;
-    const graded = Object.values(report.bandCounts).reduce((a, b) => a + b, 0);
-    w.section('1. Ringkasan Hasil');
+    w.section('1. Ringkasan Nilai');
     w.stats([
-        ['Rata-rata nilai', num(d?.mean, 1), 'skala 0-100'],
-        ['Nilai tertinggi / terendah', d ? `${num(d.max)} / ${num(d.min)}` : '-'],
-        ['Siswa tuntas', graded ? `${passed} siswa` : '-', graded ? `${percentText(passed / graded)} dari ${graded} siswa` : 'menunggu penilaian'],
-        ['Keajegan soal', RELIABILITY_PLAIN(report.reliability.value), report.reliability.value == null ? '' : `reliabilitas ${num(report.reliability.value, 2)}`],
+        ['Rata-rata', num(d?.mean, 1)], ['Median', num(d?.median, 1)],
+        ['Tertinggi / terendah', d ? `${num(d.max)} / ${num(d.min)}` : '-'], ['Simpangan baku', num(d?.sd, 1)],
     ]);
-    w.paragraph(classNarrative(report, readings));
+    w.stats([
+        ['Peserta dinilai', String(d?.n ?? 0)], ['Kuartil 1 / 3', d ? `${num(d.q1, 1)} / ${num(d.q3, 1)}` : '-'],
+        ['Reliabilitas', num(report.reliability.value, 2), report.reliability.method], ['SEM', num(report.reliability.sem, 2)],
+    ]);
 
-    w.section('2. Sebaran Capaian Siswa');
-    w.table([{ label: 'Kategori capaian', width: 42 }, { label: 'Rentang nilai', width: 26, align: 'center' }, { label: 'Jumlah siswa', width: 28, align: 'center' }, { label: 'Tindak lanjut', width: W - 96 }],
-        MASTERY_BANDS.map(band => [band.label, BAND_RANGE[band.id], `${report.bandCounts[band.id]} (${graded ? percentText(report.bandCounts[band.id] / graded) : '-'})`, band.advice]),
-        { fills: MASTERY_BANDS.map(band => [bandFill(band.id), null, null, null]) });
+    w.section('2. Sebaran Nilai');
+    const scores = report.students.map(student => student.score).filter((score): score is number => score != null);
+    w.table([{ label: 'Rentang nilai', width: 58 }, { label: 'Jumlah siswa', width: 58, align: 'center' }, { label: 'Persentase', width: W - 116, align: 'center' }],
+        SCORE_RANGES.map(([label, inRange]) => {
+            const count = scores.filter(inRange).length;
+            return [label, String(count), scores.length ? percentText(count / scores.length) : '-'];
+        }));
 
     w.section('3. Hasil per Bentuk Soal');
-    const types = summarizeTypes(report.items, readings);
-    w.table([{ label: 'Bentuk soal', width: 40 }, { label: 'Cara penilaian', width: W - 40 - 18 - 24 - 22 - 26 }, { label: 'Jumlah soal', width: 18, align: 'center' },
-        { label: 'Capaian kelas', width: 24, align: 'center' }, { label: 'Layak dipakai', width: 22, align: 'center' }, { label: 'Perlu tindak lanjut', width: 26, align: 'center' }],
-    types.map(type => [type.label, type.scoring, String(type.count), percentText(type.achievement), String(type.good), String(type.fix)]));
+    const types = summarizeTypes(report.items, report.items.map(item => readItem(item, report.analyzed)));
+    w.table([{ label: 'Bentuk soal', width: W - 40 - 40 }, { label: 'Jumlah soal', width: 40, align: 'center' }, { label: 'Capaian rata-rata', width: 40, align: 'center' }],
+        types.map(type => [type.label, String(type.count), percentText(type.achievement)]));
 
+    let n = 4;
     if (hasTopics(report)) {
-        w.section('4. Penguasaan Materi');
-        w.table([{ label: 'Materi', width: W - 18 - 26 - 46 }, { label: 'Soal', width: 18, align: 'center' }, { label: 'Capaian kelas', width: 26, align: 'center' }, { label: 'Keterangan', width: 46 }],
-            report.topics.map(topic => [topic.name, String(topic.questionCount), topic.percent == null ? '-' : `${num(topic.percent)}%`,
-                topic.percent == null ? 'Menunggu penilaian' : topic.percent > 65 ? 'Sudah dikuasai' : 'Perlu diajarkan ulang']),
-            { fills: report.topics.map(topic => [null, null, null, topic.percent == null ? null : topic.percent > 65 ? GOOD : WARN]) });
+        w.section(`${n++}. Capaian per Materi`);
+        w.table([{ label: 'Materi', width: W - 40 - 40 }, { label: 'Jumlah soal', width: 40, align: 'center' }, { label: 'Capaian', width: 40, align: 'center' }],
+            report.topics.map(topic => [topic.name, String(topic.questionCount), topic.percent == null ? '-' : `${num(topic.percent)}%`]));
     }
 
-    const n = hasTopics(report) ? 5 : 4;
-    w.section(`${n}. Analisis Tiap Soal`);
-    w.paragraph('Capaian kelas adalah rata-rata skor siswa dibandingkan skor maksimum soal. Penjelasan setiap kolom ada di bagian "Cara Membaca Laporan".', 8.5, MUTED);
-    w.y += 1.5;
-    w.table([{ label: 'No', width: 11, align: 'center' }, { label: 'Bentuk soal', width: 31 }, { label: 'Materi', width: W - 11 - 31 - 20 - 20 - 22 - 33 },
-        { label: 'Capaian kelas', width: 20, align: 'center' }, { label: 'Kesulitan', width: 20, align: 'center' }, { label: 'Daya pembeda', width: 22, align: 'center' }, { label: 'Kesimpulan', width: 33 }],
-    readings.map(item => [String(item.number), item.typeLabel, item.topic, percentText(item.achievement), item.difficulty, item.discrimination, item.conclusion]),
-    { fills: readings.map(item => [null, null, null, null, null, null, CONCLUSION_FILL[item.conclusion]]), size: 8.5 });
+    w.section(`${n++}. Statistik Tiap Soal`);
+    w.table([{ label: 'No', width: 9, align: 'center' }, { label: 'Bentuk soal', width: 25 }, { label: 'Materi', width: W - 9 - 25 - 12 - 13 - 14 - 13 - 13 - 13 - 13 - 13 },
+        { label: 'Skor maks', width: 12, align: 'center' }, { label: 'Dinilai', width: 13, align: 'center' },
+        { label: 'Benar penuh', width: 14, align: 'center' }, { label: 'Benar sebagian', width: 13, align: 'center' }, { label: 'Skor nol', width: 13, align: 'center' },
+        { label: 'p', width: 13, align: 'center' }, { label: 'D', width: 13, align: 'center' }, { label: 'r it', width: 13, align: 'center' }],
+    report.items.map(item => [String(item.number), typeInfo(item.type).label, item.topic, num(item.maxScore, item.maxScore % 1 ? 1 : 0), String(item.graded),
+        percentText(item.fullShare), percentText(item.partialShare), percentText(item.zeroShare), num(item.p, 2), num(item.d, 2), num(item.ritc, 2)]),
+    { size: 7.8, pad: 1.6 });
+    w.paragraph('p = indeks kesukaran (0-1); D = indeks daya pembeda (27% atas - 27% bawah); r it = korelasi skor butir dengan skor total.', 7.5, MUTED);
 
-    const noted = readings.filter(item => item.notes.length);
-    if (noted.length) {
-        w.section(`${n + 1}. Catatan dan Saran Perbaikan Soal`);
-        w.table([{ label: 'No', width: 11, align: 'center' }, { label: 'Kesimpulan', width: 32 }, { label: 'Catatan dan saran', width: W - 43 }],
-            noted.map(item => [String(item.number), item.conclusion, item.notes.join(' ')]),
-            { fills: noted.map(item => [null, CONCLUSION_FILL[item.conclusion], null]) });
-    }
-
-    w.section(`${n + (noted.length ? 2 : 1)}. Daftar Nilai Siswa`);
-    w.table([{ label: 'No', width: 11, align: 'center' }, { label: 'Nama siswa', width: W - 11 - 26 - 22 - 40 }, { label: 'Kelas', width: 26 },
-        { label: 'Nilai', width: 22, align: 'center' }, { label: 'Kategori', width: 40 }],
-    report.students.map((student, index) => [String(index + 1), student.name, student.className, student.score == null ? '-' : num(student.score), student.band?.label || 'Menunggu penilaian']),
-    { fills: report.students.map(student => [null, null, null, null, bandFill(student.band?.id)]) });
-
-    w.section('Cara Membaca Laporan');
-    const terms: Array<[string, string]> = [
-        ['Capaian kelas', 'Rata-rata skor seluruh siswa pada satu soal dibandingkan skor maksimumnya. Untuk soal yang hanya dinilai benar atau salah, angka ini sama dengan persentase siswa yang menjawab benar.'],
-        ['Kesulitan', 'Mudah jika capaian kelas di atas 70%, sedang jika 31-70%, dan sulit jika 30% atau kurang.'],
-        ['Daya pembeda', 'Kemampuan soal membedakan siswa yang sudah menguasai materi dengan yang belum, dihitung dari selisih capaian 27% siswa bernilai tertinggi dan 27% siswa bernilai terendah. Baik: 0,30 atau lebih; cukup: 0,20-0,29; kurang: di bawah 0,20; terbalik: siswa bernilai rendah justru lebih banyak benar.'],
-        ['Kesimpulan', 'Layak dipakai: soal berfungsi dengan baik. Perlu diperbaiki: soal dapat dipakai lagi setelah kalimat, pilihan jawaban, atau pedoman penskorannya diperbaiki. Periksa ulang: ada tanda kunci jawaban keliru atau soal bermakna ganda.'],
-        ['Bentuk soal', 'Pilihan ganda juga diperiksa dari pilihan jawaban yang dipilih siswa. Soal yang dapat bernilai sebagian (benar-salah, menjodohkan, mengurutkan, isian, uraian) juga diperiksa dari banyaknya siswa yang hanya benar sebagian.'],
-        ['Keajegan soal', 'Menunjukkan seberapa konsisten soal-soal mengukur kemampuan yang sama (reliabilitas). Baik: 0,70 atau lebih; cukup: 0,60-0,69; kurang: di bawah 0,60. Jika kurang, gunakan hasil ujian ini bersama bukti lain, misalnya tugas dan pengamatan.'],
-        ['Kategori capaian', 'Mengikuti interval kriteria ketercapaian tujuan pembelajaran (KKTP): 0-40 perlu bimbingan, 41-65 remedial sebagian, 66-85 tuntas, 86-100 pengayaan.'],
-    ];
-    w.table([{ label: 'Istilah', width: 34 }, { label: 'Arti', width: W - 34 }], terms.map(([term, text]) => [term, text]));
-    w.y += 1;
-    w.paragraph('Rujukan: Depdiknas (2008) Panduan Analisis Butir Soal; Kemendikbudristek (2024) Panduan Pembelajaran dan Asesmen; '
-        + 'Ebel & Frisbie (1991); Haladyna & Downing (1993); Zenisky & Hambleton (2012). Data teknis lengkap (korelasi butir, '
-        + 'parameter IRT, sebaran pilihan jawaban) tersedia pada ekspor Excel.', 7.8, MUTED);
+    w.section(`${n}. Daftar Nilai Siswa`);
+    w.table([{ label: 'No', width: 11, align: 'center' }, { label: 'Nama siswa', width: W - 11 - 26 - 18 - 16 - 16 - 16 - 16 }, { label: 'Kelas', width: 26 },
+        { label: 'Nilai', width: 18, align: 'center' }, { label: 'Benar', width: 16, align: 'center' }, { label: 'Sebagian', width: 16, align: 'center' },
+        { label: 'Salah', width: 16, align: 'center' }, { label: 'Kosong', width: 16, align: 'center' }],
+    report.students.map((student, index) => [String(index + 1), student.name, student.className, student.score == null ? '-' : num(student.score),
+        String(student.correct), String(student.partial), String(student.wrong), String(student.unanswered)]));
 }
 
+/** Laporan per siswa: hanya data dan angka, tanpa narasi, kategori, atau saran. */
 function studentPage(w: Writer, report: AssessmentReport, student: StudentReport, meta: Meta, logo: KopLogo | null) {
     w.onNewPage = () => { drawKop(w, logo, `Laporan Hasil Ujian - ${student.name}`, true); };
     w.compact = true;
@@ -308,44 +281,33 @@ function studentPage(w: Writer, report: AssessmentReport, student: StudentReport
     ]);
     w.y += 3;
 
-    const mean = report.descriptives?.mean;
     w.stats([
-        ['Nilai', student.score == null ? 'Menunggu' : num(student.score), student.score == null ? 'penilaian guru belum selesai' : 'dari 100'],
-        ['Kategori', student.band?.label || 'Menunggu', student.band ? `rentang nilai ${BAND_RANGE[student.band.id]}` : ''],
-        ['Rata-rata kelas', num(mean), 'sebagai pembanding'],
-        ...(student.scaled != null ? [['Skor IRT', num(student.scaled), 'skala 200-800'] as [string, string, string]] : []),
+        ['Nilai', student.score == null ? '-' : num(student.score)],
+        ['Rata-rata kelas', num(report.descriptives?.mean)],
+        ...(student.scaled != null ? [['Skor IRT', num(student.scaled)] as [string, string]] : []),
+    ]);
+    w.stats([
+        ['Benar', String(student.correct)], ['Benar sebagian', String(student.partial)],
+        ['Salah', String(student.wrong)], ['Tidak dijawab', String(student.unanswered)],
     ]);
 
-    w.y += 1;
-    w.paragraph(studentNarrative(student, mean));
-
     w.section('Hasil per Bentuk Soal');
-    const rows = studentTypeRows(student.items);
-    w.table([{ label: 'Bentuk soal', width: 46 }, { label: 'Jumlah', width: 20, align: 'center' }, { label: 'Hasil', width: W - 46 - 20 - 26 }, { label: 'Capaian', width: 26, align: 'center' }],
-        rows.map(row => [row.label, String(row.count), resultText(row), percentText(row.achievement)]), { pad: 1.3 });
+    w.table([{ label: 'Bentuk soal', width: W - 18 * 6 }, { label: 'Jumlah', width: 18, align: 'center' }, { label: 'Benar', width: 18, align: 'center' },
+        { label: 'Sebagian', width: 18, align: 'center' }, { label: 'Salah', width: 18, align: 'center' }, { label: 'Kosong', width: 18, align: 'center' }, { label: 'Capaian', width: 18, align: 'center' }],
+    studentTypeRows(student.items).map(row => [row.label, String(row.count), String(row.full), String(row.partial), String(row.wrong), String(row.empty), percentText(row.achievement)]),
+    { pad: 1.3 });
 
     const topics = student.topics.filter(topic => topic.max > 0 && topic.name !== 'Tanpa materi');
-    const missed = missedByTopic(student.items);
-    const missedFor = new Map(missed.map(group => [group.topic, group.numbers.join(', ')]));
+    const missedFor = new Map(missedByTopic(student.items).map(group => [group.topic, group.numbers]));
     if (topics.length) {
-        w.section('Penguasaan Materi');
-        w.table([{ label: 'Materi', width: W - 22 - 36 - 50 }, { label: 'Capaian', width: 22, align: 'center' }, { label: 'Keterangan', width: 36 }, { label: 'Nomor soal yang belum tepat', width: 50 }],
-            topics.map(topic => [topic.name, `${num(topic.percent)}%`, (topic.percent ?? 0) > 65 ? 'Sudah dikuasai' : 'Perlu ditingkatkan', missedFor.get(topic.name) || '-']),
-            { fills: topics.map(topic => [null, null, (topic.percent ?? 0) > 65 ? GOOD : WARN, null]), pad: 1.3 });
-        const other = missedFor.get('Tanpa materi');
-        if (other) w.paragraph(`Soal lain yang belum tepat: nomor ${other}.`, 9);
-    } else if (missed.length) {
-        w.section('Soal yang Perlu Dipelajari Kembali');
-        w.paragraph(`Nomor soal: ${missed.flatMap(group => group.numbers).sort((a, b) => a - b).join(', ')}.`);
+        w.section('Capaian per Materi');
+        w.table([{ label: 'Materi', width: W - 24 - 20 - 50 }, { label: 'Skor', width: 24, align: 'center' }, { label: 'Capaian', width: 20, align: 'center' }, { label: 'Nomor soal belum tepat', width: 50 }],
+            topics.map(topic => [topic.name, `${num(topic.earned, 1)} / ${num(topic.max, 1)}`, `${num(topic.percent)}%`, missedFor.get(topic.name)?.join(', ') || '-']),
+            { pad: 1.3 });
     }
-
-    w.section('Saran');
-    w.paragraph('Untuk siswa', 9, INK, 'bold');
-    w.bullets(studentAdvice(student));
-    w.y += 1;
-    w.ensure(w.lineHeight(9) * 4);
-    w.paragraph('Untuk orang tua/wali', 9, INK, 'bold');
-    w.bullets([parentAdvice(student.band?.id)]);
+    const listed = new Set(topics.map(topic => topic.name));
+    const rest = [...missedFor.entries()].filter(([topic]) => !listed.has(topic)).flatMap(([, numbers]) => numbers).sort((x, y) => x - y);
+    if (rest.length) w.paragraph(`Nomor soal belum tepat${topics.length ? ' (lainnya)' : ''}: ${rest.join(', ')}`, 9);
 }
 
 function prepare(options: AnalysisPdfOptions) {
@@ -392,11 +354,10 @@ export async function buildAnalysisPdf(options: AnalysisPdfOptions, kind: Analys
     const [{ jsPDF }, logo] = await Promise.all([import('jspdf'), loadPublicImage(ACCA_LOGO_PATH).catch(() => null)]);
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
     const w = new Writer(pdf);
-    const readings = report.items.map(item => readItem(item, report.analyzed));
 
     if (kind === 'soal') {
         pdf.setProperties({ title: `Analisis Soal - ${meta.title}`, subject: 'Analisis soal dan hasil ujian kelas', creator: 'ACCA CBT' });
-        classReport(w, report, readings, meta, logo);
+        classReport(w, report, meta, logo);
         footer(pdf, () => `ACCA CBT  /  Analisis Soal  /  ${meta.title}`);
     } else {
         pdf.setProperties({ title: `Laporan Siswa - ${meta.title}`, subject: 'Laporan hasil ujian per siswa', creator: 'ACCA CBT' });
@@ -409,7 +370,7 @@ export async function buildAnalysisPdf(options: AnalysisPdfOptions, kind: Analys
         });
         footer(pdf, page => `ACCA CBT  /  ${owner[page] || ''}  /  ${meta.title}`);
     }
-    return { pdf, report, readings };
+    return { pdf, report };
 }
 
 export async function exportAnalysisToPdf(options: AnalysisPdfOptions, kind: AnalysisPdfKind = 'soal') {

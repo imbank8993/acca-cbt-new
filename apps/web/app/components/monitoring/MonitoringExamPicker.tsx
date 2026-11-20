@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Info, X } from 'lucide-react';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
+import { SearchableSelect } from '@/app/components/ui/SearchableSelect';
 import type { OrganizationExam } from '@/lib/api/proctor';
 import { folderExamParts, isMonitoringExamActive, monitoringAssessmentPeriod, monitoringExamLabel, monitoringExamDetails, monitoringFolderName, sortMonitoringExams,
     monitoringExamBadge } from '@/lib/monitoring-exams';
@@ -146,13 +147,18 @@ export default function MonitoringExamPicker({ exams, now, value, onChange, hide
                 {!activeGroup && <option value="">{groups.length ? 'Pilih asesmen' : 'Tidak ada ujian'}</option>}
                 {groups.map(group => <option key={group.value} value={group.value}>{group.active ? `● ${group.label}` : group.label}</option>)}
             </InlineSelect>
-            {showMembers && <InlineSelect aria-label={activeGroup === OTHER_EXAMS ? 'Ujian' : 'Mata pelajaran dan kelas'}
-                title={activeGroup === OTHER_EXAMS ? 'Pilih ujian' : 'Pilih mata pelajaran dan kelas'}
-                className="monitoring-exam-picker__tier monitoring-exam-picker__tier--grow" minWidth="0" height="42px" value={value} onChange={choose}>
-                {phases.map(group => <optgroup key={group.phase} label={PHASE_LABELS[group.phase]}>
-                    {group.items.map(exam => <option key={exam.id} value={exam.id}>{memberLabel(exam, members)}</option>)}
-                </optgroup>)}
-            </InlineSelect>}
+            {/* Bisa diketik untuk mencari: satu asesmen bisa berisi puluhan mapel/kelas. */}
+            {showMembers && <SearchableSelect ariaLabel={activeGroup === OTHER_EXAMS ? 'Ujian' : 'Mata pelajaran dan kelas'}
+                className="monitoring-exam-picker__tier monitoring-exam-picker__tier--grow monitoring-exam-picker__search"
+                placeholder={activeGroup === OTHER_EXAMS ? 'Pilih ujian' : 'Pilih mata pelajaran dan kelas'}
+                searchPlaceholder="Ketik mapel, nama ujian, atau kelas…" portal keepHighlightedVisible
+                value={value} onChange={next => { if (next != null && next !== '') choose(String(next)); }}
+                options={phases.flatMap(group => group.items.map(exam => ({
+                    value: exam.id,
+                    label: memberLabel(exam, members),
+                    // Urutan tetap per fase; fase selain Selesai diberi penanda.
+                    badge: group.phase === 'done' ? undefined : PHASE_LABELS[group.phase],
+                })))} />}
             {slotRef && <div ref={slotRef} className="monitoring-exam-picker__slot" />}
         </div>
         {selected && !hideContext && showMembers && <div ref={detailsRef} className="monitoring-exam-picker__status" aria-live="polite">
