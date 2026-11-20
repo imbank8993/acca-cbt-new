@@ -225,7 +225,7 @@ export class ProctoringService {
         let health: ClientSyncHealth | undefined;
         try { health = validateSyncHealth(syncHealth); }
         catch { throw new BadRequestException('Laporan penyimpanan tidak valid.'); }
-        return this.db.transaction(async db => {
+        const result = await this.db.transaction(async db => {
             await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
             const { data: attempt, error: readError } = await db.from('cbt_exam_attempts')
                 .select('user_id, status, device_fingerprint, last_seen_at, metadata, exam_id, started_at, personal_end_time').eq('id', attemptId).maybeSingle();
@@ -315,6 +315,27 @@ export class ProctoringService {
             return { lastSeenAt: now.toISOString(), submissionOnly: metadata.recovery_submit_only === true,
                 startedAt: attempt.started_at, personalEndTime: attempt.personal_end_time };
         });
+        if ('restartRequired' in result) return result;
+        return { ...result, questionRevision: await this.liveQuestionRevision(attemptId) };
+    }
+
+    /**
+     * Revisi soal ujian yang sedang berjalan (`metadata.live_question_revision`, naik setiap guru
+     * memperbaiki soal saat ujian berlangsung). Browser memanggil check-updates hanya bila angka
+     * ini berubah, bukan setiap 15 detik. Dibaca di luar transaksi heartbeat: kegagalannya tidak
+     * boleh menggagalkan heartbeat, cukup null (browser kembali ke pemeriksaan berkala).
+     */
+    private async liveQuestionRevision(attemptId: string): Promise<number | null> {
+        try {
+            const [row] = await this.db.raw<Array<{ revision: number | string | null }>>(
+                `SELECT COALESCE(NULLIF(e.metadata->>'live_question_revision', ''), '0') AS revision
+                   FROM public.cbt_exam_attempts a JOIN public.cbt_exams e ON e.id = a.exam_id
+                  WHERE a.id = $1::uuid`, attemptId);
+            const revision = Number(row?.revision);
+            return Number.isFinite(revision) ? revision : null;
+        } catch {
+            return null;
+        }
     }
 
     /**

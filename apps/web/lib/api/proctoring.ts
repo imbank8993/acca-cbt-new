@@ -45,7 +45,9 @@ export interface ClientSyncHealth {
 
 export function heartbeatExamAttempt(attemptId: string, syncHealth?: ClientSyncHealth, screenSharing?: boolean, sessionStartedAt?: string) {
     return apiSend<{ lastSeenAt: string; submissionOnly?: boolean; startedAt?: string;
-        personalEndTime?: string; restartRequired?: boolean }>(
+        personalEndTime?: string; restartRequired?: boolean;
+        /** Revisi soal langsung ujian; berubah saat guru memperbaiki soal selama ujian. */
+        questionRevision?: number | null }>(
         `/api/proctoring/attempts/${encodeURIComponent(attemptId)}/heartbeat`,
         { deviceId: getDeviceId(), syncHealth, sessionStartedAt,
             ...(screenSharing === undefined ? {} : { screenSharing, screenSharingObservedAt: new Date().toISOString() }) },

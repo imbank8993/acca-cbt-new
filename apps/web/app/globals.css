@@ -1987,6 +1987,13 @@ span[style*="white-space: pre"] {
   -moz-tab-size: 8 !important;
 }
 
+/* Selama ujian, link di isi soal hanya keterangan sumber (lihat exam-content-links.ts). */
+body.exam-content-links-locked :is(.question-content, .latex-renderer) a[href]:not([href^="#"]) {
+  cursor: default;
+  text-decoration: none;
+  color: inherit;
+}
+
 /* Table styling in questions */
 .latex-renderer table {
   border-collapse: collapse;

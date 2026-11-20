@@ -136,7 +136,7 @@ test('SSD-08: siswa yang tertahan berbagi layar terbuka sendiri setelah pengecua
     const page = web('app/components/questions/ExamPage.tsx');
     assert.match(page, /const waitingForScreenShareException = exam\?\.metadata\?\.screenshot_enabled === true && !screenshots\.sharing &&\s+!isCompleted && \(awaitingStart \|\| screenShareBlocked\)/);
     assert.match(page, /detail\.exam\?\.metadata\?\.screen_share_exception !== true\) return/);
-    assert.match(page, /window\.setInterval\(\(\) => void check\(\), 15_000\)/);
+    assert.match(page, /const stop = jitteredInterval\(\(\) => void check\(\), 15_000\)/);
     assert.match(page, /unsupportedMessage: screenshots\.unsupportedMessage/);
     const hook = web('hooks/useExamScreenshots.ts');
     assert.match(hook, /screenShareSupport\(currentScreenShareEnvironment\(\)\)/);
