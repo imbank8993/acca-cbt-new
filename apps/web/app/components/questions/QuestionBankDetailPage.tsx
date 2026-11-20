@@ -71,7 +71,6 @@ const QuestionEditorModal = dynamic(() => import('@/app/components/questions/Que
 const BulkImportModal = dynamic(() => import('@/app/components/questions/BulkImportModal'), { ssr: false });
 const PreviewModal = dynamic(() => import('@/app/components/questions/PreviewModal'), { ssr: false });
 const BankValidationFeedbackTab = dynamic(() => import('@/app/components/questions/BankValidationFeedbackTab'), { ssr: false });
-const BankValidationSummary = dynamic(() => import('@/app/components/questions/BankValidationSummary'), { ssr: false });
 
 type QuestionBankRole = 'admin' | 'guru' | 'proktor';
 
@@ -94,16 +93,24 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
     const [org, setOrg] = useState<ProctorOrganization | null>(null);
     const [bankInfo, setBankInfo] = useState<QuestionBank | null>(null);
     const canManage = bankInfo?.canManage === true;
+    // Notifikasi tab Catatan Validasi: jumlah catatan yang belum diperbaiki, dan
+    // tanda bila semua sudah diperbaiki tetapi telaah ulang belum diajukan.
     const [validationNoteCount, setValidationNoteCount] = useState<number | null>(null);
+    const [validationNeedsResubmit, setValidationNeedsResubmit] = useState(false);
     useEffect(() => {
         if (!canManage) return;
         let active = true;
         const refresh = async () => {
             try {
                 const sessions = await getBankValidationFeedback(bankId);
-                if (active) setValidationNoteCount(sessions.reduce((total, session) => total + (session.notes?.length || 0), 0));
+                if (!active) return;
+                const openNotes = (session: (typeof sessions)[number]) =>
+                    (session.notes || []).filter(note => !note.is_resolved && note.status_item !== 'valid').length;
+                setValidationNoteCount(sessions.reduce((total, session) => total + openNotes(session), 0));
+                setValidationNeedsResubmit(sessions.some(session =>
+                    (session.status === 'revision_needed' || session.status === 'rejected') && openNotes(session) === 0));
             } catch {
-                if (active) setValidationNoteCount(null);
+                if (active) { setValidationNoteCount(null); setValidationNeedsResubmit(false); }
             }
         };
         void refresh();
@@ -696,7 +703,15 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                             onClick={() => setActiveTab('validations')}
                             className={`pb-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'validations' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                         >
-                            Catatan Validasi {(validationNoteCount ?? 0) > 0 && <span className={`ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${activeTab === 'validations' ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>{validationNoteCount}</span>}
+                            Catatan Validasi {(validationNoteCount ?? 0) > 0 ? <span
+                                title={`${validationNoteCount} catatan validasi perlu perbaikan`}
+                                aria-label={`${validationNoteCount} catatan validasi perlu perbaikan`}
+                                className="ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-white"
+                            >{validationNoteCount}</span> : validationNeedsResubmit && <span
+                                title="Semua catatan sudah diperbaiki; ajukan telaah ulang"
+                                aria-label="Semua catatan sudah diperbaiki; ajukan telaah ulang"
+                                className="ml-1.5 inline-block h-2 w-2 rounded-full bg-violet-500 align-middle"
+                            />}
                         </button>)}
                     </div>
                 </div>
@@ -704,19 +719,6 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
 
             {/* Content */}
             <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 space-y-6 print:hidden">
-                {canManage && activeTab === 'questions' && <BankValidationSummary
-                    key={bankId}
-                    bankId={bankId}
-                    questions={questions}
-                    onEditQuestion={handleOpenEditor}
-                    onOpenFeedback={sessionId => {
-                        const url = new URL(window.location.href);
-                        url.searchParams.set('tab', 'validations');
-                        url.searchParams.set('validation', sessionId);
-                        window.history.replaceState({}, '', url);
-                        setActiveTab('validations');
-                    }}
-                />}
                 {activeTab === 'stimuli' ? (
                     <StimulusManager bankId={bankId} onItemsChange={setStimuliList} />
                 ) : activeTab === 'instructions' ? (
