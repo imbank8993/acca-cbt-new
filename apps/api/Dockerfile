@@ -52,6 +52,12 @@ EXPOSE 3009
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD curl -f http://127.0.0.1:3009/api/health || exit 1
 
-# Runner command tahan banting dengan fallback struktur kompilasi monorepo NestJS
-CMD ["sh", "-c", "node apps/api/dist/src/main.js 2>/dev/null || node apps/api/dist/main.js 2>/dev/null || node dist/src/main.js 2>/dev/null || node dist/main.js"]
+# Entry hasil `nest build` adalah apps/api/dist/main.js (lihat tsconfig.json).
+# Dulu CMD mencoba beberapa jalur dengan `2>/dev/null`: percobaan pertama selalu
+# gagal, sehingga API sebenarnya berjalan pada percobaan kedua dengan stderr
+# dibuang — setiap galat/peringatan NestJS dan jejak crash hilang dari
+# `docker compose logs`. `sh` juga menjadi PID 1 sehingga SIGTERM tidak sampai ke
+# Node dan permintaan yang sedang berjalan tidak sempat selesai saat deploy.
+# Sekarang: pilih berkas yang ada, lalu `exec` agar Node menjadi PID 1.
+CMD ["sh", "-c", "for f in apps/api/dist/main.js apps/api/dist/src/main.js; do [ -f \"$f\" ] && exec node \"$f\"; done; echo 'Entry API tidak ditemukan di apps/api/dist' >&2; exit 1"]
 

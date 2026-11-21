@@ -4,6 +4,7 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { AuthContextCache } from './auth-context-cache';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AuthUsersRepository } from './auth-users.repository';
@@ -28,6 +29,7 @@ import { LoginHistoryService } from './login-history.service';
   ],
   controllers: [AuthController, CollaborationController],
   providers: [
+    AuthContextCache,
     AuthService,
     CollaborationService,
     AuthUsersRepository,
@@ -37,6 +39,6 @@ import { LoginHistoryService } from './login-history.service';
     JwtStrategy,
     LoginHistoryService,
   ],
-  exports: [AuthService, AuthUsersRepository, AuthorizationService, CbtRolesService, SingleSchoolService, LoginHistoryService],
+  exports: [AuthContextCache, AuthService, AuthUsersRepository, AuthorizationService, CbtRolesService, SingleSchoolService, LoginHistoryService],
 })
 export class AuthModule {}

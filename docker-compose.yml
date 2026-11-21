@@ -1,6 +1,19 @@
 # Image dibangun oleh GitHub Actions dan disimpan di GHCR; VPS cukup `docker compose pull`.
 # `build:` tetap ada sebagai cadangan build darurat langsung di VPS (`docker compose build`).
 # CBT_IMAGE_PREFIX / CBT_IMAGE_TAG dapat diubah lewat environment bila perlu.
+# Rotasi log untuk semua service. Tanpa ini log json-file Docker tumbuh tanpa
+# batas (API mencatat permintaan) sampai disk VPS penuh dan PostgreSQL ikut berhenti.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "${CBT_LOG_MAX_SIZE:-20m}"
+    max-file: "${CBT_LOG_MAX_FILE:-5}"
+
+# Batas CPU/RAM per service: PostgreSQL, acca-new, dan CBT berbagi satu VPS.
+# Tanpa batas, satu kontainer Node yang sibuk saat ujian bisa memakan semua core
+# sehingga database tersendat dan seluruh server tampak "down". Batas ini plafon,
+# bukan jatah tetap. Sesuaikan dengan API_WORKERS/WEB_WORKERS lewat .env.
+
 services:
   cbt-latex:
     image: ${CBT_IMAGE_PREFIX:-ghcr.io/imbank8993/acca-cbt-new}-latex:${CBT_IMAGE_TAG:-latest}
@@ -16,6 +29,7 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     networks: [latex-network]
+    logging: *default-logging
     # No published port, secrets, host mounts, or external network.
 
   # ─── 1. Scoring & IRT Service (FastAPI / Python) ───────────────────────────
@@ -31,6 +45,9 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=8000
+    cpus: ${CBT_SCORING_CPUS:-1.0}
+    mem_limit: ${CBT_SCORING_MEM:-1g}
+    logging: *default-logging
     networks:
       - cbt-network
     # Port 8000 sengaja TIDAK dipublish ke host agar aman dari internet luar.
@@ -59,6 +76,10 @@ services:
     # Memungkinkan container menjangkau PostgreSQL di host VPS lewat host.docker.internal
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    # Selaraskan dengan API_WORKERS (satu proses Node ≈ satu core).
+    cpus: ${CBT_API_CPUS:-3.0}
+    mem_limit: ${CBT_API_MEM:-3g}
+    logging: *default-logging
     networks:
       - cbt-network
       - latex-network
@@ -87,8 +108,15 @@ services:
       - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL:-https://acca-cbt.icgowa.sch.id}
       - NEXT_PUBLIC_ACCA_URL=${NEXT_PUBLIC_ACCA_URL:-https://acca.icgowa.sch.id}
     ports:
-      # Hanya port ini yang diekspos ke host VPS untuk disambungkan ke Nginx/Reverse Proxy
-      - "${CBT_WEB_PORT:-3008}:3008"
+      # Hanya port ini yang diekspos ke host VPS untuk disambungkan ke Nginx/Reverse Proxy.
+      # Diikat ke 127.0.0.1: port yang dipublikasikan Docker melewati UFW, sehingga
+      # 0.0.0.0 membuat CBT bisa dijangkau langsung tanpa Nginx/HTTPS. Reverse proxy
+      # aaPanel memakai http://127.0.0.1:3008 (lihat DEPLOY_DOCKER.md).
+      - "${CBT_WEB_BIND:-127.0.0.1}:${CBT_WEB_PORT:-3008}:3008"
+    # Selaraskan dengan WEB_WORKERS.
+    cpus: ${CBT_WEB_CPUS:-2.0}
+    mem_limit: ${CBT_WEB_MEM:-2g}
+    logging: *default-logging
     networks:
       - cbt-network
 

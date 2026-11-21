@@ -1,17 +1,32 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuthContextCache } from './auth-context-cache';
 
 export interface AuthUserRow {
   id: string;
   email: string | null;
   encrypted_password?: string | null;
   raw_user_meta_data: Record<string, unknown> | null;
+  /** Memuat `session_version` milik acca-new; dibaca oleh findById/findByEmail. */
+  raw_app_meta_data?: Record<string, unknown> | null;
   email_confirmed_at: Date | null;
   last_sign_in_at: Date | null;
   banned_until: Date | null;
   created_at: Date | null;
+}
+
+/**
+ * Versi sesi akun — sama persis dengan `sessionVersion()` di acca-new
+ * (`apps/api/src/auth/session-security.ts`). acca-new menggantinya saat logout
+ * semua sesi, ganti/reset password, dan perubahan akun; token yang membawa versi
+ * lama tidak lagi sah di KEDUA aplikasi.
+ */
+export function sessionVersionOf(metadata: unknown): string {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return '';
+  const value = (metadata as Record<string, unknown>).session_version;
+  return typeof value === 'string' ? value : '';
 }
 
 /**
@@ -31,11 +46,15 @@ export class AuthUsersRepository {
   /** Biaya bcrypt disamakan dengan hash bawaan GoTrue ($2a$10$). */
   private static readonly BCRYPT_ROUNDS = 10;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // Identitas tersimpan dikosongkan saat akun diubah, dihapus, atau sesinya dicabut.
+    @Optional() private readonly authContext?: AuthContextCache,
+  ) {}
 
   async findById(id: string): Promise<AuthUserRow | null> {
     const rows = await this.prisma.$queryRawUnsafe<AuthUserRow[]>(
-      `SELECT id, email, raw_user_meta_data, email_confirmed_at, last_sign_in_at,
+      `SELECT id, email, raw_user_meta_data, raw_app_meta_data, email_confirmed_at, last_sign_in_at,
               banned_until, created_at
          FROM auth.users
         WHERE id = $1::uuid AND deleted_at IS NULL
@@ -49,7 +68,7 @@ export class AuthUsersRepository {
     const rows = await this.prisma.$queryRawUnsafe<
       Array<AuthUserRow & { encrypted_password: string | null }>
     >(
-      `SELECT id, email, encrypted_password, raw_user_meta_data, email_confirmed_at,
+      `SELECT id, email, encrypted_password, raw_user_meta_data, raw_app_meta_data, email_confirmed_at,
               last_sign_in_at, banned_until, created_at
          FROM auth.users
         WHERE lower(email) = lower($1) AND deleted_at IS NULL
@@ -70,7 +89,7 @@ export class AuthUsersRepository {
     if (options.ids) {
       if (options.ids.length === 0) return [];
       return this.prisma.$queryRawUnsafe<AuthUserRow[]>(
-        `SELECT id, email, raw_user_meta_data, email_confirmed_at, last_sign_in_at,
+        `SELECT id, email, raw_user_meta_data, raw_app_meta_data, email_confirmed_at, last_sign_in_at,
                 banned_until, created_at
            FROM auth.users
           WHERE deleted_at IS NULL AND id = ANY($1::uuid[])`,
@@ -78,7 +97,7 @@ export class AuthUsersRepository {
       );
     }
     return this.prisma.$queryRawUnsafe<AuthUserRow[]>(
-      `SELECT id, email, raw_user_meta_data, email_confirmed_at, last_sign_in_at,
+      `SELECT id, email, raw_user_meta_data, raw_app_meta_data, email_confirmed_at, last_sign_in_at,
               banned_until, created_at
          FROM auth.users
         WHERE deleted_at IS NULL
@@ -192,6 +211,7 @@ export class AuthUsersRepository {
       `UPDATE auth.users SET ${assignments.join(', ')} WHERE id = $${params.length}::uuid`,
       ...params,
     );
+    this.authContext?.invalidate(id);
 
     if (updates.email) {
       await this.prisma.$executeRawUnsafe(
@@ -221,8 +241,26 @@ export class AuthUsersRepository {
     await this.revokeSessions(id);
   }
 
-  /** Padanan `auth.admin.signOut(jwt, 'global')` — cabut seluruh sesi pengguna. */
+  /**
+   * Padanan `auth.admin.signOut(jwt, 'global')` — cabut seluruh sesi pengguna.
+   *
+   * Sesi CBT dan acca-new berupa JWT; menghapus baris auth.sessions (warisan
+   * Supabase) tidak membatalkan token apa pun. Yang membatalkannya adalah
+   * `session_version` baru — cara yang sama dengan `revokeSessions()` acca-new —
+   * sehingga token lama ditolak di kedua aplikasi. Kegagalan langkah ini
+   * dilempar: pencabutan yang diam-diam gagal lebih berbahaya daripada galat.
+   */
   async revokeSessions(id: string): Promise<void> {
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE auth.users
+          SET raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb)
+                                  || jsonb_build_object('session_version', $2::text),
+              updated_at = now()
+        WHERE id = $1::uuid`,
+      id,
+      randomUUID(),
+    );
+    this.authContext?.invalidate(id);
     try {
       await this.prisma.$executeRawUnsafe(
         `DELETE FROM auth.sessions WHERE user_id = $1::uuid`,

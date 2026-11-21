@@ -4,7 +4,8 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import type { AuthUser } from '@acca-cbt/shared';
 import { PrismaService } from '../prisma/prisma.service';
-import { AuthUsersRepository } from './auth-users.repository';
+import { AuthContextCache, type CachedIdentity } from './auth-context-cache';
+import { AuthUsersRepository, sessionVersionOf } from './auth-users.repository';
 import { CbtRolesService } from './cbt-roles.service';
 
 interface JwtPayload {
@@ -14,6 +15,33 @@ interface JwtPayload {
   email?: string;
   username?: string;
   role?: string;
+  /** Versi sesi akun saat token diterbitkan (acca-new dan CBT). */
+  sessionVersion?: string;
+  iat?: number;
+}
+
+/**
+ * Token tanpa klaim `sessionVersion` hanya diterbitkan CBT versi lama (umur 12
+ * jam). Diterima selama masa itu agar rilis ini tidak mengeluarkan siswa yang
+ * sedang ujian; setelahnya klaim wajib ada.
+ */
+export const LEGACY_TOKEN_MAX_AGE_SECONDS = 12 * 60 * 60;
+
+/**
+ * Apakah token masih sah terhadap versi sesi akun.
+ *
+ * Dulu CBT menerima token acca-new (JWT_SECRET sama) tanpa memeriksa versi
+ * sesi, sehingga logout semua sesi atau ganti password di acca-new tidak
+ * mencabut akses token lama ke CBT hingga kedaluwarsa (7 hari).
+ */
+export function sessionVersionAccepted(
+  payload: Pick<JwtPayload, 'sessionVersion' | 'iat'>,
+  current: string,
+  nowSeconds = Math.floor(Date.now() / 1000),
+): boolean {
+  if (typeof payload.sessionVersion === 'string') return payload.sessionVersion === current;
+  if (typeof payload.iat !== 'number') return false;
+  return nowSeconds - payload.iat <= LEGACY_TOKEN_MAX_AGE_SECONDS;
 }
 
 const UUID_PATTERN =
@@ -27,9 +55,10 @@ const UUID_PATTERN =
  * berbeda — acca-new memakai `sub` = `public_users.id` (bigint) dan menaruh UUID
  * di `authId`, sementara CBT memakai UUID di `sub` — jadi keduanya dikenali.
  *
- * Peran TIDAK diambil dari klaim token melainkan dibaca ulang dari database
- * setiap permintaan. Token yang dirakit sendiri karena itu tidak bisa menaikkan
- * hak akses.
+ * Peran TIDAK diambil dari klaim token melainkan dibaca dari database. Token
+ * yang dirakit sendiri karena itu tidak bisa menaikkan hak akses. Hasil baca itu
+ * disimpan singkat di `AuthContextCache` (bawaan 30 detik) — tanpanya setiap
+ * heartbeat, autosave, dan gambar soal menjalankan 7–11 query yang sama.
  */
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -38,6 +67,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private readonly prisma: PrismaService,
     private readonly authUsers: AuthUsersRepository,
     private readonly roles: CbtRolesService,
+    private readonly cache: AuthContextCache,
   ) {
     const secret = configService.get<string>('JWT_SECRET');
     if (!secret) {
@@ -57,6 +87,22 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Payload token tidak valid.');
     }
 
+    const load = () => this.loadUser(authId, payload.email);
+    let identity = await this.cache.identity(authId, load);
+    if (!sessionVersionAccepted(payload, identity.sessionVersion)) {
+      // Salinan tersimpan bisa lebih tua dari token (mis. baru login ulang
+      // setelah logout semua sesi). Baca ulang sekali sebelum menolak.
+      this.cache.invalidate(authId);
+      identity = await this.cache.identity(authId, load);
+      if (!sessionVersionAccepted(payload, identity.sessionVersion)) {
+        throw new UnauthorizedException('Sesi telah berakhir. Silakan login kembali.');
+      }
+    }
+    return identity.user;
+  }
+
+  /** Baca identitas lengkap dari database; dilempar bila tidak sah (tidak disimpan). */
+  private async loadUser(authId: string, payloadEmail?: string): Promise<CachedIdentity> {
     const user = await this.authUsers.findById(authId);
     if (!user) {
       throw new UnauthorizedException('Pengguna tidak ditemukan atau sesi telah berakhir.');
@@ -65,7 +111,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Akun sedang dinonaktifkan.');
     }
 
-    const email = (user.email || payload.email || '').toLowerCase();
+    const email = (user.email || payloadEmail || '').toLowerCase();
 
     // ─── Periksa status aktif di master tabel public.users ──────────────────────
     const publicUsers = await this.prisma.$queryRawUnsafe<
@@ -91,15 +137,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       null;
 
     return {
-      id: user.id,
-      email,
-      fullName: verifiedName,
-      roles: context.roleNames,
-      resolved: context.resolved,
-      bestRole: context.bestRole,
-      organizationId: context.organizationId,
-      organizationName: context.organizationName,
-      isPlatformAdmin: context.isPlatformAdmin,
+      sessionVersion: sessionVersionOf(user.raw_app_meta_data),
+      user: {
+        id: user.id,
+        email,
+        fullName: verifiedName,
+        roles: context.roleNames,
+        resolved: context.resolved,
+        bestRole: context.bestRole,
+        organizationId: context.organizationId,
+        organizationName: context.organizationName,
+        isPlatformAdmin: context.isPlatformAdmin,
+      },
     };
   }
 
@@ -112,14 +161,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // Ambil auth_id yang valid dari public.users untuk menjamin identitas pengguna
     // tidak pernah tertukar antar akun.
     if (payload.sub && /^\d+$/.test(payload.sub)) {
-      const rows = await this.prisma.$queryRawUnsafe<
-        Array<{ auth_id: string | null }>
-      >(
-        `SELECT auth_id FROM public.users WHERE id = $1::bigint LIMIT 1`,
-        payload.sub,
-      );
-      const row = rows[0];
-      if (row?.auth_id) return row.auth_id;
+      const legacyId = payload.sub;
+      const authId = await this.cache.legacyIds.get(legacyId, async () => {
+        const rows = await this.prisma.$queryRawUnsafe<Array<{ auth_id: string | null }>>(
+          `SELECT auth_id FROM public.users WHERE id = $1::bigint LIMIT 1`,
+          legacyId,
+        );
+        return rows[0]?.auth_id || null;
+      });
+      if (authId) return authId;
     }
 
     if (payload.email) {

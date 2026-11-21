@@ -273,3 +273,55 @@ Fitur ini memerlukan migrasi berikut (tanpa migrasi, tombol menampilkan pesan da
 ```bash
 psql "$DATABASE_URL_HOST" -f database/migrations/20261110_01_exam_cancellations.sql
 ```
+
+## Cache identitas pengguna di API (21 November 2026)
+
+Setiap permintaan terautentikasi dulu menjalankan 7–11 query untuk membaca akun, status aktif, sekolah, dan peran. Selama ujian, heartbeat 15 detik, autosave, dan setiap gambar soal dari ratusan siswa mengalikannya menjadi ratusan query per detik ke PostgreSQL yang berbagi VPS dengan seluruh aplikasi. Kini hasilnya disimpan di memori proses API:
+
+- Identitas & peran per pengguna: `AUTH_CONTEXT_CACHE_TTL_MS` (bawaan 30000 ms, `0` = nonaktif, maks. 300000).
+- Baris sekolah: 60 detik.
+
+Hanya hasil yang sah yang disimpan; akun tidak ditemukan, nonaktif, atau galat database selalu dibaca ulang. Login SSO, perubahan akun, dan pencabutan sesi mengosongkan entri pengguna itu seketika. Perubahan peran dari menu lain atau penonaktifan di ACCA New berlaku paling lambat satu TTL (bawaan 30 detik). Dalam mode cluster (`API_WORKERS > 1`) setiap proses punya cache sendiri.
+
+Tidak ada migrasi database. Cukup deploy ulang `cbt-api`, sebaiknya di luar jam ujian.
+
+## Batas resource, rotasi log, dan log galat API (21 November 2026)
+
+Rilis ini mengurangi risiko satu VPS "down" saat ujian ramai:
+
+1. **Batas CPU/RAM** untuk `cbt-api` (3 CPU / 3 GB), `cbt-web` (2 CPU / 2 GB), dan `cbt-scoring` (1 CPU / 1 GB). Ini plafon, bukan jatah: PostgreSQL dan acca-new tetap punya core walau CBT sibuk. Ubah lewat `CBT_API_CPUS`, `CBT_API_MEM`, dan seterusnya di `.env` (lihat `.env.example`). Samakan CPU API/web dengan `API_WORKERS`/`WEB_WORKERS`. Pantau `docker stats` saat ujian pertama setelah rilis: RAM yang terus menempel di plafon berarti batasnya perlu dinaikkan.
+2. **Rotasi log Docker** (20 MB × 5 berkas per kontainer). Berlaku setelah kontainer dibuat ulang. Berkas log lama yang sudah besar tidak dipotong otomatis.
+3. **Log galat API kembali terlihat.** CMD lama menjalankan API dengan `2>/dev/null`, sehingga setiap `logger.error`/`warn` NestJS dan jejak crash hilang. Hitungan 5xx dan galat pool di `cbt-kapasitas.sh pantau` pun selalu 0. CMD baru juga memakai `exec`, sehingga SIGTERM saat deploy sampai ke Node.
+4. **Log HTTP lebih hemat.** Heartbeat, autosave, gambar soal, `/auth/me`, dan healthcheck hanya dicatat bila lebih lambat dari `HTTP_LOG_SLOW_MS` (bawaan 1000 ms). `HTTP_LOG_ALL=1` mengembalikan pencatatan penuh.
+
+Setelah deploy (di luar jam ujian), jalankan pemeriksaan yang hanya membaca:
+
+```bash
+cd /www/wwwroot/acca-cbt-new
+bash tools/vps/cek-database.sh
+```
+
+Skrip melaporkan apakah port PostgreSQL 5432 terbuka ke publik, index yang hilang pada kolom yang dibaca setiap permintaan (dengan saran `CREATE INDEX CONCURRENTLY`), statistik seq scan, dan ukuran log Docker. Skrip tidak mengubah apa pun.
+
+**Port 5432 terbuka ke internet harus ditutup** di firewall aaPanel, UFW, atau penyedia VPS. Akses dari luar cukup lewat SSH tunnel (`ssh -L 5432:127.0.0.1:5432 root@<ip-vps>`). Kontainer tetap terhubung lewat `host.docker.internal`. Sebelum mempersempit `listen_addresses`, pastikan `pg_hba.conf` mengizinkan subnet Docker.
+
+**Port 3008 kini hanya di 127.0.0.1.** Port yang dipublikasikan Docker melewati UFW, jadi `3008:3008` dulu membuat CBT bisa dibuka langsung lewat `http://<ip-vps>:3008` tanpa Nginx/HTTPS. Reverse proxy aaPanel memakai `http://127.0.0.1:3008` dan tidak terpengaruh. Bila reverse proxy Anda ternyata menunjuk IP publik, ubah ke `127.0.0.1` atau isi `CBT_WEB_BIND=0.0.0.0` di `.env` sementara. Periksa dengan:
+
+```bash
+grep -rn "proxy_pass" /www/server/panel/vhost/nginx/ | grep 3008
+```
+
+**Sebelum menutup port PostgreSQL 5432:** `.env` acca-new di VPS saat ini memakai IP publik VPS pada `DATABASE_URL`. Pindahkan acca-new ke `host.docker.internal` dulu (lihat `docs/kapasitas-server.md` di repo acca-new), baru tutup port 5432. Bila tidak, acca-new terputus dari database.
+
+## Pencabutan sesi berlaku juga di CBT (21 November 2026)
+
+CBT menerima token acca-new (JWT_SECRET sama), tetapi dulu tidak memeriksa versi sesinya. Logout semua sesi, ganti password, atau reset password di acca-new tidak mencabut akses token lama ke CBT sampai token itu kedaluwarsa (7 hari).
+
+Sekarang:
+
+- Setiap permintaan API CBT mencocokkan klaim `sessionVersion` token dengan `auth.users.raw_app_meta_data.session_version`, aturan yang sama dengan acca-new. Token dengan versi lama ditolak (401 "Sesi telah berakhir").
+- Token terbitan CBT (login, SSO, perpanjangan sesi ujian) ikut membawa `sessionVersion`, sehingga pencabutan di acca-new juga mengakhiri sesi CBT.
+- `revokeSessions` di CBT kini benar-benar mengganti `session_version`, sama seperti acca-new. Sebelumnya hanya menghapus baris `auth.sessions` warisan Supabase, yang tidak membatalkan JWT mana pun.
+- Pencabutan berlaku paling lambat satu TTL cache identitas (`AUTH_CONTEXT_CACHE_TTL_MS`, bawaan 30 detik) pada setiap proses API.
+
+**Transisi:** token CBT lama tanpa klaim `sessionVersion` tetap diterima selama umur aslinya (12 jam sejak diterbitkan), agar rilis ini tidak mengeluarkan siswa yang sedang ujian. Setelah itu klaim wajib ada. Tidak ada migrasi database.

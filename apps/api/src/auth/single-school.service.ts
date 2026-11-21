@@ -16,14 +16,40 @@ export interface SingleSchool {
  * dari satu sekolah. Dengan demikian parameter ID dari browser tidak dapat
  * berubah menjadi pemilih tenant tersembunyi.
  */
+/**
+ * Baris sekolah dibaca oleh SETIAP permintaan terautentikasi (penentuan peran),
+ * padahal aplikasi tidak pernah mengubahnya. Simpan sebentar; kegagalan —
+ * termasuk "lebih dari satu sekolah" — tidak pernah disimpan.
+ */
+export const SCHOOL_CACHE_TTL_MS = 60_000;
+
 @Injectable()
 export class SingleSchoolService {
+  private cached: { school: SingleSchool; expiresAt: number } | null = null;
+  private pending: Promise<SingleSchool> | null = null;
+
   constructor(
     private readonly db: DbService,
     private readonly config: ConfigService,
   ) {}
 
   async getSchool(options: { createIfMissing?: boolean } = {}): Promise<SingleSchool> {
+    if (this.cached && this.cached.expiresAt > Date.now()) return { ...this.cached.school };
+    // Permintaan serentak tanpa createIfMissing berbagi satu pembacaan.
+    if (!options.createIfMissing && this.pending) return { ...(await this.pending) };
+
+    const load = this.loadSchool(options);
+    if (!options.createIfMissing) this.pending = load;
+    try {
+      const school = await load;
+      this.cached = { school: { ...school }, expiresAt: Date.now() + SCHOOL_CACHE_TTL_MS };
+      return { ...school };
+    } finally {
+      if (this.pending === load) this.pending = null;
+    }
+  }
+
+  private async loadSchool(options: { createIfMissing?: boolean }): Promise<SingleSchool> {
     const { data, error } = await this.db
       .from('cbt_organizations')
       .select('id, name, logo_url')
