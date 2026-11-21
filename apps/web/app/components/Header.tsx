@@ -4,6 +4,7 @@ import Image from 'next/image';
 
 import { clearExamRecoverySessions, forgetExamOfflineOwner } from '@/lib/exam-durable-storage';
 import { clearExamOfflineShells } from '@/lib/exam-pwa';
+import { accaLogoutUrl } from '@/lib/acca-logout';
 import { clearSessionCache } from '@/lib/session';
 import { ArrowLeft,LogOut,Menu,Moon,Sun,User as UserIcon } from 'lucide-react';
 import { usePathname,useRouter } from 'next/navigation';
@@ -96,7 +97,10 @@ export default function Header({
         try {
             await fetch('/api/auth/logout', { method: 'POST' });
         } catch { }
-        window.location.href = '/';
+        // Logout bersama dikoordinasikan halaman ACCA: hanya di sana browser bisa
+        // menutup sesi ACCA, Tools, dan WordPress dengan cookie masing-masing.
+        // Dulu tombol ini kembali ke '/' CBT, sehingga ACCA tetap login.
+        window.location.href = accaLogoutUrl();
     };
 
     const displayName = user?.nama || user?.email || 'User';
