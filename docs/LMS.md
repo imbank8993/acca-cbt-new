@@ -91,3 +91,18 @@ Unggah ZIP maksimum 25 MB melalui pilihan berkas bahan ajar. `main.tex` (huruf k
 Batas ekstraksi: 200 berkas, 400 entri, dan 50 MB total; symlink, path keluar folder, berkas terenkripsi, nama duplikat, serta arsip rusak ditolak. Jangan sertakan output compiler (`main.pdf`, `.aux`, `.log`) dalam ZIP. Font lokal TTF/OTF, kelas/style LaTeX dan data TXT/CSV/DAT diperbolehkan. ZIP diperlakukan sebagai proyek LaTeX; ZIP tanpa main.tex tidak lagi menjadi lampiran generik.
 
 Arsip asli tetap bisa diunduh, PDF hasil kompilasi tersedia terpisah. Contoh proyek bergambar: `tools/fixtures/learning-project.zip`. Tidak memerlukan migrasi baru di luar migrasi PDF `20261006_01_learning_rendered_pdf.sql`; layanan API, web, dan `cbt-latex` harus menggunakan kode terbaru.
+
+## Audio narasi untuk HTML ("video" berbasis HTML)
+
+Materi HTML dapat diberi satu audio narasi agar tampil seperti video tanpa menyimpan berkas video. Terapkan migrasi `node tools/apply-migrations.js --files=20261124_01_learning_narration.sql --confirm` (kolom `narration_key`, `narration_name`, `narration_size`).
+
+- Editor menampilkan panel **Audio narasi** khusus format HTML. Format: MP3, M4A, AAC, OGG/Opus, WAV, WebM; maksimum 25 MB; ekstensi dan tanda awal berkas diperiksa server. Simpan draf dahulu sebelum mengunggah/menghapus audio (audio mengubah revisi materi). Audio tidak menaikkan `content_version`, sehingga progres dan jawaban aktivitas siswa tetap berlaku.
+- Audio disimpan di R2 dengan prefix `lms-private/` dan diambil lewat `GET /api/learning/:id/narration` dengan izin baca yang sama seperti sumber. Iframe tetap tanpa akses jaringan: halaman induk mengirim byte audio ke iframe, lalu iframe membuat URL `blob:` miliknya sendiri.
+- Konvensi HTML:
+  - `<audio data-lms-narration controls></audio>`: posisi pemutar sendiri. Tanpa elemen ini, pemutar bawaan muncul di bawah layar.
+  - `data-lms-at="12"` dan opsional `data-lms-until="30"`: elemen tampil hanya pada rentang detik tersebut. Tambah `data-lms-keep` agar elemen tetap tampil dan hanya kelas `lms-active` yang berganti.
+  - `data-lms-seek="42"`: klik untuk melompat ke detik tersebut.
+  - Event `lms:narration` (`detail.audio`) dan `lms:narration-time` (`detail.time`) untuk animasi JavaScript sendiri.
+- Template **HTML + narasi** di editor berisi contoh slide tersinkron. Saran rekaman: MP3 mono 32–64 kbps (±0,25–0,5 MB per menit).
+- Tombol **Buka langsung di browser** belum memutar audio narasi; gunakan pratinjau editor atau halaman baca.
+- Tes: `node --test --test-isolation=none apps/api/test/learning-narration.test.cjs`.

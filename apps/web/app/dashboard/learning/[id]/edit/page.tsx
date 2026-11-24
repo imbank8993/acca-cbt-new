@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ExternalLink, Eye, FileUp, Save, Send, Trash2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Eye, FileUp, Music, Save, Send, Trash2 } from 'lucide-react';
 import { MaterialPreview } from '@/app/components/learning/MaterialPreview';
 import { deleteMaterial, learningRequest, saveMaterial, type LearningMaterial } from '@/lib/learning-api';
 import { convertLearningFile } from '@/lib/learning-converter';
@@ -126,6 +126,32 @@ export default function MaterialEditor() {
         } catch (err) { setError((err as Error).message); }
         finally { setBusy(''); }
     };
+    const uploadNarration = async (file?: File) => {
+        if (!file || !material || busy) return;
+        if (dirty) { setError('Simpan draf terlebih dahulu sebelum mengunggah audio narasi.'); return; }
+        if (file.size > 25 * 1024 * 1024) { setError('Audio narasi maksimal 25 MB.'); return; }
+        if (material.hasNarration && !await confirmDialog({ title: 'Ganti Audio Narasi?', text: `"${file.name}" akan menggantikan audio narasi "${material.narration_name || ''}".`, confirmText: 'Ya', cancelText: 'Tidak', variant: 'warning' })) return;
+        setBusy('Mengunggah audio narasi…'); setError(''); setNotice('');
+        try {
+            if ((await fetchSessionUser())?.id !== owner.current) throw new Error('Akun berubah. Masuk dengan akun semula untuk mengunggah.');
+            const data = new FormData(); data.append('revision', String(material.revision)); data.append('file', file);
+            const result = await learningRequest<{ material: LearningMaterial }>(`/${id}/narration`, { method: 'POST', body: data });
+            setMaterial(result.material); setPreview(result.material);
+            setNotice(result.material.status === 'published' ? 'Audio narasi diperbarui untuk siswa.' : 'Audio narasi tersimpan.');
+        } catch (err) { setError((err as Error).message); }
+        finally { setBusy(''); }
+    };
+    const removeNarration = async () => {
+        if (!material?.hasNarration || busy) return;
+        if (dirty) { setError('Simpan draf terlebih dahulu sebelum menghapus audio narasi.'); return; }
+        if (!await confirmDialog({ title: 'Hapus Audio Narasi?', text: `Audio "${material.narration_name || ''}" akan dihapus dari bahan ajar ini.`, confirmText: 'Hapus', cancelText: 'Batal', variant: 'warning' })) return;
+        setBusy('Menghapus audio narasi…'); setError(''); setNotice('');
+        try {
+            const result = await learningRequest<{ material: LearningMaterial }>(`/${id}/narration?revision=${material.revision}`, { method: 'DELETE' });
+            setMaterial(result.material); setPreview(result.material); setNotice('Audio narasi dihapus.');
+        } catch (err) { setError((err as Error).message); }
+        finally { setBusy(''); }
+    };
     const handleDelete = async () => {
         if (!material) return;
         if (!await deleteConfirmDialog('Hapus Bahan Ajar?', `Apakah Anda yakin ingin menghapus bahan ajar "${material.title}"? Seluruh berkas dan data terkait akan dihapus secara permanen.`)) return;
@@ -139,7 +165,7 @@ export default function MaterialEditor() {
             setBusy('');
         }
     };
-    const template = async (format: 'word' | 'latex' | 'html') => {
+    const template = async (format: 'word' | 'latex' | 'html' | 'narration') => {
         try { await downloadLearningTemplate(format); } catch { setError('Template gagal dibuat. Silakan coba lagi.'); }
     };
     const openDirectly = () => {
@@ -186,7 +212,13 @@ export default function MaterialEditor() {
                 {material.status === 'published' && <p style={{ fontSize: 12, marginTop: 10, color: '#2563EB', fontWeight: 500 }}>Unggah berkas baru untuk langsung memperbarui materi ini.</p>}
                 {material.hasRenderedPdf && <a className="learn-button" href={`/api/learning/${id}/pdf`} download>Unduh PDF hasil LaTeX</a>}
                 {material.file_name && <div className="learn-file"><strong>{material.file_name}</strong><br />{((material.file_size || 0) / 1024).toFixed(0)} KB · <a href={`/api/learning/${id}/file`} download>Unduh berkas asli</a></div>}
-            </section><section className="learn-panel"><h2>Mulai dari template</h2><p style={{ fontSize: 13 }}>Unduh contoh, sesuaikan isinya, lalu unggah kembali.</p><div className="learn-template-list"><button onClick={() => void template('word')}>Word</button><button onClick={() => void template('latex')}>LaTeX</button><button onClick={() => void template('html')}>HTML interaktif</button></div></section></aside>
+            </section>{material.format === 'html' && <section className="learn-panel"><h2>Audio narasi</h2>
+                {material.hasNarration && <div className="learn-file"><strong>{material.narration_name}</strong><br />{((material.narration_size || 0) / 1024).toFixed(0)} KB · <a href={`/api/learning/${id}/narration`} download>Unduh audio</a>
+                    <div style={{ marginTop: 8 }}><button type="button" disabled={!!busy} onClick={() => void removeNarration()}>Hapus audio</button></div></div>}
+                <label className="learn-upload"><Music size={28} /><span>{material.hasNarration ? 'Ganti audio narasi' : 'Unggah audio narasi'}</span><input aria-label="Unggah audio narasi" type="file" accept="audio/*,.mp3,.m4a,.aac,.ogg,.opus,.wav,.webm" disabled={!!busy} onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; void uploadNarration(file); }} /></label>
+                <p style={{ fontSize: 12, marginTop: 12 }}>MP3, M4A, OGG/Opus, WAV, atau WebM, maksimal 25 MB. Audio diputar bersama halaman HTML; siswa menekan Putar pada pemutar.</p>
+                <p style={{ fontSize: 12 }}>Sinkronkan tampilan dengan atribut <code>data-lms-at=&quot;detik&quot;</code> (opsional <code>data-lms-until</code>). Lihat template <strong>HTML + narasi</strong>. Saran: MP3 mono 32–64 kbps (±0,25–0,5 MB per menit).</p>
+            </section>}<section className="learn-panel"><h2>Mulai dari template</h2><p style={{ fontSize: 13 }}>Unduh contoh, sesuaikan isinya, lalu unggah kembali.</p><div className="learn-template-list"><button onClick={() => void template('word')}>Word</button><button onClick={() => void template('latex')}>LaTeX</button><button onClick={() => void template('html')}>HTML interaktif</button><button onClick={() => void template('narration')}>HTML + narasi</button></div></section></aside>
             <section><div className="learn-actions" style={{ marginBottom: 16 }}><button disabled={!!busy} onClick={() => setPreview(material)}><Eye size={16} />Perbarui pratinjau</button>
                 {material.format === 'html' && material.content_html && (
                     <button type="button" className="learn-button" disabled={!!busy} onClick={openDirectly} title="Buka langsung di tab browser baru">

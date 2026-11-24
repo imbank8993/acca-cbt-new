@@ -6,7 +6,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { CurrentSchoolId } from '../common/decorators/current-school-id.decorator';
 import { MAX_UPLOAD_BYTES } from '../storage/storage.service';
-import { ActivityDto, CreateMaterialDto, ProgressDto, UpdateMaterialDto } from './learning.dto';
+import { ActivityDto, CreateMaterialDto, NarrationDto, ProgressDto, UpdateMaterialDto } from './learning.dto';
 import { LearningService } from './learning.service';
 
 @Controller('learning')
@@ -42,6 +42,23 @@ export class LearningController {
     async pdf(@CurrentUser() user: AuthUser, @CurrentSchoolId() org: string, @Param('id', ParseUUIDPipe) id: string, @Res() res: Response) {
         const { object, name } = await this.learning.file(user, org, id, true);
         res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(name)}`);
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Cache-Control', 'private, no-store');
+        if (object.contentLength !== undefined) res.setHeader('Content-Length', object.contentLength);
+        object.stream.on('error', () => res.destroy());
+        object.stream.pipe(res);
+    }
+    @Post(':id/narration')
+    @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_BYTES, fieldSize: 1024, files: 1, fields: 2 } }))
+    uploadNarration(@CurrentUser() user: AuthUser, @CurrentSchoolId() org: string, @Param('id', ParseUUIDPipe) id: string,
+        @UploadedFile() file: Express.Multer.File | undefined, @Body() dto: NarrationDto) { return this.learning.uploadNarration(user, org, id, file, dto.revision); }
+    @Delete(':id/narration')
+    removeNarration(@CurrentUser() user: AuthUser, @CurrentSchoolId() org: string, @Param('id', ParseUUIDPipe) id: string, @Query() dto: NarrationDto) { return this.learning.removeNarration(user, org, id, dto.revision); }
+    @Get(':id/narration')
+    async narration(@CurrentUser() user: AuthUser, @CurrentSchoolId() org: string, @Param('id', ParseUUIDPipe) id: string, @Res() res: Response) {
+        const { object, name } = await this.learning.narration(user, org, id);
+        res.setHeader('Content-Type', 'application/octet-stream');
         res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(name)}`);
         res.setHeader('X-Content-Type-Options', 'nosniff');
         res.setHeader('Cache-Control', 'private, no-store');

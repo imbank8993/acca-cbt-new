@@ -5,6 +5,7 @@ import type { LearningMaterial } from '@/lib/learning-api';
 import { learningPreviewDocument } from '@/lib/learning-preview';
 import { learningNavigationBridge, readHtmlMenu, type HtmlNavigationProps } from '@/lib/learning-navigation-bridge';
 import { PdfPreview } from './PdfPreview';
+import { learningNarrationBridge, narrationMimeType } from '@/lib/learning-narration-bridge';
 
 export function MaterialPreview({ material, fullPage = false, bridge, onActivityMessage, onMenuChange, navigationRequest, onReady, restoring = false }: HtmlNavigationProps & {
     material: LearningMaterial; fullPage?: boolean; bridge?: string; onActivityMessage?: (event: MessageEvent) => void;
@@ -20,14 +21,39 @@ export function MaterialPreview({ material, fullPage = false, bridge, onActivity
     // The menu bridge is injected only when the host shows the HTML menu; otherwise the
     // material keeps its own in-page navigation visible.
     const showsMenu = !!onMenuChange;
-    const combinedBridge = useMemo(() => [showsMenu ? learningNavigationBridge(menuChannel) : '', bridge || ''].filter(Boolean).join(';'),
-        [menuChannel, bridge, showsMenu]);
+    const narrated = material.format === 'html' && !!material.hasNarration;
+    const combinedBridge = useMemo(() => [showsMenu ? learningNavigationBridge(menuChannel) : '', narrated ? learningNarrationBridge(menuChannel) : '', bridge || ''].filter(Boolean).join(';'),
+        [menuChannel, bridge, showsMenu, narrated]);
+    // Audio narasi diambil oleh halaman induk (iframe tidak boleh mengakses jaringan), lalu dikirim ke iframe.
+    const narration = useRef<{ bytes?: ArrayBuffer; failed?: boolean; mime: string; waiting: Window[] }>({ mime: '', waiting: [] });
+    useEffect(() => {
+        narration.current = { mime: narrationMimeType(material.narration_name), waiting: [] };
+        if (!narrated) return;
+        const state = narration.current, abort = new AbortController();
+        const deliver = (target: Window) => {
+            if (state.bytes) target.postMessage({ channel: menuChannel, type: 'lms-narration', bytes: state.bytes.slice(0), mime: state.mime }, '*');
+            else if (state.failed) target.postMessage({ channel: menuChannel, type: 'lms-narration-error' }, '*');
+        };
+        void fetch(`/api/learning/${material.id}/narration`, { signal: abort.signal, cache: 'no-store' })
+            .then(response => { if (!response.ok) throw new Error('narration'); return response.arrayBuffer(); })
+            .then(bytes => { state.bytes = bytes; })
+            .catch(() => { if (!abort.signal.aborted) state.failed = true; })
+            .finally(() => { if (abort.signal.aborted) return; state.waiting.forEach(deliver); state.waiting = []; });
+        return () => abort.abort();
+    }, [narrated, material.id, material.narration_name, material.revision, menuChannel]);
     useEffect(() => {
         if (navigationRequest) frame.current?.contentWindow?.postMessage({ channel: menuChannel, type: 'html-menu-select', id: navigationRequest.id }, '*');
     }, [navigationRequest, menuChannel]);
     useEffect(() => {
         const receive = (event: MessageEvent) => {
             if (event.source !== frame.current?.contentWindow) return;
+            if (event.data?.channel === menuChannel && event.data.type === 'lms-narration-ready') {
+                const state = narration.current, target = event.source as Window;
+                if (state.bytes) target.postMessage({ channel: menuChannel, type: 'lms-narration', bytes: state.bytes.slice(0), mime: state.mime }, '*');
+                else if (state.failed) target.postMessage({ channel: menuChannel, type: 'lms-narration-error' }, '*');
+                else if (!state.waiting.includes(target)) state.waiting.push(target);
+                return;
+            }
             if (event.data?.channel === menuChannel && event.data.type === 'html-menu') {
                 const items = readHtmlMenu(event.data.items);
                 if (items && onMenuChange) {

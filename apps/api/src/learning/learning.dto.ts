@@ -26,6 +26,9 @@ export class UpdateMaterialDto {
     @IsString() @MaxLength(6_000_000) @IsByteLength(0, 8 * 1024 * 1024 - 1, { message: 'Isi materi harus kurang dari 8 MB.' }) contentHtml!: string;
     @IsString() @MaxLength(8000) conversionNotes!: string;
 }
+export class NarrationDto {
+    @Type(() => Number) @IsInt() @Min(1) revision!: number;
+}
 export class ProgressDto {
     @IsBoolean() completed!: boolean;
     @IsInt() @Min(1) contentVersion!: number;

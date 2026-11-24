@@ -6,6 +6,8 @@ export interface LearningMaterial {
     grade_level: string; topic: string; subtopic: string;
     id: string; title: string; description: string; subject: string; status: 'draft' | 'published';
     format: MaterialFormat; content_html: string; conversion_notes: string; hasFile: boolean; hasRenderedPdf?: boolean;
+    /** Audio narasi materi HTML (disimpan terpisah dari isi HTML). */
+    hasNarration?: boolean; narration_name?: string | null; narration_size?: number | null;
     file_name: string | null; file_size: number | null; revision: number; content_version: number; updated_at: string; completed?: boolean; materialUpdated?: boolean;
     /** Dari daftar: pemanggil boleh mengubah/menghapus (pemilik materi atau Admin). */
     canEdit?: boolean; created_by?: string;

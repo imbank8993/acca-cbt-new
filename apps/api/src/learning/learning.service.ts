@@ -12,8 +12,19 @@ export interface MaterialRow {
     id: string; organization_id: string; created_by: string; title: string; description: string;
     subtopic_order?: number; cover_data?: string; subject: string; grade_level: string; topic: string; subtopic: string; status: 'draft' | 'published'; format: string; content_html: string;
     rendered_pdf_key: string | null; conversion_notes: string; file_key: string | null; file_name: string | null; file_size: number | null;
+    narration_key?: string | null; narration_name?: string | null; narration_size?: number | null;
     revision: number; content_version: number; created_at: string; updated_at: string; published_at: string | null;
 }
+/** Audio narasi untuk materi HTML: ekstensi yang diterima dan tanda awal berkasnya. */
+const NARRATION_TYPES: Record<string, (head: Buffer) => boolean> = {
+    mp3: head => head.subarray(0, 3).toString('latin1') === 'ID3' || (head[0] === 0xff && (head[1] & 0xe0) === 0xe0),
+    m4a: head => head.subarray(4, 8).toString('latin1') === 'ftyp',
+    aac: head => head[0] === 0xff && (head[1] & 0xf6) === 0xf0,
+    ogg: head => head.subarray(0, 4).toString('latin1') === 'OggS',
+    opus: head => head.subarray(0, 4).toString('latin1') === 'OggS',
+    wav: head => head.subarray(0, 4).toString('latin1') === 'RIFF' && head.subarray(8, 12).toString('latin1') === 'WAVE',
+    webm: head => head.readUInt32BE(0) === 0x1a45dfa3,
+};
 const LIST_COLUMNS = 'subtopic_order, cover_data, id, organization_id, created_by, title, description, subject, grade_level, topic, subtopic, status, format, file_name, file_size, revision, content_version, created_at, updated_at, published_at';
 
 @Injectable()
@@ -41,8 +52,8 @@ export class LearningService {
         return data as MaterialRow;
     }
     private publicRow(row: MaterialRow) {
-        const { file_key, rendered_pdf_key, ...safe } = row;
-        return { ...safe, hasFile: !!file_key, hasRenderedPdf: !!rendered_pdf_key };
+        const { file_key, rendered_pdf_key, narration_key, ...safe } = row;
+        return { ...safe, hasFile: !!file_key, hasRenderedPdf: !!rendered_pdf_key, hasNarration: !!narration_key };
     }
     async list(user: AuthUser, org: string, manage = false) {
         await this.reader(user, org);
@@ -166,6 +177,7 @@ export class LearningService {
         // Never destroy a live attachment before the database commit succeeds.
         if (row.file_key) await this.storage.deleteObject(row.file_key);
         if (row.rendered_pdf_key) await this.storage.deleteObject(row.rendered_pdf_key);
+        if (row.narration_key) await this.storage.deleteObject(row.narration_key);
         return { success: true };
     }
     async file(user: AuthUser, org: string, id: string, rendered = false) {
@@ -177,6 +189,52 @@ export class LearningService {
         const object = await this.storage.getObject(key);
         if (!object) throw new NotFoundException('Berkas tidak tersedia di penyimpanan.');
         return { object, name: rendered ? (row.file_name || 'bahan-ajar').replace(/\.(tex|latex|zip)$/i, '') + '.pdf' : row.file_name || 'bahan-ajar' };
+    }
+    async uploadNarration(user: AuthUser, org: string, id: string, file: Express.Multer.File | undefined, revision: number) {
+        const row = await this.row(org, id);
+        await this.editable(user, row);
+        if (row.format !== 'html') throw new BadRequestException('Audio narasi hanya tersedia untuk bahan ajar HTML.');
+        if (!file || !file.size || file.size > MAX_UPLOAD_BYTES) throw new BadRequestException('Pilih audio berukuran 1 byte hingga 25 MB.');
+        const extension = file.originalname.split('.').pop()?.toLowerCase() || '';
+        const valid = NARRATION_TYPES[extension];
+        if (!valid || file.buffer.length < 12 || !valid(file.buffer)) throw new BadRequestException('Gunakan audio MP3, M4A, AAC, OGG/Opus, WAV, atau WebM.');
+        if (row.revision !== revision) throw new ConflictException('Materi telah berubah. Muat ulang sebelum mengunggah audio.');
+        const previousKey = row.narration_key;
+        const key = `lms-private/${org}/${id}/${randomUUID()}.bin`;
+        const uploaded = await this.storage.putObject(key, file.buffer, 'application/octet-stream');
+        if (!uploaded.success) throw new InternalServerErrorException('Gagal mengunggah audio. Periksa penyimpanan R2.');
+        const name = file.originalname.replace(/[\\/\x00-\x1f\x7f]/g, '_').slice(0, 240);
+        const { data, error } = await this.db.from('cbt_learning_materials').update({ narration_key: key, narration_name: name, narration_size: file.size,
+            revision: revision + 1, updated_at: new Date().toISOString() }).eq('id', id).eq('organization_id', org).eq('revision', revision).select('*').maybeSingle();
+        if (error || !data) {
+            await this.storage.deleteObject(key);
+            if (!error) throw new ConflictException('Materi telah berubah. Muat ulang sebelum mengunggah audio.');
+            throw new InternalServerErrorException('Gagal menyimpan audio narasi. Pastikan migrasi narasi sudah diterapkan.');
+        }
+        if (previousKey) await this.storage.deleteObject(previousKey);
+        return { material: this.publicRow(data) };
+    }
+    async removeNarration(user: AuthUser, org: string, id: string, revision: number) {
+        const row = await this.row(org, id);
+        await this.editable(user, row);
+        const previousKey = row.narration_key;
+        if (!previousKey) return { material: this.publicRow(row) };
+        const { data, error } = await this.db.from('cbt_learning_materials').update({ narration_key: null, narration_name: null, narration_size: null,
+            revision: revision + 1, updated_at: new Date().toISOString() }).eq('id', id).eq('organization_id', org).eq('revision', revision).select('*').maybeSingle();
+        if (error) throw new InternalServerErrorException('Gagal menghapus audio narasi.');
+        if (!data) throw new ConflictException('Materi telah berubah. Muat ulang sebelum menghapus audio.');
+        // Remove the object only after the row no longer references it.
+        await this.storage.deleteObject(previousKey);
+        return { material: this.publicRow(data) };
+    }
+    async narration(user: AuthUser, org: string, id: string) {
+        await this.reader(user, org);
+        const row = await this.row(org, id);
+        if (row.status !== 'published') await this.editable(user, row);
+        if (!row.narration_key) throw new NotFoundException('Audio narasi tidak tersedia.');
+        const object = await this.storage.getObject(row.narration_key);
+        if (!object) throw new NotFoundException('Audio narasi tidak tersedia di penyimpanan.');
+        return { object, name: row.narration_name || 'narasi' };
     }
     async progress(user: AuthUser, org: string, id: string, completed: boolean, contentVersion?: number) {
         await this.reader(user, org);

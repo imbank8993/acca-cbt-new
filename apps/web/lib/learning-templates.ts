@@ -1,4 +1,4 @@
-export async function downloadLearningTemplate(format: 'word' | 'latex' | 'html') {
+export async function downloadLearningTemplate(format: 'word' | 'latex' | 'html' | 'narration') {
     let blob: Blob; let name: string;
     if (format === 'word') {
         const { Document, Packer, Paragraph, HeadingLevel, TextRun } = await import('docx');
@@ -38,6 +38,47 @@ x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}
 Bagaimana hubungan diskriminan dengan banyaknya akar real?
 \end{document}
 `], { type: 'text/plain' }); name = 'template-bahan-ajar.tex';
+    } else if (format === 'narration') {
+        blob = new Blob([`<!doctype html><html lang="id"><head><meta charset="utf-8"><title>Video Pembelajaran: Siklus Air</title>
+<style>
+body{margin:0;font-family:system-ui,sans-serif;background:#0f3d2e;color:#fff;min-height:100vh;box-sizing:border-box;display:flex;flex-direction:column}
+.stage{flex:1;display:grid;place-items:center;padding:24px}
+.slide{max-width:760px;text-align:center;animation:muncul .6s ease}
+.slide h1{font-size:clamp(28px,5vw,48px);margin:0 0 12px;color:#f3cd55}
+.slide p{font-size:clamp(17px,2.6vw,22px);line-height:1.6}
+.ikon{font-size:72px}
+nav{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:12px}
+nav button{border:0;border-radius:999px;padding:8px 14px;background:rgba(255,255,255,.14);color:#fff;cursor:pointer}
+nav button.lms-active{background:#f3cd55;color:#0f3d2e}
+@keyframes muncul{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+</style></head><body>
+<!--
+  CARA PAKAI
+  1. Rekam narasi, lalu unggah di editor: panel "Audio narasi".
+  2. data-lms-at = detik slide mulai tampil, data-lms-until = detik slide hilang.
+     Sesuaikan angka detik dengan rekaman Anda.
+  3. Pemutar audio muncul otomatis di bawah. Untuk meletakkan sendiri, tambahkan:
+     <audio data-lms-narration controls></audio>
+  4. Tombol dengan data-lms-seek="detik" melompat ke bagian tersebut.
+-->
+<div class="stage">
+  <section class="slide" data-lms-at="0" data-lms-until="8"><div class="ikon">💧</div><h1>Siklus Air</h1><p>Tekan tombol putar di bawah untuk memulai.</p></section>
+  <section class="slide" data-lms-at="8" data-lms-until="20"><div class="ikon">☀️</div><h1>1. Evaporasi</h1><p>Panas matahari mengubah air laut menjadi uap air.</p></section>
+  <section class="slide" data-lms-at="20" data-lms-until="32"><div class="ikon">☁️</div><h1>2. Kondensasi</h1><p>Uap air mendingin di udara dan membentuk awan.</p></section>
+  <section class="slide" data-lms-at="32" data-lms-until="44"><div class="ikon">🌧️</div><h1>3. Presipitasi</h1><p>Butir air di awan jatuh sebagai hujan.</p></section>
+  <section class="slide" data-lms-at="44"><div class="ikon">✅</div><h1>Rangkuman</h1><p>Evaporasi → kondensasi → presipitasi, lalu berulang.</p></section>
+</div>
+<nav>
+  <button data-lms-seek="8" data-lms-at="8" data-lms-until="20" data-lms-keep>Evaporasi</button>
+  <button data-lms-seek="20" data-lms-at="20" data-lms-until="32" data-lms-keep>Kondensasi</button>
+  <button data-lms-seek="32" data-lms-at="32" data-lms-until="44" data-lms-keep>Presipitasi</button>
+  <button data-lms-seek="44" data-lms-at="44" data-lms-keep>Rangkuman</button>
+</nav>
+<script>
+// Opsional: animasi JavaScript sendiri dapat mengikuti waktu audio.
+window.addEventListener('lms:narration-time', function (event) { /* event.detail.time = detik saat ini */ });
+</script>
+</body></html>`], { type: 'text/html' }); name = 'template-video-narasi.html';
     } else {
         blob = new Blob([`<!doctype html><html lang="id"><head><meta charset="utf-8"><title>Belajar Pecahan</title><style>body{max-width:760px;margin:auto;font-family:system-ui;padding:24px}section{padding:24px;background:#f0fdfa;border-radius:16px;margin:20px 0}button{padding:12px 20px;border:0;border-radius:8px;background:#0f766e;color:white;cursor:pointer}input{width:100%}#bar{height:36px;background:#0d9488;border-radius:8px}</style></head><body>
 <h1>Mengenal Pecahan</h1><p>Geser pengatur di bawah untuk melihat bagian dari satu keseluruhan.</p>
