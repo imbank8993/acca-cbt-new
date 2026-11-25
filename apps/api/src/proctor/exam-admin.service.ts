@@ -119,11 +119,18 @@ export class ExamAdminService {
         const ownedBankIds = new Set<string>();
         const [sources, owned] = await Promise.all([
             exams.length ? this.db.from('cbt_exam_question_sources').select('exam_id, bank_id').in('exam_id', exams.map(exam => exam.id)) : Promise.resolve({ data: [], error: null }),
-            restrictedProctor ? this.db.from('cbt_question_banks').select('id').eq('organization_id', organizationId).eq('created_by', user.id) : Promise.resolve({ data: [], error: null }),
+            !elevated ? this.db.from('cbt_question_banks').select('id').eq('organization_id', organizationId).eq('created_by', user.id) : Promise.resolve({ data: [], error: null }),
         ]);
         if (sources.error || owned.error) throw new BadRequestException('Sumber bank soal belum dapat diperiksa.');
         const examSources: Array<{ exam_id: string; bank_id: string }> = sources.data || [];
         for (const bank of owned.data || []) ownedBankIds.add(bank.id);
+        // Kolaborator editor/pengelola bank juga boleh menulis kuncinya; Proktor
+        // terbatas hanya bank buatan sendiri (sama dengan assertBankAccess).
+        if (!elevated && !restrictedProctor) {
+            for (const [bankId, grant] of await collaborationGrants(this.db, 'bank', user.id)) {
+                if (['editor', 'manager'].includes(grant.permission)) ownedBankIds.add(bankId);
+            }
+        }
         const bankIdsForExam = (exam: { id: string; question_bank_id?: string | null }): string[] => [...new Set([
             ...(exam.question_bank_id ? [exam.question_bank_id] : []),
             ...examSources.filter(source => source.exam_id === exam.id).map(source => source.bank_id).sort(),
@@ -174,6 +181,9 @@ export class ExamAdminService {
         return Promise.all(exams.map(async (exam) => {
             const grant = grants.get(exam.id) ?? null;
             const access = collaboration.access(exam, grant);
+            const canManage = await this.authz.canManageExam(user, exam, 'manage', undefined, grant, accessContext);
+            const correctionBankIds = bankIdsForExam(exam);
+            const ownsAllBanks = !elevated && correctionBankIds.length > 0 && correctionBankIds.every(id => ownedBankIds.has(id));
             return ({
             ...exam,
             isOwner: access.owner, canShare: access.canShare, canDelete: access.canDelete, collaborationPermission: access.grant?.permission || null,
@@ -185,12 +195,11 @@ export class ExamAdminService {
             questionCreatorNames: [...new Set(bankIdsForExam(exam).map(bankId => creatorNames.get(banksById.get(bankId)?.created_by || '') || 'Belum tercatat'))],
             question_bank_title: exam.question_bank_title || banksById.get(exam.question_bank_id)?.title || null,
             subject: subjectsById.get(exam.subject_id) || bankIdsForExam(exam).map(bankId => banksById.get(bankId)?.subject?.trim()).find(Boolean) || null,
-            canManage: await this.authz.canManageExam(user, exam, 'manage', undefined, grant, accessContext),
+            canManage,
             canResetParticipants: await this.authz.canManageExam(user, exam, 'reset', assignedStudents, grant, accessContext),
-            canCorrectKeys: !restrictedProctor || (() => {
-                const ids = [...(exam.question_bank_id ? [exam.question_bank_id] : []), ...examSources.filter(source => source.exam_id === exam.id).map(source => source.bank_id)];
-                return ids.length > 0 && ids.every(id => ownedBankIds.has(id));
-            })(),
+            // Pengelola ujian (Proktor terbatas: hanya bila semua banknya buatan sendiri),
+            // ATAU pembuat semua bank soal ujian ini walaupun bukan pengelola ujiannya.
+            canCorrectKeys: ownsAllBanks || (!restrictedProctor && (elevated || canManage)),
         }); }));
     }
 

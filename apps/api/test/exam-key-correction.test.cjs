@@ -124,3 +124,26 @@ test('key validation covers objective question types without replacing options, 
  assert.equal(applyExamQuestionKey({...base,type:'short_answer',metadata:{blanks:[{answer:'old',variations:['stale']}] }},'["new"]').metadata.blanks[0].variations.length,0);
  for(const [type,key] of [['mcq','other'],['mcq_complex','["a","a"]'],['true_false','{"a":true}'],['ordering','["a"]'],['matching','{"a":["foreign"],"b":["R1"]}'],['essay','a']])assert.throws(()=>applyExamQuestionKey({...base,type},key));
 });
+
+test('bank creator who only monitors the exam may correct keys; room invigilators and non-owners may not',async()=>{
+ const {ForbiddenException}=require('@nestjs/common');
+ const build=({monitoring,bank=true})=>{
+  const f=fixture();
+  f.service.authz={
+   assertExamStaff:async()=>{throw new ForbiddenException('Bukan pengelola ujian')},
+   assertExamMonitoring:async()=>{if(monitoring==='none')throw new ForbiddenException('Tidak memantau');return monitoring==='room'?['student']:undefined},
+   assertBankAccess:async()=>{if(!bank)throw new ForbiddenException('Bukan pembuat bank')},
+  };
+  return f;
+ };
+ // Pembuat bank: memantau seluruh peserta + hak tulis bank -> boleh.
+ const owner=build({monitoring:'all'});
+ await owner.service.save(user,'exam',change);
+ assert.equal(examQuestionKey((await readExamQuestionVersion(owner.db,'exam'))[0]),'b');
+ // Pengawas ruang (cakupan sebagian peserta) -> ditolak walau punya akses bank.
+ await assert.rejects(build({monitoring:'room'}).service.save(user,'exam',change),/Bukan pengelola ujian/);
+ // Memantau tetapi bukan pembuat bank -> ditolak di pemeriksaan bank.
+ await assert.rejects(build({monitoring:'all',bank:false}).service.save(user,'exam',change),/Bukan pembuat bank/);
+ // Tidak berhak memantau sama sekali -> ditolak.
+ await assert.rejects(build({monitoring:'none'}).service.get(user,'exam'),/Tidak memantau/);
+});

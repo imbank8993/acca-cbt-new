@@ -360,7 +360,7 @@ function MonitoringContent() {
                     resetOnly={activeTab === 'reset'}
                     attentionOnly={onlyAttention} onAttentionChange={activeTab === 'live' ? setOnlyAttention : undefined}
                     actions={activeTab === 'results' ? <>
-                        {selectedExam?.canManage === true && selectedExam.canCorrectKeys !== false && selectedExamId && <ExamKeyCorrectionButton key={selectedExamId} examId={selectedExamId} onComplete={handleRefresh} />}
+                        {(selectedExam?.canCorrectKeys === true || (selectedExam?.canManage === true && selectedExam.canCorrectKeys !== false)) && selectedExamId && <ExamKeyCorrectionButton key={selectedExamId} examId={selectedExamId} onComplete={handleRefresh} />}
                         {hasIRTScoring && <Button variant="outline" onClick={handleCalculateIRT} disabled={isRefreshing || isCalculatingIrt} leftIcon={<Calculator size={16} />}>Kalkulasi IRT</Button>}
                         <Button variant="outline" icon="export" onClick={exportResultsToExcel}>Export</Button>
                     </> : undefined}

@@ -408,7 +408,7 @@ function MonitoringContent() {
                         attentionOnly={activeTab === 'live' ? onlyAttention : undefined}
                         onAttentionChange={activeTab === 'live' ? setOnlyAttention : undefined}
                         actions={activeTab === 'results' ? <>
-                            {selectedExam?.canManage === true && selectedExam.canCorrectKeys !== false && <ExamKeyCorrectionButton key={selectedExamId} examId={selectedExamId} onComplete={handleRefresh} />}
+                            {(selectedExam?.canCorrectKeys === true || (selectedExam?.canManage === true && selectedExam.canCorrectKeys !== false)) && <ExamKeyCorrectionButton key={selectedExamId} examId={selectedExamId} onComplete={handleRefresh} />}
                             {hasIRTScoring && (
                                 <Button variant="outline" onClick={handleCalculateIRT} disabled={isRefreshing || isCalculatingIrt} leftIcon={<Calculator size={14} />}>
                                     Kalkulasi IRT

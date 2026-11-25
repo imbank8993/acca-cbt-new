@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { applyExamQuestionKey, examQuestionKey, type AuthUser, type KeyQuestion } from '@acca-cbt/shared';
 import { randomUUID } from 'node:crypto';
 import { AuthorizationService } from '../auth/authorization.service';
@@ -28,8 +28,21 @@ export class ExamKeyCorrectionService {
         const { error } = await db.from('cbt_exams').update(values).eq('id', examId);
         if (error) throw new InternalServerErrorException('Perubahan kunci belum tersimpan.');
     }
+    /**
+     * Boleh mengoreksi kunci: pengelola ujian, ATAU pembuat bank soal yang
+     * berhak memantau ujian itu (mis. ujian ASAS/AM yang dibangkitkan sistem
+     * dari bank milik guru mapel). Keduanya tetap wajib punya hak tulis atas
+     * SEMUA bank soal yang dipakai ujian.
+     */
     private async assertCorrectionAccess(user: AuthUser, examId: string) {
-        await this.authz.assertExamStaff(user, examId);
+        try {
+            await this.authz.assertExamStaff(user, examId);
+        } catch (error) {
+            if (!(error instanceof ForbiddenException)) throw error;
+            // Pengawas ruang hanya memantau sebagian peserta: bukan jalur koreksi kunci.
+            const scope = await this.authz.assertExamMonitoring(user, examId);
+            if (scope !== undefined) throw error;
+        }
         const questions = await readExamQuestionVersion(this.db, examId);
         for (const bankId of new Set(questions.map(question => question.bank_id))) {
             if (typeof bankId !== 'string') throw new BadRequestException('Pemilik bank soal historis belum dapat diverifikasi.');
