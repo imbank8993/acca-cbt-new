@@ -17,11 +17,28 @@ Permintaan izin dibuka dari tombol siswa, bukan secara tersembunyi. Jika berbagi
 waktu tetap berjalan, jawaban tetap tersimpan, dan penghentian dicatat tanpa menambah peringatan kecurangan.
 Tidak ada audio atau video rekaman yang diunggah. Hanya frame tertentu saat kejadian yang dikirim.
 
+## Kapan gambar diambil
+
+| Kejadian | Pemicu | Menambah pelanggaran |
+|---|---|---|
+| `tab_switch` | Halaman ujian tersembunyi (pindah tab, minimize) | Ya |
+| `focus_interruption` | Fokus hilang lebih dari 5 detik tanpa halaman tersembunyi (mis. Alt+Tab) | Tidak |
+| `still_away` | Siswa belum kembali ke halaman ujian | Tidak |
+| `exit_fullscreen`, `restricted_shortcut`, `page_translated`, dll. | Sesuai nama kejadian | Ya |
+
+- Gambar pertama diambil sekitar 0,7 detik setelah kejadian, supaya jendela/tab tujuan sudah tergambar di layar.
+- Selama siswa belum kembali ke halaman ujian, gambar `still_away` diambil **tetap tiap 3 detik**.
+  Detaknya berjalan di Web Worker agar tidak diperlambat browser saat tab ujian tersembunyi.
+  Pengambilan berhenti begitu siswa kembali, berbagi layar terputus, atau kuota habis.
+- Kejadian dan gambar disimpan dulu di antrean perangkat (IndexedDB), lalu dikirim; saat offline, bukti dikirim setelah koneksi pulih.
+
 ## Ukuran dan masa simpan
 
 - JPEG/WebP maksimal 200 KiB (204800 byte) sebelum enkripsi.
-- Maksimal 10 gambar per attempt/peserta dalam satu ujian, termasuk setelah pemulihan atau susulan.
-- Jeda minimal 30 detik. Kuota/jeda diperiksa ulang di server dengan lock, sehingga reload tidak mereset kuota.
+- Tanpa batas jumlah gambar: kuota berupa total **50 MB per peserta per sesi** (sekitar 250 gambar ukuran maksimal,
+  atau ±12 menit di luar ujian bila setiap gambar 200 KB). Reset/susulan memulai kuota baru; gambar yang dihapus Proktor/Admin tidak lagi memakai kuota.
+- Kejadian ringan (klik kanan, salin-tempel, tombol pintas) paling banyak 3 gambar, agar kuota tetap tersedia untuk bukti pindah tab.
+- Jeda minimal antar gambar 2,5 detik. Kuota/jeda diperiksa ulang di server dengan lock, sehingga reload tidak mereset kuota.
 - Gambar memiliki tenggat 7 hari sejak disimpan. Akses gambar ditolak setelah tenggat, walaupun penghapusan R2 sedang tertunda.
 - Worker API berjalan saat startup dan setiap jam. Worker menghapus objek kedaluwarsa dan menyapu objek yatim pada prefix `exam-evidence/`.
   Jika API atau R2 sedang tidak tersedia, penghapusan fisik dicoba lagi pada putaran berikutnya. Log kejadian tidak dihapus.

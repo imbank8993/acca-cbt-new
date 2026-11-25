@@ -13,11 +13,12 @@ import { runsBackgroundJobs } from '../common/api-cluster';
  * gambar, melainkan total ukuran gambar yang masih tersimpan. Gambar yang
  * dihapus Proktor/Admin tidak lagi memakai kuota.
  */
-export const SCREENSHOT_TOTAL_BYTES = 20 * 1024 * 1024;
+export const SCREENSHOT_TOTAL_BYTES = 50 * 1024 * 1024;
 export const SCREENSHOT_BYTES = 200 * 1024;
 /**
- * Jarak minimum antar gambar. Klien mengambil gambar tiap 3 detik selama siswa
- * belum kembali ke halaman ujian; 2,5 detik memberi ruang untuk selisih timer.
+ * Jarak minimum antar gambar. Klien mengambil gambar tetap tiap 3 detik selama
+ * siswa belum kembali ke halaman ujian (SCREENSHOT_REPEAT_MS di web);
+ * 2,5 detik memberi ruang untuk selisih timer.
  */
 export const SCREENSHOT_INTERVAL_MS = 2_500;
 export const SCREENSHOT_MAX_EVENT_AGE_MS = 6 * 60 * 60 * 1000;
@@ -282,7 +283,7 @@ export class ExamScreenshotsService implements OnModuleInit, OnModuleDestroy {
     }
     /**
      * Hapus gambar (bukan catatan kejadiannya). Baris tetap ada dengan deleted_at
-     * sebagai jejak, objek terenkripsi dihapus, dan kuota 20 MB peserta pulih.
+     * sebagai jejak, objek terenkripsi dihapus, dan kuota 50 MB peserta pulih.
      */
     async remove(user: AuthUser, id: string) {
         const { data: row } = await this.db.from('cbt_exam_screenshots').select('id, attempt_id, object_key, deleted_at').eq('id', id).maybeSingle();

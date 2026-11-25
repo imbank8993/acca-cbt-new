@@ -1,18 +1,33 @@
 export const SCREENSHOT_MAX_BYTES = 200 * 1024;
-/** Tanpa batas jumlah: total ukuran gambar per peserta per sesi paling besar 20 MB (server memeriksa ulang). */
-export const SCREENSHOT_TOTAL_BYTES = 20 * 1024 * 1024;
+/** Tanpa batas jumlah: total ukuran gambar per peserta per sesi paling besar 50 MB (server memeriksa ulang). */
+export const SCREENSHOT_TOTAL_BYTES = 50 * 1024 * 1024;
 /** Jeda minimum antar gambar (server: 2,5 detik). */
 export const SCREENSHOT_COOLDOWN_MS = 2_500;
-/** Selama siswa belum kembali ke halaman ujian: tiap 10 detik di awal... */
-export const SCREENSHOT_REPEAT_MS = 10_000;
-/** ...selama 30 detik pertama di luar ujian... */
-export const SCREENSHOT_FAST_WINDOW_MS = 30_000;
-/** ...lalu tiap 15 detik, agar server tidak terbebani bila banyak siswa lama di luar ujian. */
-export const SCREENSHOT_REPEAT_SLOW_MS = 15_000;
+/** Selama siswa belum kembali ke halaman ujian, layar diambil tetap tiap 3 detik. */
+export const SCREENSHOT_REPEAT_MS = 3_000;
 
-/** Jeda ke gambar berikutnya menurut lamanya siswa sudah berada di luar halaman ujian. */
-export function awayCaptureDelay(awayForMs: number): number {
-    return awayForMs < SCREENSHOT_FAST_WINDOW_MS ? SCREENSHOT_REPEAT_MS : SCREENSHOT_REPEAT_SLOW_MS;
+/**
+ * Detak berkala yang tetap tepat waktu walaupun tab ujian tersembunyi.
+ *
+ * Chrome memperlambat timer halaman tersembunyi (setelah ±5 menit menjadi
+ * sekali per menit). Timer di dedicated worker tidak terkena pembatasan itu,
+ * jadi detak dijalankan di worker dan dikirim ke halaman lewat postMessage.
+ * Bila worker tidak tersedia, kembali ke setInterval biasa.
+ */
+export function startHiddenSafeInterval(ms: number, onTick: () => void): () => void {
+    if (typeof Worker !== 'undefined' && typeof Blob !== 'undefined' && typeof URL !== 'undefined' && URL.createObjectURL) {
+        let url = '';
+        try {
+            url = URL.createObjectURL(new Blob([`setInterval(() => postMessage(0), ${Math.max(1, Math.floor(ms))});`], { type: 'text/javascript' }));
+            const worker = new Worker(url);
+            worker.onmessage = () => onTick();
+            return () => { worker.onmessage = null; worker.terminate(); URL.revokeObjectURL(url); };
+        } catch {
+            if (url) URL.revokeObjectURL(url);
+        }
+    }
+    const timer = setInterval(onTick, ms);
+    return () => clearInterval(timer);
 }
 /** Toleransi sebelum terputusnya berbagi layar dihitung sebagai pelanggaran. */
 export const SCREEN_SHARE_GRACE_MS = 30_000;

@@ -79,9 +79,9 @@ test('the last violation screenshot can still be saved after automatic submissio
  assert.equal(f.db.tables.cbt_exam_screenshots.length, 1);
 });
 
-test('20 MB quota and cooldown are enforced by the server even after browser reload; deleted images free the quota', async () => {
+test('50 MB quota and cooldown are enforced by the server even after browser reload; deleted images free the quota', async () => {
  const f = fixture();
- f.db.tables.cbt_exam_screenshots = [{ id: 'big', attempt_id: 'attempt', created_at: '2020-01-01', object_key: 'k', byte_size: 20 * 1024 * 1024 - 4 }];
+ f.db.tables.cbt_exam_screenshots = [{ id: 'big', attempt_id: 'attempt', created_at: '2020-01-01', object_key: 'k', byte_size: 50 * 1024 * 1024 - 4 }];
  assert.deepEqual(await upload(f), { saved: false, reason: 'limit' }); assert.equal(f.images.size, 0);
  // Gambar yang sudah dihapus (object_key kosong) tidak lagi memakai kuota; jumlah gambar tidak dibatasi.
  f.db.tables.cbt_exam_screenshots = Array.from({ length: 40 }, (_, i) => ({ id: 'old-' + i, attempt_id: 'attempt', created_at: '2020-01-01', deleted_at: '2020-01-08', object_key: null, byte_size: 200 * 1024 }));
@@ -106,7 +106,7 @@ test('reset and makeup start a fresh screenshot quota while rejecting delayed ev
     metadata: { client_event_id: 'new', source: 'student', timestamp: before } },
   ];
   // Gambar sesi sebelumnya (sebelum reset) tidak memakai kuota sesi baru.
-  f.db.tables.cbt_exam_screenshots = [{ id: 'old-0', attempt_id: 'attempt', created_at: before, object_key: 'old', byte_size: 20 * 1024 * 1024 }];
+  f.db.tables.cbt_exam_screenshots = [{ id: 'old-0', attempt_id: 'attempt', created_at: before, object_key: 'old', byte_size: 50 * 1024 * 1024 }];
   await assert.rejects(upload(f, { id: 'student' }, 'old'), /sesi ujian sebelumnya/);
   const current = await upload(f, { id: 'student' }, 'new');
   assert.equal(current.saved, true);
@@ -116,7 +116,7 @@ test('reset and makeup start a fresh screenshot quota while rejecting delayed ev
    event_type: 'exit_fullscreen', created_at: new Date(now).toISOString(),
    metadata: { client_event_id: 'new-2', source: 'student', timestamp: before } });
   assert.deepEqual(await upload(f, { id: 'student' }, 'new-2'), { saved: false, reason: 'cooldown' });
-  f.db.tables.cbt_exam_screenshots.push({ id: 'current-big', attempt_id: 'attempt', created_at: after, object_key: 'now', byte_size: 20 * 1024 * 1024 });
+  f.db.tables.cbt_exam_screenshots.push({ id: 'current-big', attempt_id: 'attempt', created_at: after, object_key: 'now', byte_size: 50 * 1024 * 1024 });
   assert.deepEqual(await upload(f, { id: 'student' }, 'new-2'), { saved: false, reason: 'limit' });
  }
 });

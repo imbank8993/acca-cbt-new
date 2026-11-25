@@ -43,7 +43,7 @@ export function AttemptScreenshots({ attemptId }: { attemptId: string }) {
     };
     return <section className="mt-5 border-t border-slate-200 pt-4" aria-label="Bukti screenshot">
         <h3 className="text-sm font-semibold text-slate-800">Bukti Screenshot</h3>
-        <p className="mt-1 text-xs text-slate-500">Indikasi untuk diperiksa pengawas. Tanpa batas jumlah, paling besar 20 MB per peserta (terpakai {(storedBytes / 1024 / 1024).toFixed(1)} MB), dihapus otomatis setelah 7 hari.</p>
+        <p className="mt-1 text-xs text-slate-500">Indikasi untuk diperiksa pengawas. Tanpa batas jumlah, paling besar 50 MB per peserta (terpakai {(storedBytes / 1024 / 1024).toFixed(1)} MB), dihapus otomatis setelah 7 hari.</p>
         {!current && <p className="mt-3 text-xs text-slate-500">Memuat bukti...</p>}
         {current?.error && <p role="alert" className="mt-3 text-xs text-red-600">{current.error}</p>}
         {current && !current.error && current.rows.length === 0 && <p className="mt-3 text-xs text-slate-500">Belum ada screenshot tersimpan.</p>}

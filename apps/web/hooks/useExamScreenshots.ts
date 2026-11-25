@@ -16,7 +16,7 @@ export function useExamScreenshots(examId: string, completed: boolean) {
     const requestGeneration = useRef(0);
     const lastCapture = useRef(0);
     const muted = useRef(false);
-    /** Total ukuran gambar yang sudah diambil di sesi ini (kuota 20 MB). */
+    /** Total ukuran gambar yang sudah diambil di sesi ini (kuota 50 MB). */
     const bytes = useRef(0);
     const [sharing, setSharing] = useState(false);
     const [busy, setBusy] = useState(false);
@@ -148,7 +148,7 @@ export function useExamScreenshots(examId: string, completed: boolean) {
             if (!sharingRef.current || !video.current || muted.current) return null;
             const blob = await encodeScreenFrame(await latestScreenFrame(video.current, stream.current?.getVideoTracks()[0]));
             // Dihitung saat diambil, bukan saat terkirim: gambar yang antre offline
-            // juga memakai kuota, supaya pengambilan berkala berhenti di 20 MB.
+            // juga memakai kuota, supaya pengambilan berkala berhenti di 50 MB.
             bytes.current += blob.size;
             return blob;
         }

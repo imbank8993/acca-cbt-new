@@ -59,7 +59,7 @@ import type { AuthUser } from '@acca-cbt/shared';
 import { ExamViewer } from './ExamViewer';
 import { ExamStartPreparation } from './ExamStartPreparation';
 import { useExamScreenshots } from '@/hooks/useExamScreenshots';
-import { SCREEN_SHARE_GRACE_MS,SCREEN_SHARE_LOST_EVENT,SCREEN_SHARE_RACE_MS,awayCaptureDelay,screenshotBase64 } from '@/lib/exam-screenshots';
+import { SCREEN_SHARE_GRACE_MS,SCREEN_SHARE_LOST_EVENT,SCREEN_SHARE_RACE_MS,SCREENSHOT_REPEAT_MS,screenshotBase64,startHiddenSafeInterval } from '@/lib/exam-screenshots';
 import { retryExamEvidence } from '@/lib/exam-evidence-outbox';
 import { QUESTION_CHECK_FALLBACK_MS,jitteredInterval } from '@/lib/exam-timers';
 import { watchPageTranslation } from '@/lib/translation-guard';
@@ -1698,25 +1698,19 @@ export default function ExamPage() {
         };
 
         // Selama siswa belum kembali ke halaman ujian (tab lain, aplikasi lain),
-        // layar diambil ulang sebagai kejadian still_away: tiap 10 detik selama
-        // 30 detik pertama (saat bukti paling penting), lalu tiap 15 detik agar
-        // server tidak terbebani bila banyak siswa lama di luar ujian. Berhenti
-        // begitu siswa kembali, berbagi layar putus, atau kuota 20 MB habis.
-        let awayTimer: ReturnType<typeof setTimeout> | undefined;
-        let awayStartedAt = 0;
+        // layar diambil ulang sebagai kejadian still_away tetap tiap 3 detik.
+        // Detaknya berjalan di worker agar tidak diperlambat browser saat tab
+        // ujian tersembunyi. Berhenti begitu siswa kembali, berbagi layar
+        // putus, atau kuota 50 MB habis.
+        let stopAwayTicker: (() => void) | undefined;
         const isAway = () => document.hidden || !document.hasFocus();
-        const stopAwayCapture = () => { if (awayTimer) clearTimeout(awayTimer); awayTimer = undefined; };
-        const scheduleAwayCapture = () => {
-            awayTimer = setTimeout(() => {
+        const stopAwayCapture = () => { stopAwayTicker?.(); stopAwayTicker = undefined; };
+        const startAwayCapture = () => {
+            if (stopAwayTicker || exam?.metadata?.screenshot_enabled !== true) return;
+            stopAwayTicker = startHiddenSafeInterval(SCREENSHOT_REPEAT_MS, () => {
                 if (!isAway() || !canCaptureScreenshot()) { stopAwayCapture(); return; }
                 void handleSecurityViolation('still_away');
-                scheduleAwayCapture();
-            }, awayCaptureDelay(Date.now() - awayStartedAt));
-        };
-        const startAwayCapture = () => {
-            if (awayTimer || exam?.metadata?.screenshot_enabled !== true) return;
-            awayStartedAt = Date.now();
-            scheduleAwayCapture();
+            });
         };
 
         const onVisibilityChange = () => {

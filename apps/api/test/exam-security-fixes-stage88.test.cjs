@@ -264,9 +264,9 @@ test('while away, a screenshot every 3 seconds is accepted without a count limit
     const results = [];
     for (let i = 0; i < 31; i++) results.push(await service.upload({ id: 'student' }, 'attempt', `away-${i}`, device, jpeg.toString('base64')));
     assert.deepEqual(results.map(r => r.saved), Array(31).fill(true));
-    // Kuota berupa total ukuran 20 MB per peserta per sesi.
+    // Kuota berupa total ukuran 50 MB per peserta per sesi.
     db.tables.cbt_exam_screenshots.push({ id: 'big', attempt_id: 'attempt', event_type: 'tab_switch', created_at: new Date(start - 60_000).toISOString(),
-        object_key: 'big', byte_size: 20 * 1024 * 1024 });
+        object_key: 'big', byte_size: 50 * 1024 * 1024 });
     db.tables.cbt_attempt_security_logs.push({ id: 'ev-last', attempt_id: 'attempt', event_type: 'still_away', created_at: new Date().toISOString(),
         metadata: { client_event_id: 'away-last', source: 'student', timestamp: new Date(start + 200_000).toISOString() } });
     assert.deepEqual(await service.upload({ id: 'student' }, 'attempt', 'away-last', device, jpeg.toString('base64')), { saved: false, reason: 'limit' });
@@ -293,20 +293,48 @@ test('only Proktor/Admin can delete a screenshot; the event stays and the quota 
     await assert.rejects(service.read({ id: 'proktor' }, saved.id), e => e.getStatus() === 404);
 });
 
-test('while away the exam page captures every 10 s for the first 30 s, then every 15 s, and stops on return', () => {
+test('while away the exam page captures every 3 s from a hidden-safe worker ticker and stops on return', () => {
     const source = require('node:fs').readFileSync(require('node:path').resolve(__dirname, '../../web/app/components/questions/ExamPage.tsx'), 'utf8');
     assert.match(source, /const isAway = \(\) => document\.hidden \|\| !document\.hasFocus\(\);/);
-    assert.match(source, /if \(!isAway\(\) \|\| !canCaptureScreenshot\(\)\) \{ stopAwayCapture\(\); return; \}/);
-    assert.match(source, /void handleSecurityViolation\('still_away'\);\s*scheduleAwayCapture\(\);\s*\}, awayCaptureDelay\(Date\.now\(\) - awayStartedAt\)\);/);
+    assert.match(source, /stopAwayTicker = startHiddenSafeInterval\(SCREENSHOT_REPEAT_MS, \(\) => \{\s*if \(!isAway\(\) \|\| !canCaptureScreenshot\(\)\) \{ stopAwayCapture\(\); return; \}\s*void handleSecurityViolation\('still_away'\);/);
     assert.match(source, /const onFocus = \(\) => \{[\s\S]*?stopAwayCapture\(\);/);
-    const { awayCaptureDelay, SCREENSHOT_TOTAL_BYTES } = require('../../web/lib/exam-screenshots.ts');
-    assert.deepEqual([0, 10_000, 20_000, 29_999].map(awayCaptureDelay), [10_000, 10_000, 10_000, 10_000]);
-    assert.deepEqual([30_000, 60_000, 600_000].map(awayCaptureDelay), [15_000, 15_000, 15_000]);
-    // Lima menit di luar ujian: 3 gambar awal (10 dtk) + 18 gambar berikutnya (15 dtk).
-    let elapsed = 0, shots = 0;
-    while (elapsed + awayCaptureDelay(elapsed) <= 300_000) { elapsed += awayCaptureDelay(elapsed); shots++; }
-    assert.equal(shots, 21);
-    assert.equal(SCREENSHOT_TOTAL_BYTES, 20 * 1024 * 1024);
+    const { SCREENSHOT_REPEAT_MS, SCREENSHOT_COOLDOWN_MS, SCREENSHOT_TOTAL_BYTES } = require('../../web/lib/exam-screenshots.ts');
+    const { SCREENSHOT_INTERVAL_MS } = require('../src/proctoring/exam-screenshots.service.ts');
+    assert.equal(SCREENSHOT_REPEAT_MS, 3_000);
+    // Jeda klien dan server harus lebih pendek dari interval agar tiap gambar 3 detik diterima.
+    assert.ok(SCREENSHOT_COOLDOWN_MS < SCREENSHOT_REPEAT_MS && SCREENSHOT_INTERVAL_MS < SCREENSHOT_REPEAT_MS);
+    assert.equal(SCREENSHOT_TOTAL_BYTES, 50 * 1024 * 1024);
+});
+
+test('hidden-safe interval ticks from a worker and falls back to setInterval', async () => {
+    const { startHiddenSafeInterval } = require('../../web/lib/exam-screenshots.ts');
+    const saved = { Worker: globalThis.Worker, createObjectURL: URL.createObjectURL, revokeObjectURL: URL.revokeObjectURL };
+    try {
+        const workers = [];
+        globalThis.Worker = class { constructor(url) { this.url = url; this.terminated = false; workers.push(this); } terminate() { this.terminated = true; } };
+        URL.createObjectURL = () => 'blob:ticker';
+        let revoked = '';
+        URL.revokeObjectURL = url => { revoked = url; };
+        let ticks = 0;
+        const stop = startHiddenSafeInterval(3_000, () => { ticks++; });
+        assert.equal(workers.length, 1);
+        workers[0].onmessage();
+        assert.equal(ticks, 1);
+        stop();
+        assert.equal(workers[0].terminated, true);
+        assert.equal(revoked, 'blob:ticker');
+
+        globalThis.Worker = class { constructor() { throw new Error('blocked'); } };
+        let fallbackTicks = 0;
+        const stopFallback = startHiddenSafeInterval(5, () => { fallbackTicks++; });
+        await new Promise(resolve => setTimeout(resolve, 30));
+        stopFallback();
+        assert.ok(fallbackTicks >= 1);
+    } finally {
+        globalThis.Worker = saved.Worker;
+        URL.createObjectURL = saved.createObjectURL;
+        URL.revokeObjectURL = saved.revokeObjectURL;
+    }
 });
 
 test('focus-loss screenshots never add a violation on the client', () => {
