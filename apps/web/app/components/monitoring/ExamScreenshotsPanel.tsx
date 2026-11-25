@@ -1,10 +1,11 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
-import { Camera, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Camera, Images, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { apiGet, apiSend } from '@/lib/api/client';
 import { confirmDialog } from '@/lib/confirm-dialog';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { securityViolationLabel } from '@/lib/security-violations';
+import { groupScreenshotsByStudent } from '@/lib/screenshot-groups';
 
 interface ExamScreenshot {
     id: string;
@@ -21,13 +22,18 @@ interface ExamScreenshot {
     canDelete?: boolean;
 }
 
+/** Jumlah kartu peserta per halaman. */
 const PAGE_SIZE = 48;
 /** Disegarkan pelan: setiap gambar didekripsi server saat dibuka. */
 const REFRESH_MS = 30_000;
 
+const imageUrl = (id: string) => `/api/proctoring/screenshots/${encodeURIComponent(id)}/image`;
+
 /**
  * Tab Screenshot di monitoring: bukti screenshot satu ujian, atau beberapa ujian
- * sekaligus (folder ASAS/AM). Proktor/Admin dapat memilih beberapa gambar lalu
+ * sekaligus (folder ASAS/AM). Ditampilkan satu kartu per peserta dengan gambar
+ * terbarunya; bila peserta punya lebih dari satu gambar, tombol "lainnya"
+ * membuka semua gambarnya. Proktor/Admin dapat memilih beberapa gambar lalu
  * menghapusnya; Guru dan Pengawas hanya melihat, dan server membatasi Pengawas
  * pada peserta ruangnya. `attemptIds` (opsional) mengikuti filter peserta yang
  * sedang aktif di ruang kerja monitoring (kelas, ruang, pencarian).
@@ -46,6 +52,8 @@ export function ExamScreenshotsPanel({ examId, examIds, attemptIds }: { examId?:
     const [limit, setLimit] = useState(PAGE_SIZE);
     const [selected, setSelected] = useState<Set<string>>(new Set());
     const [deleting, setDeleting] = useState(false);
+    /** Peserta yang galerinya sedang dibuka. */
+    const [openAttempt, setOpenAttempt] = useState<string | null>(null);
 
     const [reloadToken, setReloadToken] = useState(0);
 
@@ -101,8 +109,13 @@ export function ExamScreenshotsPanel({ examId, examIds, attemptIds }: { examId?:
             (row.student_number || '').toLowerCase().includes(needle) ||
             securityViolationLabel(row.event_type).toLowerCase().includes(needle)));
     }, [rows, query, showRemoved]);
-    const shown = visible.slice(0, limit);
-    const selectable = shown.filter(row => row.available && row.canDelete);
+    const groups = useMemo(() => groupScreenshotsByStudent(visible), [visible]);
+    const shownGroups = groups.slice(0, limit);
+    const isDeletable = (row: ExamScreenshot) => row.available && row.canDelete === true;
+    const selectable = shownGroups.flatMap(group => group.rows.filter(isDeletable));
+    // Galeri tertutup sendiri bila peserta itu tidak lagi tampil (semua gambarnya dihapus/tersaring).
+    const openGroup = openAttempt ? groups.find(group => group.attemptId === openAttempt) || null : null;
+    const closeGallery = useCallback(() => setOpenAttempt(null), []);
 
     // Pilihan hanya untuk gambar yang masih ada di daftar terbaru.
     const availableIds = useMemo(() => new Set(rows.filter(row => row.available).map(row => row.id)), [rows]);
@@ -111,16 +124,17 @@ export function ExamScreenshotsPanel({ examId, examIds, attemptIds }: { examId?:
     const allShownChosen = selectable.length > 0 && selectable.every(row => selected.has(row.id));
     const storedBytes = rows.reduce((total, row) => total + (row.available ? Number(row.byte_size) || 0 : 0), 0);
     const removedCount = rows.length - availableIds.size;
+    const studentCount = useMemo(() => new Set(rows.filter(row => row.available).map(row => row.attempt_id)).size, [rows]);
 
     const toggle = (id: string) => setSelected(previous => {
         const next = new Set(previous);
         if (next.has(id)) next.delete(id); else next.add(id);
         return next;
     });
-    const toggleShown = () => setSelected(previous => {
+    const toggleMany = (items: ExamScreenshot[], on: boolean) => setSelected(previous => {
         const next = new Set(previous);
-        for (const row of selectable) {
-            if (allShownChosen) next.delete(row.id); else next.add(row.id);
+        for (const row of items) {
+            if (on) next.add(row.id); else next.delete(row.id);
         }
         return next;
     });
@@ -166,7 +180,7 @@ export function ExamScreenshotsPanel({ examId, examIds, attemptIds }: { examId?:
                         <Camera size={16} aria-hidden="true" /> Screenshot peserta
                     </h3>
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        {availableIds.size} gambar tersimpan ({(storedBytes / 1024 / 1024).toFixed(1)} MB)
+                        {availableIds.size} gambar tersimpan dari {studentCount} peserta ({(storedBytes / 1024 / 1024).toFixed(1)} MB)
                         {removedCount > 0 ? ` · ${removedCount} sudah dihapus atau kedaluwarsa` : ''}. Gambar dihapus otomatis setelah 7 hari.
                         {!canDelete && current ? ' Hanya Proktor atau Admin yang dapat menghapus.' : ''}
                     </p>
@@ -181,17 +195,17 @@ export function ExamScreenshotsPanel({ examId, examIds, attemptIds }: { examId?:
                 <label className="relative min-w-[14rem] flex-1">
                     <span className="sr-only">Cari nama, NIS, atau jenis kejadian</span>
                     <Search size={14} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input type="search" value={query} onChange={event => { setQuery(event.target.value); setLimit(PAGE_SIZE); }}
+                    <input type="search" value={query} onChange={event => { setQuery(event.target.value); setLimit(PAGE_SIZE); setOpenAttempt(null); }}
                         placeholder="Cari nama, NIS, atau kejadian"
                         className="w-full rounded-lg border border-slate-200 py-2 pl-8 pr-3 text-sm dark:border-slate-700 dark:bg-slate-950" />
                 </label>
                 <label className="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                    <input type="checkbox" checked={showRemoved} onChange={event => setShowRemoved(event.target.checked)} />
+                    <input type="checkbox" checked={showRemoved} onChange={event => { setShowRemoved(event.target.checked); setOpenAttempt(null); }} />
                     Tampilkan yang sudah dihapus
                 </label>
                 {canDelete && <>
                     <label className="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                        <input type="checkbox" checked={allShownChosen} disabled={!selectable.length} onChange={toggleShown} />
+                        <input type="checkbox" checked={allShownChosen} disabled={!selectable.length} onChange={() => toggleMany(selectable, !allShownChosen)} />
                         Pilih semua yang tampil
                     </label>
                     <button type="button" onClick={() => void remove(chosen)} disabled={!chosen.length || deleting}
@@ -205,51 +219,166 @@ export function ExamScreenshotsPanel({ examId, examIds, attemptIds }: { examId?:
         </div>
 
         {!current && !error && <p className="text-sm text-slate-500">Memuat screenshot…</p>}
-        {current && visible.length === 0 && <p className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
+        {current && groups.length === 0 && <p className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
             {rows.length === 0 ? 'Belum ada screenshot untuk peserta yang ditampilkan.' : 'Tidak ada screenshot yang cocok dengan pencarian.'}
         </p>}
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {shown.map(row => {
-                const isChosen = selected.has(row.id);
-                return <article key={row.id}
-                    className={`overflow-hidden rounded-xl border bg-white dark:bg-slate-900 ${isChosen ? 'border-red-400 ring-2 ring-red-200 dark:ring-red-500/30' : 'border-slate-200 dark:border-slate-800'}`}>
+            {shownGroups.map(group => {
+                const latest = group.rows[0];
+                const others = group.rows.length - 1;
+                const deletable = group.rows.filter(isDeletable);
+                const allChosen = deletable.length > 0 && deletable.every(row => selected.has(row.id));
+                const someChosen = deletable.some(row => selected.has(row.id));
+                const name = latest.student_name || 'Tanpa nama';
+                return <article key={group.attemptId} data-testid="student-screenshots"
+                    className={`flex flex-col overflow-hidden rounded-xl border bg-white dark:bg-slate-900 ${someChosen ? 'border-red-400 ring-2 ring-red-200 dark:ring-red-500/30' : 'border-slate-200 dark:border-slate-800'}`}>
                     <div className="relative">
-                        {row.available ? <a href={`/api/proctoring/screenshots/${encodeURIComponent(row.id)}/image`} target="_blank" rel="noopener noreferrer">
-                            {/* Rute gambar terautentikasi; optimasi gambar Next tidak boleh menyimpan bukti privat. */}
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img loading="lazy" src={`/api/proctoring/screenshots/${encodeURIComponent(row.id)}/image`}
-                                alt={`Screenshot ${row.student_name || 'peserta'}: ${securityViolationLabel(row.event_type)}`}
-                                className="h-44 w-full bg-slate-100 object-contain dark:bg-slate-950" />
-                        </a> : <p className="flex h-44 items-center justify-center bg-slate-50 p-4 text-center text-xs text-slate-500 dark:bg-slate-950">
-                            {row.deleted_at ? 'Gambar telah dihapus.' : 'Masa simpan gambar telah berakhir.'}
-                        </p>}
-                        {row.canDelete && row.available && <label className="absolute left-2 top-2 inline-flex cursor-pointer items-center rounded-md bg-white/90 p-1.5 shadow dark:bg-slate-900/90">
-                            <span className="sr-only">Pilih screenshot {row.student_name || ''}</span>
-                            <input type="checkbox" checked={isChosen} onChange={() => toggle(row.id)} />
+                        <ScreenshotImage row={latest} onOpen={others > 0 ? () => setOpenAttempt(group.attemptId) : undefined} />
+                        {deletable.length > 0 && <label className="absolute left-2 top-2 inline-flex cursor-pointer items-center rounded-md bg-white/90 p-1.5 shadow dark:bg-slate-900/90"
+                            title={deletable.length > 1 ? `Pilih semua ${deletable.length} gambar ${name}` : `Pilih screenshot ${name}`}>
+                            <span className="sr-only">{deletable.length > 1 ? `Pilih semua ${deletable.length} gambar ${name}` : `Pilih screenshot ${name}`}</span>
+                            <input type="checkbox" checked={allChosen}
+                                ref={input => { if (input) input.indeterminate = someChosen && !allChosen; }}
+                                onChange={() => toggleMany(deletable, !allChosen)} />
                         </label>}
+                        {group.rows.length > 1 && <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-slate-900/80 px-2 py-0.5 text-[11px] font-semibold text-white">
+                            <Images size={12} aria-hidden="true" /> {group.rows.length}
+                        </span>}
                     </div>
-                    <div className="flex items-start justify-between gap-2 p-3 text-xs text-slate-600 dark:text-slate-300">
-                        <div className="min-w-0 space-y-0.5">
-                            <p className="truncate font-semibold text-slate-800 dark:text-slate-100">{row.student_name || 'Tanpa nama'}</p>
-                            {row.student_number && <p className="text-slate-400">{row.student_number}</p>}
-                            <p>{securityViolationLabel(row.event_type)}</p>
-                            <time dateTime={row.created_at} className="text-slate-400">{formatTime(row.created_at)}</time>
+                    <div className="flex flex-1 flex-col gap-2 p-3 text-xs text-slate-600 dark:text-slate-300">
+                        <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 space-y-0.5">
+                                <p className="truncate font-semibold text-slate-800 dark:text-slate-100">{name}</p>
+                                {latest.student_number && <p className="text-slate-400">{latest.student_number}</p>}
+                                <p>{securityViolationLabel(latest.event_type)}</p>
+                                <time dateTime={latest.created_at} className="text-slate-400">{formatTime(latest.created_at)}</time>
+                            </div>
+                            {deletable.length > 0 && <button type="button" onClick={() => void remove(deletable.map(row => row.id))} disabled={deleting}
+                                aria-label={deletable.length > 1 ? `Hapus semua ${deletable.length} screenshot ${name}` : 'Hapus screenshot'}
+                                title={deletable.length > 1 ? `Hapus semua ${deletable.length} screenshot peserta ini` : 'Hapus screenshot'}
+                                className="shrink-0 rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-500/30 dark:hover:bg-red-500/10">
+                                <Trash2 size={14} aria-hidden="true" />
+                            </button>}
                         </div>
-                        {row.canDelete && row.available && <button type="button" onClick={() => void remove([row.id])} disabled={deleting}
-                            aria-label="Hapus screenshot" title="Hapus screenshot"
-                            className="shrink-0 rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-500/30 dark:hover:bg-red-500/10">
-                            <Trash2 size={14} aria-hidden="true" />
+                        {others > 0 && <button type="button" onClick={() => setOpenAttempt(group.attemptId)}
+                            className="mt-auto inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20">
+                            <Images size={13} aria-hidden="true" /> Lihat {others} lainnya
                         </button>}
                     </div>
                 </article>;
             })}
         </div>
-        {visible.length > shown.length && <div className="text-center">
+        {groups.length > shownGroups.length && <div className="text-center">
             <button type="button" onClick={() => setLimit(value => value + PAGE_SIZE)}
                 className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
-                Tampilkan lebih banyak ({visible.length - shown.length} lagi)
+                Tampilkan lebih banyak ({groups.length - shownGroups.length} peserta lagi)
             </button>
         </div>}
+
+        {openGroup && <StudentScreenshotsDialog rows={openGroup.rows} selected={selected} deleting={deleting}
+            formatTime={formatTime} onToggle={toggle} onToggleMany={toggleMany} onRemove={ids => void remove(ids)}
+            onClose={closeGallery} />}
     </section>;
+}
+
+function ScreenshotImage({ row, onOpen, className = 'h-44' }: { row: ExamScreenshot; onOpen?: () => void; className?: string }) {
+    if (!row.available) {
+        return <p className={`flex ${className} items-center justify-center bg-slate-50 p-4 text-center text-xs text-slate-500 dark:bg-slate-950`}>
+            {row.deleted_at ? 'Gambar telah dihapus.' : 'Masa simpan gambar telah berakhir.'}
+        </p>;
+    }
+    const image = <>
+        {/* Rute gambar terautentikasi; optimasi gambar Next tidak boleh menyimpan bukti privat. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img loading="lazy" src={imageUrl(row.id)}
+            alt={`Screenshot ${row.student_name || 'peserta'}: ${securityViolationLabel(row.event_type)}`}
+            className={`${className} w-full bg-slate-100 object-contain dark:bg-slate-950`} />
+    </>;
+    // Kartu peserta dengan banyak gambar: klik gambar membuka galerinya.
+    if (onOpen) return <button type="button" onClick={onOpen} className="block w-full" aria-label={`Lihat semua screenshot ${row.student_name || 'peserta'}`}>{image}</button>;
+    return <a href={imageUrl(row.id)} target="_blank" rel="noopener noreferrer">{image}</a>;
+}
+
+function StudentScreenshotsDialog({ rows, selected, deleting, formatTime, onToggle, onToggleMany, onRemove, onClose }: {
+    rows: ExamScreenshot[];
+    selected: Set<string>;
+    deleting: boolean;
+    formatTime: (value: string) => string;
+    onToggle: (id: string) => void;
+    onToggleMany: (rows: ExamScreenshot[], on: boolean) => void;
+    onRemove: (ids: string[]) => void;
+    onClose: () => void;
+}) {
+    useEffect(() => {
+        const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', onKey);
+        const overflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = overflow; };
+    }, [onClose]);
+
+    const first = rows[0];
+    const name = first?.student_name || 'Tanpa nama';
+    const deletable = rows.filter(row => row.available && row.canDelete);
+    const chosen = deletable.filter(row => selected.has(row.id));
+    const allChosen = deletable.length > 0 && chosen.length === deletable.length;
+
+    return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-2 sm:p-6" onClick={onClose}>
+        <div role="dialog" aria-modal="true" aria-labelledby="student-screenshots-title" onClick={event => event.stopPropagation()}
+            className="flex max-h-full w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-slate-900">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 p-4 dark:border-slate-800">
+                <div className="min-w-0">
+                    <h4 id="student-screenshots-title" className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{name}</h4>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                        {first?.student_number ? `${first.student_number} · ` : ''}{rows.length} screenshot, terbaru lebih dulu
+                    </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    {deletable.length > 0 && <>
+                        <label className="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                            <input type="checkbox" checked={allChosen} onChange={() => onToggleMany(deletable, !allChosen)} />
+                            Pilih semua
+                        </label>
+                        <button type="button" onClick={() => onRemove(chosen.map(row => row.id))} disabled={!chosen.length || deleting}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-40">
+                            <Trash2 size={13} aria-hidden="true" /> {deleting ? 'Menghapus…' : `Hapus terpilih (${chosen.length})`}
+                        </button>
+                    </>}
+                    <button type="button" onClick={onClose} aria-label="Tutup"
+                        className="rounded-lg border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                        <X size={16} aria-hidden="true" />
+                    </button>
+                </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 overflow-y-auto p-4 sm:grid-cols-2 lg:grid-cols-3">
+                {rows.map((row, index) => {
+                    const isChosen = selected.has(row.id);
+                    const canRemove = row.available && row.canDelete === true;
+                    return <article key={row.id}
+                        className={`overflow-hidden rounded-xl border ${isChosen ? 'border-red-400 ring-2 ring-red-200 dark:ring-red-500/30' : 'border-slate-200 dark:border-slate-800'}`}>
+                        <div className="relative">
+                            <ScreenshotImage row={row} className="h-52" />
+                            {canRemove && <label className="absolute left-2 top-2 inline-flex cursor-pointer items-center rounded-md bg-white/90 p-1.5 shadow dark:bg-slate-900/90">
+                                <span className="sr-only">Pilih screenshot {index + 1}</span>
+                                <input type="checkbox" checked={isChosen} onChange={() => onToggle(row.id)} />
+                            </label>}
+                            <span className="absolute right-2 top-2 rounded-full bg-slate-900/80 px-2 py-0.5 text-[11px] font-semibold text-white">{index + 1}/{rows.length}</span>
+                        </div>
+                        <div className="flex items-start justify-between gap-2 p-3 text-xs text-slate-600 dark:text-slate-300">
+                            <div className="min-w-0 space-y-0.5">
+                                <p>{securityViolationLabel(row.event_type)}</p>
+                                <time dateTime={row.created_at} className="text-slate-400">{formatTime(row.created_at)}</time>
+                            </div>
+                            {canRemove && <button type="button" onClick={() => onRemove([row.id])} disabled={deleting}
+                                aria-label="Hapus screenshot" title="Hapus screenshot"
+                                className="shrink-0 rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-500/30 dark:hover:bg-red-500/10">
+                                <Trash2 size={14} aria-hidden="true" />
+                            </button>}
+                        </div>
+                    </article>;
+                })}
+            </div>
+        </div>
+    </div>;
 }

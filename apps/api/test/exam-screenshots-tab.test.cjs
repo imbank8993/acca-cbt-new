@@ -99,3 +99,23 @@ test('bulk delete request accepts 1 to 200 UUIDs only', async () => {
     assert.ok(await errors(Array.from({ length: 201 }, () => '00000000-0000-4000-8000-000000000000')) > 0);
     assert.ok(await errors('s1') > 0);
 });
+
+test('screenshot tab shows one card per student, newest first, with a "lainnya" button for extra images', () => {
+    const { groupScreenshotsByStudent } = require('../../web/lib/screenshot-groups.ts');
+    const rows = [
+        { id: 'a1', attempt_id: 'A', created_at: '2026-11-19T07:00:00.000Z' },
+        { id: 'b1', attempt_id: 'B', created_at: '2026-11-19T07:05:00.000Z' },
+        { id: 'a2', attempt_id: 'A', created_at: '2026-11-19T07:10:00.000Z' },
+        { id: 'a3', attempt_id: 'A', created_at: '2026-11-19T06:00:00.000Z' },
+    ];
+    const groups = groupScreenshotsByStudent(rows);
+    assert.deepEqual(groups.map(group => group.attemptId), ['A', 'B'], 'peserta dengan gambar terbaru lebih dulu');
+    assert.deepEqual(groups[0].rows.map(row => row.id), ['a2', 'a1', 'a3'], 'gambar terbaru menjadi sampul kartu');
+    assert.deepEqual(groups[1].rows.map(row => row.id), ['b1']);
+    assert.deepEqual(groupScreenshotsByStudent([]), []);
+
+    const source = require('node:fs').readFileSync(path.resolve(__dirname, '../../web/app/components/monitoring/ExamScreenshotsPanel.tsx'), 'utf8');
+    assert.match(source, /const others = group\.rows\.length - 1;/);
+    assert.match(source, /\{others > 0 && <button[\s\S]*?Lihat \{others\} lainnya/);
+    assert.match(source, /role="dialog" aria-modal="true"/);
+});
