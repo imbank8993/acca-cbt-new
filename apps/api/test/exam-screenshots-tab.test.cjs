@@ -119,3 +119,15 @@ test('screenshot tab shows one card per student, newest first, with a "lainnya" 
     assert.match(source, /\{others > 0 && <button[\s\S]*?Lihat \{others\} lainnya/);
     assert.match(source, /role="dialog" aria-modal="true"/);
 });
+
+test('screenshots open in a full-screen viewer that moves with on-screen buttons, arrow keys and swipe', () => {
+    const source = require('node:fs').readFileSync(path.resolve(__dirname, '../../web/app/components/monitoring/ExamScreenshotsPanel.tsx'), 'utf8');
+    assert.match(source, /<ScreenshotImage row=\{latest\} onOpen=\{\(\) => openViewer\(latest\)\} \/>/, 'gambar kartu membuka viewer');
+    assert.match(source, /onOpen=\{\(\) => onOpenViewer\(row\)\}/, 'gambar galeri membuka viewer');
+    assert.match(source, /event\.key === 'ArrowLeft'\) go\(-1\)/);
+    assert.match(source, /event\.key === 'ArrowRight'\) go\(1\)/);
+    assert.match(source, /window\.addEventListener\('keydown', onKey, true\)/, 'Esc menutup viewer, bukan galeri di belakangnya');
+    assert.match(source, /aria-label="Screenshot sebelumnya"[\s\S]*?aria-label="Screenshot berikutnya"/);
+    assert.match(source, /onTouchEnd=/);
+    assert.match(source, /\.filter\(row => row\.available\)/, 'viewer melewati gambar yang sudah dihapus');
+});

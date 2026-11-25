@@ -1,6 +1,6 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Camera, Images, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Camera, ChevronLeft, ChevronRight, ExternalLink, Images, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { apiGet, apiSend } from '@/lib/api/client';
 import { confirmDialog } from '@/lib/confirm-dialog';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
@@ -54,6 +54,8 @@ export function ExamScreenshotsPanel({ examId, examIds, attemptIds }: { examId?:
     const [deleting, setDeleting] = useState(false);
     /** Peserta yang galerinya sedang dibuka. */
     const [openAttempt, setOpenAttempt] = useState<string | null>(null);
+    /** Gambar yang sedang dibuka di viewer (berpindah di antara gambar peserta yang sama). */
+    const [viewing, setViewing] = useState<{ attemptId: string; id: string } | null>(null);
 
     const [reloadToken, setReloadToken] = useState(0);
 
@@ -116,6 +118,11 @@ export function ExamScreenshotsPanel({ examId, examIds, attemptIds }: { examId?:
     // Galeri tertutup sendiri bila peserta itu tidak lagi tampil (semua gambarnya dihapus/tersaring).
     const openGroup = openAttempt ? groups.find(group => group.attemptId === openAttempt) || null : null;
     const closeGallery = useCallback(() => setOpenAttempt(null), []);
+    const closeViewer = useCallback(() => setViewing(null), []);
+    // Viewer hanya berpindah di antara gambar yang masih tersedia milik peserta yang sama.
+    const viewerRows = viewing ? (groups.find(group => group.attemptId === viewing.attemptId)?.rows || []).filter(row => row.available) : [];
+    const viewerIndex = viewing ? viewerRows.findIndex(row => row.id === viewing.id) : -1;
+    const openViewer = (row: ExamScreenshot) => { if (row.available) setViewing({ attemptId: row.attempt_id, id: row.id }); };
 
     // Pilihan hanya untuk gambar yang masih ada di daftar terbaru.
     const availableIds = useMemo(() => new Set(rows.filter(row => row.available).map(row => row.id)), [rows]);
@@ -234,7 +241,7 @@ export function ExamScreenshotsPanel({ examId, examIds, attemptIds }: { examId?:
                 return <article key={group.attemptId} data-testid="student-screenshots"
                     className={`flex flex-col overflow-hidden rounded-xl border bg-white dark:bg-slate-900 ${someChosen ? 'border-red-400 ring-2 ring-red-200 dark:ring-red-500/30' : 'border-slate-200 dark:border-slate-800'}`}>
                     <div className="relative">
-                        <ScreenshotImage row={latest} onOpen={others > 0 ? () => setOpenAttempt(group.attemptId) : undefined} />
+                        <ScreenshotImage row={latest} onOpen={() => openViewer(latest)} />
                         {deletable.length > 0 && <label className="absolute left-2 top-2 inline-flex cursor-pointer items-center rounded-md bg-white/90 p-1.5 shadow dark:bg-slate-900/90"
                             title={deletable.length > 1 ? `Pilih semua ${deletable.length} gambar ${name}` : `Pilih screenshot ${name}`}>
                             <span className="sr-only">{deletable.length > 1 ? `Pilih semua ${deletable.length} gambar ${name}` : `Pilih screenshot ${name}`}</span>
@@ -278,11 +285,13 @@ export function ExamScreenshotsPanel({ examId, examIds, attemptIds }: { examId?:
 
         {openGroup && <StudentScreenshotsDialog rows={openGroup.rows} selected={selected} deleting={deleting}
             formatTime={formatTime} onToggle={toggle} onToggleMany={toggleMany} onRemove={ids => void remove(ids)}
-            onClose={closeGallery} />}
+            onOpenViewer={openViewer} onClose={closeGallery} />}
+        {viewerIndex >= 0 && <ScreenshotViewer rows={viewerRows} index={viewerIndex} formatTime={formatTime}
+            onIndex={index => setViewing({ attemptId: viewerRows[index].attempt_id, id: viewerRows[index].id })} onClose={closeViewer} />}
     </section>;
 }
 
-function ScreenshotImage({ row, onOpen, className = 'h-44' }: { row: ExamScreenshot; onOpen?: () => void; className?: string }) {
+function ScreenshotImage({ row, onOpen, className = 'h-44' }: { row: ExamScreenshot; onOpen: () => void; className?: string }) {
     if (!row.available) {
         return <p className={`flex ${className} items-center justify-center bg-slate-50 p-4 text-center text-xs text-slate-500 dark:bg-slate-950`}>
             {row.deleted_at ? 'Gambar telah dihapus.' : 'Masa simpan gambar telah berakhir.'}
@@ -295,12 +304,11 @@ function ScreenshotImage({ row, onOpen, className = 'h-44' }: { row: ExamScreens
             alt={`Screenshot ${row.student_name || 'peserta'}: ${securityViolationLabel(row.event_type)}`}
             className={`${className} w-full bg-slate-100 object-contain dark:bg-slate-950`} />
     </>;
-    // Kartu peserta dengan banyak gambar: klik gambar membuka galerinya.
-    if (onOpen) return <button type="button" onClick={onOpen} className="block w-full" aria-label={`Lihat semua screenshot ${row.student_name || 'peserta'}`}>{image}</button>;
-    return <a href={imageUrl(row.id)} target="_blank" rel="noopener noreferrer">{image}</a>;
+    // Klik gambar membukanya di viewer.
+    return <button type="button" onClick={onOpen} className="block w-full cursor-zoom-in" aria-label={`Perbesar screenshot ${row.student_name || 'peserta'}`}>{image}</button>;
 }
 
-function StudentScreenshotsDialog({ rows, selected, deleting, formatTime, onToggle, onToggleMany, onRemove, onClose }: {
+function StudentScreenshotsDialog({ rows, selected, deleting, formatTime, onToggle, onToggleMany, onRemove, onOpenViewer, onClose }: {
     rows: ExamScreenshot[];
     selected: Set<string>;
     deleting: boolean;
@@ -308,6 +316,7 @@ function StudentScreenshotsDialog({ rows, selected, deleting, formatTime, onTogg
     onToggle: (id: string) => void;
     onToggleMany: (rows: ExamScreenshot[], on: boolean) => void;
     onRemove: (ids: string[]) => void;
+    onOpenViewer: (row: ExamScreenshot) => void;
     onClose: () => void;
 }) {
     useEffect(() => {
@@ -358,7 +367,7 @@ function StudentScreenshotsDialog({ rows, selected, deleting, formatTime, onTogg
                     return <article key={row.id}
                         className={`overflow-hidden rounded-xl border ${isChosen ? 'border-red-400 ring-2 ring-red-200 dark:ring-red-500/30' : 'border-slate-200 dark:border-slate-800'}`}>
                         <div className="relative">
-                            <ScreenshotImage row={row} className="h-52" />
+                            <ScreenshotImage row={row} className="h-52" onOpen={() => onOpenViewer(row)} />
                             {canRemove && <label className="absolute left-2 top-2 inline-flex cursor-pointer items-center rounded-md bg-white/90 p-1.5 shadow dark:bg-slate-900/90">
                                 <span className="sr-only">Pilih screenshot {index + 1}</span>
                                 <input type="checkbox" checked={isChosen} onChange={() => onToggle(row.id)} />
@@ -379,6 +388,96 @@ function StudentScreenshotsDialog({ rows, selected, deleting, formatTime, onTogg
                     </article>;
                 })}
             </div>
+        </div>
+    </div>;
+}
+
+/**
+ * Viewer layar penuh: satu screenshot sebesar layar, berpindah dengan tombol
+ * kiri/kanan, tombol panah keyboard, atau geser (HP). Esc menutup viewer saja;
+ * galeri di belakangnya tetap terbuka.
+ */
+function ScreenshotViewer({ rows, index, formatTime, onIndex, onClose }: {
+    rows: ExamScreenshot[];
+    index: number;
+    formatTime: (value: string) => string;
+    onIndex: (index: number) => void;
+    onClose: () => void;
+}) {
+    const row = rows[index];
+    const hasPrev = index > 0;
+    const hasNext = index < rows.length - 1;
+    const touchX = useRef<number | null>(null);
+    const go = useCallback((step: number) => {
+        const next = index + step;
+        if (next >= 0 && next < rows.length) onIndex(next);
+    }, [index, rows.length, onIndex]);
+
+    useEffect(() => {
+        // Fase capture + stopPropagation: Esc/panah tidak ikut menutup galeri di belakang.
+        const onKey = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') onClose();
+            else if (event.key === 'ArrowLeft') go(-1);
+            else if (event.key === 'ArrowRight') go(1);
+            else return;
+            event.preventDefault();
+            event.stopPropagation();
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    }, [go, onClose]);
+    useEffect(() => {
+        const overflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => { document.body.style.overflow = overflow; };
+    }, []);
+    // Muat lebih dulu gambar sebelah supaya perpindahan terasa instan.
+    useEffect(() => {
+        for (const neighbour of [rows[index - 1], rows[index + 1]]) {
+            if (neighbour) new window.Image().src = imageUrl(neighbour.id);
+        }
+    }, [rows, index]);
+
+    if (!row) return null;
+    const navButton = 'absolute top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/10 p-2 text-white hover:bg-white/25 disabled:pointer-events-none disabled:opacity-0 sm:p-3';
+    return <div role="dialog" aria-modal="true" aria-label={`Screenshot ${row.student_name || 'peserta'} ${index + 1} dari ${rows.length}`}
+        className="fixed inset-0 z-[60] flex flex-col bg-black/95 text-white" onClick={onClose}
+        onTouchStart={event => { touchX.current = event.touches[0]?.clientX ?? null; }}
+        onTouchEnd={event => {
+            const start = touchX.current;
+            touchX.current = null;
+            const end = event.changedTouches[0]?.clientX;
+            if (start === null || end === undefined || Math.abs(end - start) < 50) return;
+            go(end < start ? 1 : -1);
+        }}>
+        <div className="flex items-start justify-between gap-3 p-3 sm:p-4" onClick={event => event.stopPropagation()}>
+            <div className="min-w-0 text-xs sm:text-sm">
+                <p className="truncate font-semibold">{row.student_name || 'Tanpa nama'}{row.student_number ? ` · ${row.student_number}` : ''}</p>
+                <p className="text-white/70">{securityViolationLabel(row.event_type)}</p>
+                <time dateTime={row.created_at} className="text-white/50">{formatTime(row.created_at)}</time>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+                <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold tabular-nums">{index + 1} / {rows.length}</span>
+                <a href={imageUrl(row.id)} target="_blank" rel="noopener noreferrer" aria-label="Buka gambar asli di tab baru" title="Buka gambar asli di tab baru"
+                    className="rounded-full bg-white/10 p-2 hover:bg-white/25"><ExternalLink size={16} aria-hidden="true" /></a>
+                <button type="button" onClick={onClose} aria-label="Tutup viewer" title="Tutup (Esc)"
+                    className="rounded-full bg-white/10 p-2 hover:bg-white/25"><X size={18} aria-hidden="true" /></button>
+            </div>
+        </div>
+        <div className="relative flex min-h-0 flex-1 items-center justify-center px-2 pb-4 sm:px-16">
+            <button type="button" onClick={event => { event.stopPropagation(); go(-1); }} disabled={!hasPrev}
+                aria-label="Screenshot sebelumnya" title="Sebelumnya (←)" className={`${navButton} left-2 sm:left-4`}>
+                <ChevronLeft size={28} aria-hidden="true" />
+            </button>
+            {/* Rute gambar terautentikasi; optimasi gambar Next tidak boleh menyimpan bukti privat. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img key={row.id} src={imageUrl(row.id)} onClick={event => event.stopPropagation()}
+                alt={`Screenshot ${row.student_name || 'peserta'}: ${securityViolationLabel(row.event_type)}`}
+                className="max-h-full max-w-full select-none rounded-lg object-contain shadow-2xl" draggable={false} />
+            <button type="button" onClick={event => { event.stopPropagation(); go(1); }} disabled={!hasNext}
+                aria-label="Screenshot berikutnya" title="Berikutnya (→)" className={`${navButton} right-2 sm:right-4`}>
+                <ChevronRight size={28} aria-hidden="true" />
+            </button>
         </div>
     </div>;
 }
