@@ -319,10 +319,13 @@
   .monitoring-section-bar { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; }
   .monitoring-section-tabs { min-width: 0; width: auto; flex: 0 1 auto; gap: 0; scrollbar-width: none; }
   .monitoring-section-tabs > button { flex: 0 0 auto; min-height: 44px; padding: 10px 12px; font-size: 13px; }
-  .monitoring-section-bar > div { margin: 0; align-self: center; flex-shrink: 0; }
+  /* Wadah ⋯ setinggi tab dan tanpa padding bawah (pb-1.5 versi desktop), agar ikon tepat sejajar teks tab. */
+  .monitoring-section-bar > div { margin: 0; padding-bottom: 0 !important; align-self: stretch; display: flex; align-items: center; flex-shrink: 0; }
   .monitoring-section-bar .ui-btn:not(.monitoring-actions-trigger) { min-height: 44px; }
-  /* Ikon ⋯ seukuran teks tab; area sentuh tetap 44px lewat ::after. */
-  .monitoring-actions-trigger { position: relative; width: 32px; min-width: 32px; height: 32px; min-height: 32px; padding: 0 !important; overflow: visible; }
+  /* Ikon ⋯ bergaya seperti tab (tanpa kotak putih berbingkai); area sentuh tetap 44px lewat ::after. */
+  .monitoring-actions-trigger { position: relative; justify-content: center; width: 36px; min-width: 36px; height: 36px; min-height: 36px; padding: 0 !important; overflow: visible; border-color: transparent; border-radius: 999px; background: transparent; color: var(--monitoring-muted, #64748b); }
+  .monitoring-actions-trigger:hover { background: rgba(148, 163, 184, .16); }
+  .monitoring-actions-trigger[aria-expanded="true"] { border-color: transparent; background: rgba(48, 131, 255, .12); }
   .monitoring-actions-trigger::after { content: ''; position: absolute; inset: -6px; }
   .monitoring-actions-trigger > svg:first-child { width: 16px; height: 16px; }
   .monitoring-actions-trigger > span { display: none; }
