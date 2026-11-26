@@ -1,6 +1,6 @@
 import { LearningLatexService } from './learning-latex.service';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
-import type { AuthUser } from '@acca-cbt/shared';
+import { canonicalYoutubeUrl, type AuthUser } from '@acca-cbt/shared';
 import { randomUUID } from 'node:crypto';
 import { AuthorizationService } from '../auth/authorization.service';
 import { DbService } from '../prisma/prisma-db-adapter';
@@ -107,7 +107,14 @@ export class LearningService {
         const row = await this.row(org, id);
         await this.editable(user, row);
         if (!dto.title.trim()) throw new BadRequestException('Judul wajib diisi.');
-        if (row.rendered_pdf_key && (dto.format !== 'latex' || dto.contentHtml !== row.content_html)) throw new BadRequestException('Unggah ulang file TeX untuk mengubah isi dokumen PDF.');
+        // Video YouTube: hanya tautan video YouTube yang disimpan, dalam bentuk baku.
+        if (dto.format === 'youtube') {
+            const url = dto.contentHtml.trim() ? canonicalYoutubeUrl(dto.contentHtml) : '';
+            if (url === null) throw new BadRequestException('Tautan YouTube tidak valid. Tempel tautan video, mis. https://www.youtube.com/watch?v=… atau https://youtu.be/…');
+            if (dto.status === 'published' && !url) throw new BadRequestException('Tempel tautan video YouTube sebelum menerbitkan.');
+            dto = { ...dto, contentHtml: url, conversionNotes: '' };
+        }
+        else if (row.rendered_pdf_key && (dto.format !== 'latex' || dto.contentHtml !== row.content_html)) throw new BadRequestException('Unggah ulang file TeX untuk mengubah isi dokumen PDF.');
         if (dto.status === 'published' && !dto.contentHtml.trim() && !row.file_key) throw new BadRequestException('Unggah berkas atau isi materi sebelum menerbitkan.');
         const { data, error } = await this.db.from('cbt_learning_materials').update({
             cover_data: dto.coverData ?? row.cover_data ?? '',

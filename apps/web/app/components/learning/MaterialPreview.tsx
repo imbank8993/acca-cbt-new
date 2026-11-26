@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FileDown, Loader2 } from 'lucide-react';
+import { ExternalLink, FileDown, Loader2 } from 'lucide-react';
+import { youtubeEmbedUrl } from '@acca-cbt/shared';
 import type { LearningMaterial } from '@/lib/learning-api';
 import { learningPreviewDocument } from '@/lib/learning-preview';
 import { learningNavigationBridge, readHtmlMenu, type HtmlNavigationProps } from '@/lib/learning-navigation-bridge';
@@ -65,15 +66,17 @@ export function MaterialPreview({ material, fullPage = false, bridge, onActivity
         };
         window.addEventListener('message', receive); return () => window.removeEventListener('message', receive);
     }, [onActivityMessage, onMenuChange, menuChannel]);
-    const document = useMemo(() => typeof window !== 'undefined' && material.content_html
-        ? learningPreviewDocument(material.content_html, material.format === 'html', combinedBridge || undefined) : '', [material.content_html, material.format, combinedBridge]);
-    const usesFrame = !(material.format === 'latex' && material.hasRenderedPdf) && !!document;
+    const youtube = material.format === 'youtube';
+    const document = useMemo(() => typeof window !== 'undefined' && material.content_html && !youtube
+        ? learningPreviewDocument(material.content_html, material.format === 'html', combinedBridge || undefined) : '', [material.content_html, material.format, combinedBridge, youtube]);
+    const usesFrame = youtube || (!(material.format === 'latex' && material.hasRenderedPdf) && !!document);
     const usesFile = !usesFrame && (material.format === 'latex' && material.hasRenderedPdf || (material.hasFile && ['pdf', 'image', 'audio', 'video'].includes(material.format)));
     // Tampilan tanpa iframe/berkas langsung siap.
     useEffect(() => { if (!usesFrame && !usesFile) ready.current?.(); }, [usesFrame, usesFile]);
     return <div className={`learn-preview${fullPage ? ' learn-preview-fullpage' : ''}${restoring ? ' is-restoring' : ''}`}>
-        {!fullPage && <div className="learn-preview-bar"><span>{material.content_html ? 'Halaman baca' : 'Pratinjau berkas'}</span><span>{material.format.toUpperCase()}</span></div>}
-        {material.format === 'latex' && material.hasRenderedPdf ? <FilePreview key={`${material.id}:${material.revision}:latex`} material={material} onReady={() => ready.current?.()} />
+        {!fullPage && <div className="learn-preview-bar"><span>{youtube ? 'Video YouTube' : material.content_html ? 'Halaman baca' : 'Pratinjau berkas'}</span><span>{material.format.toUpperCase()}</span></div>}
+        {youtube ? <YoutubePreview url={material.content_html} title={material.title} onReady={() => ready.current?.()} />
+            : material.format === 'latex' && material.hasRenderedPdf ? <FilePreview key={`${material.id}:${material.revision}:latex`} material={material} onReady={() => ready.current?.()} />
             : document ? <iframe onLoad={() => { frame.current?.contentWindow?.postMessage({ channel: menuChannel, type: 'html-menu-request' }, '*'); ready.current?.(); }} ref={frame} inert={restoring || undefined} title={`Isi bahan ajar: ${material.title}`} className="learn-frame" sandbox={material.format === 'html' ? 'allow-scripts' : ''} allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'; clipboard-read 'none'; clipboard-write 'none'" referrerPolicy="no-referrer" srcDoc={document} />
             : material.hasFile && ['pdf', 'image', 'audio', 'video'].includes(material.format)
                 ? <FilePreview key={`${material.id}:${material.revision}:${material.format}`} material={material} onReady={() => ready.current?.()} />
@@ -111,4 +114,28 @@ function FilePreview({ material, onReady }: { material: LearningMaterial; onRead
                 // eslint-disable-next-line @next/next/no-img-element
                 ? <img src={media} alt={material.title} /> : material.format === 'audio' ? <audio src={media} controls /> : <video src={media} controls />}</div>
             : null}</>;
+}
+
+/**
+ * Video YouTube diputar langsung di halaman (bukan di iframe HTML bersandbox),
+ * lewat youtube-nocookie.com. YouTube mewajibkan referrer asal halaman; tanpa
+ * itu pemutar menolak memutar (error 153).
+ */
+function YoutubePreview({ url, title, onReady }: { url: string; title: string; onReady?: () => void }) {
+    const embed = youtubeEmbedUrl(url);
+    const ready = useRef(onReady);
+    useEffect(() => { ready.current = onReady; }, [onReady]);
+    useEffect(() => { if (!embed) ready.current?.(); }, [embed]);
+    if (!embed) return <div className="learn-media" role="alert">Tautan video YouTube belum diisi atau tidak valid.</div>;
+    return <div className="learn-youtube">
+        <div className="learn-youtube-frame">
+            <iframe src={embed} title={`Video YouTube: ${title}`} onLoad={() => ready.current?.()}
+                referrerPolicy="strict-origin-when-cross-origin" allowFullScreen loading="lazy"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" />
+        </div>
+        <p className="learn-youtube-note">
+            Video diputar dari YouTube. Jika tidak tampil, jaringan mungkin memblokir YouTube atau video telah dihapus/diprivat pemiliknya.{' '}
+            <a href={url} target="_blank" rel="noopener noreferrer"><ExternalLink size={13} aria-hidden="true" /> Buka di YouTube</a>
+        </p>
+    </div>;
 }

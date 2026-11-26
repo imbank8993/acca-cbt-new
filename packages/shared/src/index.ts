@@ -6,3 +6,4 @@ export * from './answer-presence';
 export * from './topic-analysis';
 export * from './item-difficulty';
 export * from './true-false-labels';
+export * from './youtube';

@@ -2,7 +2,8 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ExternalLink, Eye, FileUp, Music, Save, Send, Trash2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Eye, FileUp, Music, Save, Send, Trash2, Youtube } from 'lucide-react';
+import { canonicalYoutubeUrl } from '@acca-cbt/shared';
 import { MaterialPreview } from '@/app/components/learning/MaterialPreview';
 import { deleteMaterial, learningRequest, saveMaterial, type LearningMaterial } from '@/lib/learning-api';
 import { convertLearningFile } from '@/lib/learning-converter';
@@ -29,6 +30,8 @@ export default function MaterialEditor() {
     const draftKey = useRef('');
     const owner = useRef('');
     const [recovery, setRecovery] = useState<LearningMaterial | null>(null);
+    /** Isi kolom tautan YouTube; diterapkan ke materi lewat tombol "Gunakan video". */
+    const [youtubeInput, setYoutubeInput] = useState<string | null>(null);
     const keepDraft = (next: LearningMaterial) => {
         try { localStorage.setItem(draftKey.current, JSON.stringify(next)); }
         catch { setError('Salinan lokal tidak dapat disimpan. Simpan draf sebelum meninggalkan halaman.'); }
@@ -152,6 +155,18 @@ export default function MaterialEditor() {
         } catch (err) { setError((err as Error).message); }
         finally { setBusy(''); }
     };
+    const youtubeText = youtubeInput ?? (material?.format === 'youtube' ? material.content_html : '');
+    const youtubeUrl = youtubeText.trim() ? canonicalYoutubeUrl(youtubeText) : '';
+    const applyYoutube = async () => {
+        if (!material || busy || !youtubeUrl) return;
+        if (material.format !== 'youtube' && (material.hasFile || material.content_html) && !await confirmDialog({
+            title: 'Ganti Isi dengan Video YouTube?',
+            text: `Halaman baca "${material.title}" akan menampilkan video YouTube ini menggantikan isi sekarang. Simpan draf atau perbarui materi untuk menerapkannya.`,
+            confirmText: 'Ya', cancelText: 'Tidak', variant: 'warning',
+        })) return;
+        const next = { ...material, format: 'youtube' as const, content_html: youtubeUrl, conversion_notes: '' };
+        edit(next); setPreview(next); setYoutubeInput(null);
+    };
     const handleDelete = async () => {
         if (!material) return;
         if (!await deleteConfirmDialog('Hapus Bahan Ajar?', `Apakah Anda yakin ingin menghapus bahan ajar "${material.title}"? Seluruh berkas dan data terkait akan dihapus secara permanen.`)) return;
@@ -212,6 +227,16 @@ export default function MaterialEditor() {
                 {material.status === 'published' && <p style={{ fontSize: 12, marginTop: 10, color: '#2563EB', fontWeight: 500 }}>Unggah berkas baru untuk langsung memperbarui materi ini.</p>}
                 {material.hasRenderedPdf && <a className="learn-button" href={`/api/learning/${id}/pdf`} download>Unduh PDF hasil LaTeX</a>}
                 {material.file_name && <div className="learn-file"><strong>{material.file_name}</strong><br />{((material.file_size || 0) / 1024).toFixed(0)} KB · <a href={`/api/learning/${id}/file`} download>Unduh berkas asli</a></div>}
+            </section><section className="learn-panel"><h2>Video YouTube</h2>
+                <p style={{ fontSize: 13 }}>Tempel tautan video YouTube sebagai isi subbab ini. Video diputar langsung di halaman baca siswa.</p>
+                <div className="learn-field"><label htmlFor="material-youtube">Tautan video</label>
+                    <div className="learn-youtube-input"><input id="material-youtube" inputMode="url" placeholder="https://www.youtube.com/watch?v=…" maxLength={2000} value={youtubeText}
+                        onChange={event => setYoutubeInput(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void applyYoutube(); } }} />
+                        <button type="button" disabled={!!busy || !youtubeUrl || (material.format === 'youtube' && youtubeUrl === material.content_html)} onClick={() => void applyYoutube()}><Youtube size={16} />Gunakan video</button></div>
+                    {youtubeText.trim() && youtubeUrl === null && <p className="learn-youtube-hint is-error" role="alert">Bukan tautan video YouTube. Contoh: https://youtu.be/… atau https://www.youtube.com/watch?v=…</p>}
+                    {material.format === 'youtube' && youtubeUrl === material.content_html && <p className="learn-youtube-hint">Subbab ini menampilkan video YouTube.{dirty ? ' Simpan draf atau terbitkan untuk menerapkannya.' : ''}</p>}
+                </div>
+                <p style={{ fontSize: 12 }}>Mendukung youtube.com/watch, youtu.be, Shorts, dan waktu mulai (<code>t=90</code>). Video tetap disimpan di YouTube: jika pemiliknya menghapus atau memprivatnya, video tidak dapat diputar. Mengunggah file subbab akan menggantikan video.</p>
             </section>{material.format === 'html' && <section className="learn-panel"><h2>Audio narasi</h2>
                 {material.hasNarration && <div className="learn-file"><strong>{material.narration_name}</strong><br />{((material.narration_size || 0) / 1024).toFixed(0)} KB · <a href={`/api/learning/${id}/narration`} download>Unduh audio</a>
                     <div style={{ marginTop: 8 }}><button type="button" disabled={!!busy} onClick={() => void removeNarration()}>Hapus audio</button></div></div>}

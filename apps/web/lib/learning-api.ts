@@ -1,5 +1,5 @@
 import { assertLearningContentSize } from './learning-content-limit';
-export type MaterialFormat = 'html' | 'word' | 'latex' | 'text' | 'pdf' | 'image' | 'audio' | 'video' | 'attachment';
+export type MaterialFormat = 'html' | 'word' | 'latex' | 'text' | 'pdf' | 'image' | 'audio' | 'video' | 'youtube' | 'attachment';
 export interface LearningMaterial {
     subtopic_order?: number;
     cover_data?: string;
