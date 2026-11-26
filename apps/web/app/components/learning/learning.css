@@ -349,3 +349,5 @@
 .learn-preview-fullpage .learn-youtube-frame{max-width:min(100%,calc((100dvh - 150px) * 16 / 9))}
 .learn-youtube-input{display:flex;gap:6px}.learn-youtube-input input{flex:1;min-width:0}
 .learn-youtube-hint{font-size:12px;margin-top:8px}.learn-youtube-hint.is-error{color:#b91c1c}
+.learn-video-or{display:flex;align-items:center;gap:10px;margin:14px 0 10px;color:#718593;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.learn-video-or::before,.learn-video-or::after{content:"";flex:1;height:1px;background:var(--border-color,#dce5eb)}

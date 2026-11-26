@@ -60,6 +60,28 @@ test('reader plays YouTube outside the sandboxed HTML frame with the referrer Yo
     assert.match(preview, /material\.content_html && !youtube/, 'tautan tidak pernah dirender sebagai dokumen HTML');
     assert.match(preview, /referrerPolicy="strict-origin-when-cross-origin"/);
     const editor = fs.readFileSync(path.resolve(__dirname, '../../web/app/dashboard/learning/[id]/edit/page.tsx'), 'utf8');
-    assert.match(editor, /<h2>Video YouTube<\/h2>/);
+    assert.match(editor, /<h2>Video<\/h2>/);
     assert.match(editor, /format: 'youtube' as const, content_html: youtubeUrl/);
+});
+
+test('database CHECK on learning format accepts every format the API accepts (incl. youtube)', () => {
+    const migrations = path.resolve(__dirname, '../../../database/migrations');
+    const latest = fs.readdirSync(migrations).filter(name => name.endsWith('.sql')).sort()
+        .map(name => fs.readFileSync(path.join(migrations, name), 'utf8'))
+        .map(sql => sql.match(/CHECK \(format IN \(([^)]*)\)\)/)).filter(Boolean).pop();
+    const allowed = latest[1].match(/'([a-z]+)'/g).map(value => value.slice(1, -1)).sort();
+    const dto = fs.readFileSync(path.resolve(__dirname, '../src/learning/learning.dto.ts'), 'utf8')
+        .match(/@IsIn\((\['html'[^\]]*\])\) format/)[1].match(/'([a-z]+)'/g).map(value => value.slice(1, -1)).sort();
+    assert.deepEqual(allowed, dto);
+    assert.ok(allowed.includes('youtube'));
+});
+
+test('editor offers a direct video file upload next to the YouTube link, with the cover as poster', () => {
+    const editor = fs.readFileSync(path.resolve(__dirname, '../../web/app/dashboard/learning/[id]/edit/page.tsx'), 'utf8');
+    assert.match(editor, /aria-label="Unggah file video" type="file" accept="video\/mp4,video\/webm,\.mp4,\.webm"/);
+    assert.match(editor, /file\.size > MAX_SUBCHAPTER_FILE_BYTES/);
+    const converter = fs.readFileSync(path.resolve(__dirname, '../../web/lib/learning-converter.ts'), 'utf8');
+    assert.match(converter, /\['mp4', 'webm'\]\.includes\(ext\) \? 'video'/);
+    const preview = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/learning/MaterialPreview.tsx'), 'utf8');
+    assert.match(preview, /<video src=\{media\} poster=\{material\.cover_data \|\| undefined\}/);
 });

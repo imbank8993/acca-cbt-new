@@ -112,7 +112,7 @@ function FilePreview({ material, onReady }: { material: LearningMaterial; onRead
             : media ? <div className="learn-media">{material.format === 'image'
                 // Blob generated only from an authenticated attachment; no Next image optimization is needed.
                 // eslint-disable-next-line @next/next/no-img-element
-                ? <img src={media} alt={material.title} /> : material.format === 'audio' ? <audio src={media} controls /> : <video src={media} controls />}</div>
+                ? <img src={media} alt={material.title} /> : material.format === 'audio' ? <audio src={media} controls /> : <video src={media} poster={material.cover_data || undefined} controls playsInline preload="metadata" />}</div>
             : null}</>;
 }
 

@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ExternalLink, Eye, FileUp, Music, Save, Send, Trash2, Youtube } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Eye, FileUp, Film, Music, Save, Send, Trash2, Youtube } from 'lucide-react';
 import { canonicalYoutubeUrl } from '@acca-cbt/shared';
 import { MaterialPreview } from '@/app/components/learning/MaterialPreview';
 import { deleteMaterial, learningRequest, saveMaterial, type LearningMaterial } from '@/lib/learning-api';
@@ -15,6 +15,8 @@ import { ActivityResults } from '@/app/components/learning/ActivityResults';
 import '@/app/components/learning/learning.css';
 import { learningGrades, learningKey } from '@/lib/learning-catalog';
 
+/** Sama dengan MAX_UPLOAD_BYTES di API (25 MB). */
+const MAX_SUBCHAPTER_FILE_BYTES = 25 * 1024 * 1024;
 export default function MaterialEditor() {
     const { id } = useParams<{ id: string }>();
     const router = useRouter();
@@ -110,6 +112,7 @@ export default function MaterialEditor() {
     };
     const upload = async (file?: File) => {
         if (!file || !material || busy) return;
+        if (file.size > MAX_SUBCHAPTER_FILE_BYTES) { setError(`"${file.name}" berukuran ${(file.size / 1024 / 1024).toFixed(1)} MB. File subbab maksimal 25 MB.`); return; }
         if ((material.hasFile || material.content_html) && !await confirmDialog({
             title: 'Ganti Dokumen Bahan Ajar?',
             text: `Berkas "${file.name}" akan menggantikan isi bahan ajar "${material.title}". Jika sudah terbit, perubahan langsung tersedia bagi siswa.`,
@@ -128,6 +131,12 @@ export default function MaterialEditor() {
             setNotice(uploaded.material.status === 'published' ? 'Berkas baru berhasil diunggah dan materi diperbarui.' : 'Dokumen dan hasil konversi tersimpan bersama sebagai draf.');
         } catch (err) { setError((err as Error).message); }
         finally { setBusy(''); }
+    };
+    /** File video diunggah sebagai file subbab (format "video") dan diputar di halaman baca. */
+    const uploadVideo = (file?: File) => {
+        if (!file) return;
+        if (!/\.(mp4|webm)$/i.test(file.name)) { setError('Pilih file video MP4 atau WebM.'); return; }
+        void upload(file);
     };
     const uploadNarration = async (file?: File) => {
         if (!file || !material || busy) return;
@@ -227,16 +236,20 @@ export default function MaterialEditor() {
                 {material.status === 'published' && <p style={{ fontSize: 12, marginTop: 10, color: '#2563EB', fontWeight: 500 }}>Unggah berkas baru untuk langsung memperbarui materi ini.</p>}
                 {material.hasRenderedPdf && <a className="learn-button" href={`/api/learning/${id}/pdf`} download>Unduh PDF hasil LaTeX</a>}
                 {material.file_name && <div className="learn-file"><strong>{material.file_name}</strong><br />{((material.file_size || 0) / 1024).toFixed(0)} KB · <a href={`/api/learning/${id}/file`} download>Unduh berkas asli</a></div>}
-            </section><section className="learn-panel"><h2>Video YouTube</h2>
-                <p style={{ fontSize: 13 }}>Tempel tautan video YouTube sebagai isi subbab ini. Video diputar langsung di halaman baca siswa.</p>
-                <div className="learn-field"><label htmlFor="material-youtube">Tautan video</label>
+            </section><section className="learn-panel"><h2>Video</h2>
+                <p style={{ fontSize: 13 }}>Jadikan video sebagai isi subbab ini: unggah file video atau tempel tautan YouTube. Video diputar langsung di halaman baca siswa.</p>
+                <label className="learn-upload"><Film size={28} /><span>{material.format === 'video' && material.hasFile ? 'Ganti file video' : 'Unggah file video'}</span><input aria-label="Unggah file video" type="file" accept="video/mp4,video/webm,.mp4,.webm" disabled={!!busy} onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; uploadVideo(file); }} /></label>
+                <p style={{ fontSize: 12, marginTop: 12 }}>MP4 (H.264) atau WebM, maksimal 25 MB. Cover subbab dipakai sebagai gambar sampul video. Saran untuk video 3–5 menit: 1080p atau 720p sekitar 300–600 kbps.</p>
+                {material.format === 'video' && material.hasFile && <p className="learn-youtube-hint">Subbab ini menampilkan file video <strong>{material.file_name}</strong>.</p>}
+                <div className="learn-video-or"><span>atau</span></div>
+                <div className="learn-field"><label htmlFor="material-youtube">Tautan video YouTube</label>
                     <div className="learn-youtube-input"><input id="material-youtube" inputMode="url" placeholder="https://www.youtube.com/watch?v=…" maxLength={2000} value={youtubeText}
                         onChange={event => setYoutubeInput(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void applyYoutube(); } }} />
                         <button type="button" disabled={!!busy || !youtubeUrl || (material.format === 'youtube' && youtubeUrl === material.content_html)} onClick={() => void applyYoutube()}><Youtube size={16} />Gunakan video</button></div>
                     {youtubeText.trim() && youtubeUrl === null && <p className="learn-youtube-hint is-error" role="alert">Bukan tautan video YouTube. Contoh: https://youtu.be/… atau https://www.youtube.com/watch?v=…</p>}
                     {material.format === 'youtube' && youtubeUrl === material.content_html && <p className="learn-youtube-hint">Subbab ini menampilkan video YouTube.{dirty ? ' Simpan draf atau terbitkan untuk menerapkannya.' : ''}</p>}
                 </div>
-                <p style={{ fontSize: 12 }}>Mendukung youtube.com/watch, youtu.be, Shorts, dan waktu mulai (<code>t=90</code>). Video tetap disimpan di YouTube: jika pemiliknya menghapus atau memprivatnya, video tidak dapat diputar. Mengunggah file subbab akan menggantikan video.</p>
+                <p style={{ fontSize: 12 }}>Mendukung youtube.com/watch, youtu.be, Shorts, dan waktu mulai (<code>t=90</code>). Video tetap disimpan di YouTube: jika pemiliknya menghapus atau memprivatnya, video tidak dapat diputar. Mengunggah file video atau file subbab akan menggantikan tautan YouTube.</p>
             </section>{material.format === 'html' && <section className="learn-panel"><h2>Audio narasi</h2>
                 {material.hasNarration && <div className="learn-file"><strong>{material.narration_name}</strong><br />{((material.narration_size || 0) / 1024).toFixed(0)} KB · <a href={`/api/learning/${id}/narration`} download>Unduh audio</a>
                     <div style={{ marginTop: 8 }}><button type="button" disabled={!!busy} onClick={() => void removeNarration()}>Hapus audio</button></div></div>}
