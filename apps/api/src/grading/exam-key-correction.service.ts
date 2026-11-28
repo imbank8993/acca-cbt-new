@@ -119,7 +119,9 @@ export class ExamKeyCorrectionService {
                 voided_questions: voided,
                 key_correction_history: [...history, { revision, actorId: user.id, at: new Date(clock.now).toISOString(), reason: dto.reason.trim(), changes,
                     ...(voidChanges.length ? { voids: voidChanges } : {}) }],
-                key_correction: { revision, state: 'pending', attemptIds, completed: 0, total: attemptIds.length },
+                // Nilai ditutup selama penilaian ulang; bila sebelumnya terbuka, dibuka lagi otomatis saat selesai.
+                key_correction: { revision, state: 'pending', attemptIds, completed: 0, total: attemptIds.length,
+                    restoreResults: exam.show_results === true },
             } });
             const cleared = await db.from('cbt_exam_attempts').update({ total_score: null, score_irt: null, irt_theta: null, detailed_scores: null })
                 .eq('exam_id', examId).in('status', ['submitted', 'auto_submitted']);
@@ -169,8 +171,10 @@ export class ExamKeyCorrectionService {
                 const exam = await this.exam(db, examId), correction = exam.metadata?.key_correction;
                 if (correction?.token !== token) throw new ConflictException('Proses penilaian berubah. Muat ulang.');
                 const completed = correction.completed + (attemptId ? 1 : 0), done = !attemptId;
-                await this.write(db, examId, { metadata: { ...exam.metadata, key_correction: { ...correction,
-                    completed, state: done ? 'ready' : 'pending', token: null, leaseUntil: null, error: null } } });
+                await this.write(db, examId, { ...(done && correction.restoreResults ? { show_results: true } : {}),
+                    metadata: { ...exam.metadata, key_correction: { ...correction,
+                    completed, state: done ? 'ready' : 'pending', token: null, leaseUntil: null, error: null,
+                    ...(done ? { restoreResults: false } : {}) } } });
                 return { done, completed, total: correction.total };
             });
         } catch (error) {

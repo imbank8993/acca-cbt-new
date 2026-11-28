@@ -58,7 +58,7 @@ export function ExamKeyCorrectionButton({ examId, onComplete, compactOnMobile = 
                 ? 'Menghitung ulang model IRT…' : `${response.completed}/${response.total} peserta dinilai ulang`);
             if (response.done) break;
         }
-        setProgress('Penilaian ulang selesai. Buka kembali nilai melalui pengaturan ujian setelah diperiksa.');
+        setProgress('Penilaian ulang selesai. Nilai yang sebelumnya sudah dibuka untuk siswa kini tampil kembali dengan nilai baru.');
         await load(); onComplete();
     };
     const save = async () => {
@@ -88,7 +88,7 @@ export function ExamKeyCorrectionButton({ examId, onComplete, compactOnMobile = 
         </Button>
         {open && <Modal title="Koreksi Kunci & Pembatalan Soal" size="xl" onClose={() => { if (!busy) setOpen(false); }} closeOnOverlayClick={!busy}>
             <ModalBody className="exam-key-correction__body">
-                <p className="text-sm text-slate-500">Koreksi kunci dan pembatalan soal berlaku untuk ujian ini. Nilai akan ditutup sementara, kemudian seluruh peserta dinilai ulang termasuk IRT.</p>
+                <p className="text-sm text-slate-500">Koreksi kunci dan pembatalan soal berlaku untuk ujian ini. Nilai akan ditutup sementara selama seluruh peserta dinilai ulang (termasuk IRT), lalu dibuka kembali otomatis bila sebelumnya sudah dibuka.</p>
                 {error && <p role="alert" className="mb-4 text-sm text-red-600">{error}</p>}
                 {progress && <p role="status" className="mb-4 text-sm text-[#3083FF]">{progress}</p>}
                 {!data && <p className="text-sm text-slate-500">{busy ? 'Memuat kunci ujian…' : 'Kunci ujian belum tersedia.'}</p>}

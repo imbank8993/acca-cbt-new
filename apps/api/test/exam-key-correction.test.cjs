@@ -38,15 +38,22 @@ test('correction hides and invalidates old scores, preserves original key and st
  assert.equal(examQuestionKey((await loadFrozenExamQuestions(db,'exam'))[0]),'b');
  await assert.rejects(service.save(user,'exam',change),/Kunci berubah/);
 });
-test('resume regrades every participant before recalculating IRT and leaves publication closed',async()=>{
+test('resume regrades every participant before recalculating IRT and then reopens previously published scores',async()=>{
  const {service,db,calls}=fixture();await service.save(user,'exam',change);
  assert.deepEqual(await service.recalculate(user,'exam'),{done:false,completed:1,total:2});
  assert.deepEqual(await service.recalculate(user,'exam'),{done:false,completed:2,total:2});
  assert.deepEqual(await service.recalculate(user,'exam'),{done:true,completed:2,total:2});
  assert.deepEqual(calls,['one','two','relative','irt']);
  await service.recalculate(user,'exam');assert.equal(calls.length,4);
- assert.equal(db.tables.cbt_exams[0].show_results,false);
+ assert.equal(db.tables.cbt_exams[0].show_results,true);
  assert.equal(db.tables.cbt_exams[0].metadata.key_correction.state,'ready');
+ assert.equal(db.tables.cbt_exams[0].metadata.key_correction.restoreResults,false);
+});
+test('correction keeps unpublished scores closed after regrading',async()=>{
+ const {service,db}=fixture();db.tables.cbt_exams[0].show_results=false;await service.save(user,'exam',change);
+ for(let i=0;i<3;i++)await service.recalculate(user,'exam');
+ assert.equal(db.tables.cbt_exams[0].metadata.key_correction.state,'ready');
+ assert.equal(db.tables.cbt_exams[0].show_results,false);
 });
 test('failed regrade is resumable without advancing progress or republishing',async()=>{
  const {service,grading,db}=fixture();await service.save(user,'exam',change);
