@@ -415,3 +415,64 @@
   .monitoring-room-card { padding: 12px; }
   .monitoring-room-card__subjects > li { white-space: normal; }
 }
+
+/* ── HP: filter & cari ikut tergulir ──
+   Toolbar filter global menempel (sticky) di HP. Di monitoring, isi tiap tab
+   (Peserta, Jawaban, Hasil, Analisis, Screenshot) berupa kartu dan tabel, jadi
+   pil cari yang melayang justru menutupi baris yang sedang dibaca. */
+@media (max-width: 639px) {
+  .monitoring-page .ftb-toolbar,
+  .monitoring-participants-workspace .ftb-toolbar {
+    position: static !important;
+    z-index: auto !important;
+  }
+}
+
+/* ── Analisis: pilihan "Klasikal/IRT/Analisis Materi" setebal teks filter lain ── */
+.monitoring-analysis-selector select.uisel-input { font-weight: 400; font-size: 13px; }
+
+/* ── Hasil: menu Export tidak terpotong di HP/iOS ──
+   Di HP tombol Export ada di kiri baris aksi, sedangkan menu w-72 berjangkar
+   ke kanan tombol — ia melebar ke luar tepi kiri layar dan terpotong. Di HP
+   menu dijangkarkan ke kotak toolbar (selebar toolbar), bukan ke tombolnya. */
+@media (max-width: 639px) {
+  .monitoring-results__toolbar { position: relative; }
+  .monitoring-results__actions > .monitoring-export { position: static; }
+  .monitoring-export__menu { top: 100%; left: 0; right: 0; width: auto; max-width: none; }
+}
+
+/* ── Per ruang (HP/tablet): kartu ruang ringkas ──
+   Tabel ruang memakai .mobile-data-cards yang menumpuk 7 sel bergaris per ruang.
+   Di sini disusun jadi kartu 3 baris: nama + tombol buka, kelas, lalu angka
+   kehadiran sebaris dengan pengawas. */
+@media (max-width: 1023.98px) {
+  .monitoring-room-table-wrap { border: 0; background: transparent; overflow: visible; }
+  .monitoring-room-table.mobile-data-cards tbody { padding: 0; gap: 8px; }
+  .monitoring-room-table.mobile-data-cards tbody tr {
+    grid-template-columns: auto auto auto minmax(0, 1fr);
+    align-items: center;
+    gap: 2px 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    box-shadow: none;
+  }
+  .monitoring-room-table.mobile-data-cards tbody td + td { padding-top: 0 !important; border-top: 0 !important; }
+  .monitoring-room-table.mobile-data-cards tbody td { font-size: 12px; line-height: 1.4; color: var(--monitoring-muted, #64748b); }
+  .monitoring-room-table.mobile-data-cards tbody td:nth-child(1) { grid-column: 1 / 4; grid-row: 1; }
+  .monitoring-room-table.mobile-data-cards tbody td:nth-child(7) { grid-column: 4; grid-row: 1 / 3; justify-self: end; width: auto; }
+  .monitoring-room-table.mobile-data-cards tbody td:nth-child(2) { grid-column: 1 / 4; grid-row: 2; }
+  .monitoring-room-table.mobile-data-cards tbody td:nth-child(3),
+  .monitoring-room-table.mobile-data-cards tbody td:nth-child(4),
+  .monitoring-room-table.mobile-data-cards tbody td:nth-child(5) { grid-row: 3; width: auto; margin-top: 4px; white-space: nowrap !important; font-weight: 600; }
+  .monitoring-room-table.mobile-data-cards tbody td:nth-child(3) { grid-column: 1; color: #2563eb; }
+  .monitoring-room-table.mobile-data-cards tbody td:nth-child(4) { grid-column: 2; color: #059669; }
+  .monitoring-room-table.mobile-data-cards tbody td:nth-child(5) { grid-column: 3; color: var(--monitoring-text, #334155); }
+  .monitoring-room-table.mobile-data-cards tbody td:nth-child(3)::after { content: ' mengerjakan'; }
+  .monitoring-room-table.mobile-data-cards tbody td:nth-child(4)::after { content: ' selesai'; }
+  .monitoring-room-table.mobile-data-cards tbody td:nth-child(5)::after { content: ' belum'; }
+  .monitoring-room-table.mobile-data-cards tbody td:nth-child(n+3):nth-child(-n+5)::after { font-weight: 400; color: var(--monitoring-muted, #64748b); }
+  .monitoring-room-table.mobile-data-cards tbody td:nth-child(6) { grid-column: 4; grid-row: 3; margin-top: 4px; text-align: right !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap !important; font-size: 11px; }
+  .monitoring-room-table .monitoring-room-name { min-width: 0; max-width: none; gap: 6px; font-size: 14px; }
+  .monitoring-room-table .monitoring-room-name button { min-height: 0; }
+  .monitoring-room-table.mobile-data-cards tbody td:last-child button.monitoring-room-open { min-height: 32px; padding: 5px 10px; font-size: 12px; }
+}

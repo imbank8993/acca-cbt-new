@@ -454,12 +454,12 @@ export function ParticipantsWorkspace({
                 <div className="monitoring-results__actions">
                     {(focusExam?.canCorrectKeys === true || (focusExam?.canManage === true && focusExam.canCorrectKeys !== false)) && focusId && <ExamKeyCorrectionButton key={focusId} examId={focusId} compactOnMobile onComplete={() => void onReload()} />}
                     {hasIrt && focusExam?.canManage === true && <Button variant="outline" size="sm" mobileIconOnly aria-label="Kalkulasi IRT" onClick={() => void calculateIrt()} disabled={busy} leftIcon={<Calculator size={14} />}>Kalkulasi IRT</Button>}
-                    <div ref={exportRef} className="relative">
+                    <div ref={exportRef} className="monitoring-export relative">
                         <Button variant="outline" size="sm" icon="export" aria-haspopup="menu" aria-expanded={exportOpen} onClick={() => setExportOpen(open => !open)} disabled={busy || !focusId}
                             rightIcon={<ChevronDown size={14} className={`transition-transform ${exportOpen ? 'rotate-180' : ''}`} aria-hidden="true" />}>
                             {busy ? 'Menyiapkan…' : 'Export'}
                         </Button>
-                        {exportOpen && <div role="menu" aria-label="Export hasil" className="absolute right-0 z-20 mt-1.5 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+                        {exportOpen && <div role="menu" aria-label="Export hasil" className="monitoring-export__menu absolute right-0 z-20 mt-1.5 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
                             {([['excel', 'Excel (data lengkap)', 'Rekap nilai, jawaban siswa, analisis butir, pengecoh, parameter IRT'],
                                 ['pdf-soal', 'PDF Analisis Soal', 'Ringkasan kelas, hasil per bentuk soal, materi, dan kualitas tiap soal'],
                                 ['pdf-siswa', 'PDF Laporan Siswa', 'Satu halaman per siswa untuk siswa dan orang tua']] as const)
